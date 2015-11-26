@@ -1,4 +1,4 @@
-/*	$OpenBSD: server_http.c,v 1.79 2015/05/03 18:39:58 florian Exp $	*/
+/*	$OpenBSD: server_http.c,v 1.99 2015/09/07 14:46:24 reyk Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -29,14 +29,17 @@
 #include <string.h>
 #include <unistd.h>
 #include <limits.h>
+#include <fnmatch.h>
 #include <stdio.h>
 #include <time.h>
 #include <resolv.h>
 #include <event.h>
-#include <fnmatch.h>
+#include <ctype.h>
+#include <vis.h>
 
 #include "httpd.h"
 #include "http.h"
+#include "patterns.h"
 
 static int	 server_httpmethod_cmp(const void *, const void *);
 static int	 server_httperror_cmp(const void *, const void *);
@@ -131,7 +134,7 @@ server_http_authenticate(struct server_config *srv_conf, struct client *clt)
 	char			 decoded[1024];
 	FILE			*fp = NULL;
 	struct http_descriptor	*desc = clt->clt_descreq;
-	struct auth		*auth = srv_conf->auth;
+	const struct auth	*auth = srv_conf->auth;
 	struct kv		*ba, key;
 	size_t			 linesize = 0;
 	ssize_t			 linelen;
@@ -149,7 +152,7 @@ server_http_authenticate(struct server_config *srv_conf, struct client *clt)
 	if (strncmp(ba->kv_value, "Basic ", strlen("Basic ")) != 0)
 		goto done;
 
-	if (b64_pton(strchr(ba->kv_value, ' ') + 1, (u_int8_t *)decoded,
+	if (b64_pton(strchr(ba->kv_value, ' ') + 1, (uint8_t *)decoded,
 	    sizeof(decoded)) <= 0)
 		goto done;
 
@@ -385,6 +388,7 @@ server_read_http(struct bufferevent *bev, void *arg)
 		case HTTP_METHOD_OPTIONS:
 		/* WebDAV methods */
 		case HTTP_METHOD_COPY:
+		case HTTP_METHOD_MOVE:
 			clt->clt_toread = 0;
 			break;
 		case HTTP_METHOD_POST:
@@ -633,6 +637,7 @@ server_reset_http(struct client *clt)
 	clt->clt_remote_user = NULL;
 	clt->clt_bev->readcb = server_read_http;
 	clt->clt_srv_conf = &srv->srv_conf;
+	str_match_free(&clt->clt_srv_match);
 }
 
 ssize_t
@@ -729,16 +734,16 @@ server_http_parsehost(char *host, char *buf, size_t len, int *portval)
 }
 
 void
-server_abort_http(struct client *clt, u_int code, const char *msg)
+server_abort_http(struct client *clt, unsigned int code, const char *msg)
 {
-	struct server		*srv = clt->clt_srv;
-	struct server_config	*srv_conf = &srv->srv_conf;
+	struct server_config	*srv_conf = clt->clt_srv_conf;
 	struct bufferevent	*bev = clt->clt_bev;
 	struct http_descriptor	*desc = clt->clt_descreq;
 	const char		*httperr = NULL, *style;
 	char			*httpmsg, *body = NULL, *extraheader = NULL;
-	char			 tmbuf[32], hbuf[128];
-	char			 buf[IBUF_READ_SIZE], *ptr = NULL;
+	char			 tmbuf[32], hbuf[128], *hstsheader = NULL;
+	char			 buf[IBUF_READ_SIZE];
+	char			*escapedmsg = NULL;
 	int			 bodylen;
 
 	if (code == 0) {
@@ -770,20 +775,21 @@ server_abort_http(struct client *clt, u_int code, const char *msg)
 		if (msg == NULL)
 			break;
 		memset(buf, 0, sizeof(buf));
-		if ((ptr = server_expand_http(clt, msg,
-		    buf, sizeof(buf))) == NULL)
+		if (server_expand_http(clt, msg, buf, sizeof(buf)) == NULL)
 			goto done;
-		if ((ptr = url_encode(ptr)) == NULL)
-			goto done;
-		if (asprintf(&extraheader, "Location: %s\r\n", ptr) == -1) {
+		if (asprintf(&extraheader, "Location: %s\r\n", buf) == -1) {
 			code = 500;
 			extraheader = NULL;
 		}
-		msg = ptr;
+		msg = buf;
 		break;
 	case 401:
-		if (asprintf(&extraheader,
-		    "WWW-Authenticate: Basic realm=\"%s\"\r\n", msg) == -1) {
+		if (stravis(&escapedmsg, msg, VIS_DQ) == -1) {
+			code = 500;
+			extraheader = NULL;
+		} else if (asprintf(&extraheader,
+		    "WWW-Authenticate: Basic realm=\"%s\"\r\n", escapedmsg)
+		    == -1) {
 			code = 500;
 			extraheader = NULL;
 		}
@@ -806,6 +812,8 @@ server_abort_http(struct client *clt, u_int code, const char *msg)
 		break;
 	}
 
+	free(escapedmsg);
+
 	/* A CSS stylesheet allows minimal customization by the user */
 	style = "body { background-color: white; color: black; font-family: "
 	    "'Comic Sans MS', 'Chalkboard SE', 'Comic Neue', sans-serif; }\n"
@@ -827,6 +835,16 @@ server_abort_http(struct client *clt, u_int code, const char *msg)
 	    code, httperr, style, code, httperr, HTTPD_SERVERNAME)) == -1)
 		goto done;
 
+	if (srv_conf->flags & SRVFLAG_SERVER_HSTS) {
+		if (asprintf(&hstsheader, "Strict-Transport-Security: "
+		    "max-age=%d%s%s\r\n", srv_conf->hsts_max_age,
+		    srv_conf->hsts_flags & HSTSFLAG_SUBDOMAINS ?
+		    "; includeSubDomains" : "",
+		    srv_conf->hsts_flags & HSTSFLAG_PRELOAD ?
+		    "; preload" : "") == -1)
+			goto done;
+	}
+
 	/* Add basic HTTP headers */
 	if (asprintf(&httpmsg,
 	    "HTTP/1.0 %03d %s\r\n"
@@ -836,10 +854,12 @@ server_abort_http(struct client *clt, u_int code, const char *msg)
 	    "Content-Type: text/html\r\n"
 	    "Content-Length: %d\r\n"
 	    "%s"
+	    "%s"
 	    "\r\n"
 	    "%s",
 	    code, httperr, tmbuf, HTTPD_SERVERNAME, bodylen,
 	    extraheader == NULL ? "" : extraheader,
+	    hstsheader == NULL ? "" : hstsheader,
 	    desc->http_method == HTTP_METHOD_HEAD ? "" : body) == -1)
 		goto done;
 
@@ -850,6 +870,7 @@ server_abort_http(struct client *clt, u_int code, const char *msg)
  done:
 	free(body);
 	free(extraheader);
+	free(hstsheader);
 	if (msg == NULL)
 		msg = "\"\"";
 	if (asprintf(&httpmsg, "%s (%03d %s)", msg, code, httperr) == -1) {
@@ -858,7 +879,6 @@ server_abort_http(struct client *clt, u_int code, const char *msg)
 		server_close(clt, httpmsg);
 		free(httpmsg);
 	}
-	free(ptr);
 }
 
 void
@@ -877,6 +897,8 @@ server_close_http(struct client *clt)
 	clt->clt_descresp = NULL;
 	free(clt->clt_remote_user);
 	clt->clt_remote_user = NULL;
+
+	str_match_free(&clt->clt_srv_match);
 }
 
 char *
@@ -885,20 +907,56 @@ server_expand_http(struct client *clt, const char *val, char *buf,
 {
 	struct http_descriptor	*desc = clt->clt_descreq;
 	struct server_config	*srv_conf = clt->clt_srv_conf;
-	char			 ibuf[128], *str;
+	char			 ibuf[128], *str, *path, *query;
+	const char		*errstr = NULL, *p;
+	size_t			 size;
+	int			 n, ret;
 
 	if (strlcpy(buf, val, len) >= len)
 		return (NULL);
 
+	/* Find previously matched substrings by index */
+	for (p = val; clt->clt_srv_match.sm_nmatch &&
+	    (p = strstr(p, "%")) != NULL; p++) {
+		if (!isdigit(*(p + 1)))
+			continue;
+
+		/* Copy number, leading '%' char and add trailing \0 */
+		size = strspn(p + 1, "0123456789") + 2;
+		if (size  >= sizeof(ibuf))
+			return (NULL);
+		(void)strlcpy(ibuf, p, size);
+		n = strtonum(ibuf + 1, 0,
+		    clt->clt_srv_match.sm_nmatch - 1, &errstr);
+		if (errstr != NULL)
+			return (NULL);
+
+		/* Expand variable with matched value */
+		if ((str = url_encode(clt->clt_srv_match.sm_match[n])) == NULL)
+			return (NULL);
+		ret = expand_string(buf, len, ibuf, str);
+		free(str);
+		if (ret != 0)
+			return (NULL);
+	}
 	if (strstr(val, "$DOCUMENT_URI") != NULL) {
-		if (expand_string(buf, len, "$DOCUMENT_URI",
-		    desc->http_path) != 0)
+		if ((path = url_encode(desc->http_path)) == NULL)
+			return (NULL);
+		ret = expand_string(buf, len, "$DOCUMENT_URI", path);
+		free(path);
+		if (ret != 0)
 			return (NULL);
 	}
 	if (strstr(val, "$QUERY_STRING") != NULL) {
-		if (expand_string(buf, len, "$QUERY_STRING",
-		    desc->http_query == NULL ? "" :
-		    desc->http_query) != 0)
+		if (desc->http_query == NULL) {
+			ret = expand_string(buf, len, "$QUERY_STRING", "");
+		} else {
+			if ((query = url_encode(desc->http_query)) == NULL)
+				return (NULL);
+			ret = expand_string(buf, len, "$QUERY_STRING", query);
+			free(query);
+		}
+		if (ret != 0)
 			return (NULL);
 	}
 	if (strstr(val, "$REMOTE_") != NULL) {
@@ -919,27 +977,39 @@ server_expand_http(struct client *clt, const char *val, char *buf,
 		}
 		if (strstr(val, "$REMOTE_USER") != NULL) {
 			if ((srv_conf->flags & SRVFLAG_AUTH) &&
-			    clt->clt_remote_user != NULL)
-				str = clt->clt_remote_user;
-			else
-				str = "";
-			if (expand_string(buf, len,
-			    "$REMOTE_USER", str) != 0)
+			    clt->clt_remote_user != NULL) {
+				if ((str = url_encode(clt->clt_remote_user))
+				    == NULL)
+					return (NULL);
+			} else
+				str = strdup("");
+			ret = expand_string(buf, len, "$REMOTE_USER", str);
+			free(str);
+			if (ret != 0)
 				return (NULL);
 		}
 	}
 	if (strstr(val, "$REQUEST_URI") != NULL) {
+		if ((path = url_encode(desc->http_path)) == NULL)
+			return (NULL);
 		if (desc->http_query == NULL) {
-			if ((str = strdup(desc->http_path)) == NULL)
+			str = path;
+		} else {
+			if ((query = url_encode(desc->http_query)) == NULL) {
+				free(path);
 				return (NULL);
-		} else if (asprintf(&str, "%s?%s",
-		    desc->http_path, desc->http_query) == -1)
-			return (NULL);
-		if (expand_string(buf, len, "$REQUEST_URI", str) != 0) {
-			free(str);
-			return (NULL);
+			}
+			ret = asprintf(&str, "%s?%s", path, query);
+			free(path);
+			free(query);
+			if (ret == -1)
+				return (NULL);
 		}
+
+		ret = expand_string(buf, len, "$REQUEST_URI", str);
 		free(str);
+		if (ret != 0)
+			return (NULL);
 	}
 	if (strstr(val, "$SERVER_") != NULL) {
 		if (strstr(val, "$SERVER_ADDR") != NULL) {
@@ -958,8 +1028,12 @@ server_expand_http(struct client *clt, const char *val, char *buf,
 				return (NULL);
 		}
 		if (strstr(val, "$SERVER_NAME") != NULL) {
-			if (expand_string(buf, len,
-			    "$SERVER_NAME", srv_conf->name) != 0)
+			if ((str = url_encode(srv_conf->name))
+			     == NULL)
+				return (NULL);
+			ret = expand_string(buf, len, "$SERVER_NAME", str);
+			free(str);
+			if (ret != 0)
 				return (NULL);
 		}
 	}
@@ -977,8 +1051,10 @@ server_response(struct httpd *httpd, struct client *clt)
 	struct server		*srv = clt->clt_srv;
 	struct server_config	*srv_conf = &srv->srv_conf;
 	struct kv		*kv, key, *host;
-	int			 portval = -1;
+	struct str_find		 sm;
+	int			 portval = -1, ret;
 	char			*hostval;
+	const char		*errstr = NULL;
 
 	/* Canonicalize the request path */
 	if (desc->http_path == NULL ||
@@ -1038,9 +1114,17 @@ server_response(struct httpd *httpd, struct client *clt)
 				    hostname);
 			}
 #endif
-			if ((srv_conf->flags & SRVFLAG_LOCATION) == 0 &&
-			    fnmatch(srv_conf->name, hostname,
-			    FNM_CASEFOLD) == 0 &&
+			if (srv_conf->flags & SRVFLAG_LOCATION)
+				continue;
+			else if (srv_conf->flags & SRVFLAG_SERVER_MATCH) {
+				str_find(hostname, srv_conf->name,
+				    &sm, 1, &errstr);
+				ret = errstr == NULL ? 0 : -1;
+			} else {
+				ret = fnmatch(srv_conf->name,
+				    hostname, FNM_CASEFOLD);
+			}
+			if (ret == 0 &&
 			    (portval == -1 ||
 			    (portval != -1 && portval == srv_conf->port))) {
 				/* Replace host configuration */
@@ -1110,6 +1194,8 @@ server_getlocation(struct client *clt, const char *path)
 {
 	struct server		*srv = clt->clt_srv;
 	struct server_config	*srv_conf = clt->clt_srv_conf, *location;
+	const char		*errstr = NULL;
+	int			 ret;
 
 	/* Now search for the location */
 	TAILQ_FOREACH(location, &srv->srv_hosts, entry) {
@@ -1120,11 +1206,20 @@ server_getlocation(struct client *clt, const char *path)
 		}
 #endif
 		if ((location->flags & SRVFLAG_LOCATION) &&
-		    location->parent_id == srv_conf->parent_id &&
-		    fnmatch(location->location, path, FNM_CASEFOLD) == 0) {
-			/* Replace host configuration */
-			clt->clt_srv_conf = srv_conf = location;
-			break;
+		    location->parent_id == srv_conf->parent_id) {
+			errstr = NULL;
+			if (location->flags & SRVFLAG_LOCATION_MATCH) {
+				ret = str_match(path, location->location,
+				    &clt->clt_srv_match, &errstr);
+			} else {
+				ret = fnmatch(location->location,
+				    path, FNM_CASEFOLD);
+			}
+			if (ret == 0 && errstr == NULL) {
+				/* Replace host configuration */
+				clt->clt_srv_conf = srv_conf = location;
+				break;
+			}
 		}
 	}
 
@@ -1132,23 +1227,25 @@ server_getlocation(struct client *clt, const char *path)
 }
 
 int
-server_response_http(struct client *clt, u_int code,
-    struct media_type *media, size_t size, time_t mtime)
+server_response_http(struct client *clt, unsigned int code,
+    struct media_type *media, off_t size, time_t mtime)
 {
+	struct server_config	*srv_conf = clt->clt_srv_conf;
 	struct http_descriptor	*desc = clt->clt_descreq;
 	struct http_descriptor	*resp = clt->clt_descresp;
 	const char		*error;
 	struct kv		*ct, *cl;
 	char			 tmbuf[32];
 
-	if (desc == NULL || (error = server_httperror_byid(code)) == NULL)
+	if (desc == NULL || media == NULL ||
+	    (error = server_httperror_byid(code)) == NULL)
 		return (-1);
 
 	if (server_log_http(clt, code, size) == -1)
 		return (-1);
 
 	/* Add error codes */
-	if (kv_setkey(&resp->http_pathquery, "%lu", code) == -1 ||
+	if (kv_setkey(&resp->http_pathquery, "%u", code) == -1 ||
 	    kv_set(&resp->http_pathquery, "%s", error) == -1)
 		return (-1);
 
@@ -1166,21 +1263,32 @@ server_response_http(struct client *clt, u_int code,
 
 	/* Set media type */
 	if ((ct = kv_add(&resp->http_headers, "Content-Type", NULL)) == NULL ||
-	    kv_set(ct, "%s/%s",
-	    media == NULL ? "application" : media->media_type,
-	    media == NULL ? "octet-stream" : media->media_subtype) == -1)
+	    kv_set(ct, "%s/%s", media->media_type, media->media_subtype) == -1)
 		return (-1);
 
 	/* Set content length, if specified */
 	if ((cl =
 	    kv_add(&resp->http_headers, "Content-Length", NULL)) == NULL ||
-	    kv_set(cl, "%ld", size) == -1)
+	    kv_set(cl, "%lld", (long long)size) == -1)
 		return (-1);
 
 	/* Set last modification time */
 	if (server_http_time(mtime, tmbuf, sizeof(tmbuf)) <= 0 ||
 	    kv_add(&resp->http_headers, "Last-Modified", tmbuf) == NULL)
 		return (-1);
+
+	/* HSTS header */
+	if (srv_conf->flags & SRVFLAG_SERVER_HSTS) {
+		if ((cl =
+		    kv_add(&resp->http_headers, "Strict-Transport-Security",
+		    NULL)) == NULL ||
+		    kv_set(cl, "max-age=%d%s%s", srv_conf->hsts_max_age,
+		    srv_conf->hsts_flags & HSTSFLAG_SUBDOMAINS ?
+		    "; includeSubDomains" : "",
+		    srv_conf->hsts_flags & HSTSFLAG_PRELOAD ?
+		    "; preload" : "") == -1)
+			return (-1);
+	}
 
 	/* Date header is mandatory and should be added as late as possible */
 	if (server_http_time(time(NULL), tmbuf, sizeof(tmbuf)) <= 0 ||
@@ -1290,7 +1398,7 @@ server_httpmethod_byname(const char *name)
 }
 
 const char *
-server_httpmethod_byid(u_int id)
+server_httpmethod_byid(unsigned int id)
 {
 	const char	*name = "<UNKNOWN>";
 	int		 i;
@@ -1319,7 +1427,7 @@ server_httpmethod_cmp(const void *a, const void *b)
 }
 
 const char *
-server_httperror_byid(u_int id)
+server_httperror_byid(unsigned int id)
 {
 	struct http_error	 error, *res;
 
@@ -1343,7 +1451,7 @@ server_httperror_cmp(const void *a, const void *b)
 }
 
 int
-server_log_http(struct client *clt, u_int code, size_t len)
+server_log_http(struct client *clt, unsigned int code, size_t len)
 {
 	static char		 tstamp[64];
 	static char		 ip[INET6_ADDRSTRLEN];
@@ -1352,6 +1460,13 @@ server_log_http(struct client *clt, u_int code, size_t len)
 	struct tm		*tm;
 	struct server_config	*srv_conf;
 	struct http_descriptor	*desc;
+	int			 ret = -1;
+	char			*user = NULL;
+	char			*path = NULL;
+	char			*query = NULL;
+	char			*version = NULL;
+	char			*referrer_v = NULL;
+	char			*agent_v = NULL;
 
 	if ((srv_conf = clt->clt_srv_conf) == NULL)
 		return (-1);
@@ -1380,18 +1495,34 @@ server_log_http(struct client *clt, u_int code, size_t len)
 	 */
 	switch (srv_conf->logformat) {
 	case LOG_FORMAT_COMMON:
-		if (evbuffer_add_printf(clt->clt_log,
+		/* Use vis to encode input values from the header */
+		if (clt->clt_remote_user &&
+		    stravis(&user, clt->clt_remote_user, HTTPD_LOGVIS) == -1)
+			goto done;
+		if (desc->http_version &&
+		    stravis(&version, desc->http_version, HTTPD_LOGVIS) == -1)
+			goto done;
+
+		/* The following should be URL-encoded */
+		if (desc->http_path &&
+		    (path = url_encode(desc->http_path)) == NULL)
+			goto done;
+		if (desc->http_query &&
+		    (query = url_encode(desc->http_query)) == NULL)
+			goto done;
+
+		ret = evbuffer_add_printf(clt->clt_log,
 		    "%s %s - %s [%s] \"%s %s%s%s%s%s\" %03d %zu\n",
 		    srv_conf->name, ip, clt->clt_remote_user == NULL ? "-" :
-		    clt->clt_remote_user, tstamp,
+		    user, tstamp,
 		    server_httpmethod_byid(desc->http_method),
-		    desc->http_path == NULL ? "" : desc->http_path,
+		    desc->http_path == NULL ? "" : path,
 		    desc->http_query == NULL ? "" : "?",
-		    desc->http_query == NULL ? "" : desc->http_query,
+		    desc->http_query == NULL ? "" : query,
 		    desc->http_version == NULL ? "" : " ",
-		    desc->http_version == NULL ? "" : desc->http_version,
-		    code, len) == -1)
-			return (-1);
+		    desc->http_version == NULL ? "" : version,
+		    code, len);
+
 		break;
 
 	case LOG_FORMAT_COMBINED:
@@ -1405,29 +1536,64 @@ server_log_http(struct client *clt, u_int code, size_t len)
 		    agent->kv_value == NULL)
 			agent = NULL;
 
-		if (evbuffer_add_printf(clt->clt_log,
+		/* Use vis to encode input values from the header */
+		if (clt->clt_remote_user &&
+		    stravis(&user, clt->clt_remote_user, HTTPD_LOGVIS) == -1)
+			goto done;
+		if (desc->http_version &&
+		    stravis(&version, desc->http_version, HTTPD_LOGVIS) == -1)
+			goto done;
+		if (agent &&
+		    stravis(&agent_v, agent->kv_value, HTTPD_LOGVIS) == -1)
+			goto done;
+
+		/* The following should be URL-encoded */
+		if (desc->http_path &&
+		    (path = url_encode(desc->http_path)) == NULL)
+			goto done;
+		if (desc->http_query &&
+		    (query = url_encode(desc->http_query)) == NULL)
+			goto done;
+		if (referrer &&
+		    (referrer_v = url_encode(referrer->kv_value)) == NULL)
+			goto done;
+
+		ret = evbuffer_add_printf(clt->clt_log,
 		    "%s %s - %s [%s] \"%s %s%s%s%s%s\""
 		    " %03d %zu \"%s\" \"%s\"\n",
 		    srv_conf->name, ip, clt->clt_remote_user == NULL ? "-" :
-		    clt->clt_remote_user, tstamp,
+		    user, tstamp,
 		    server_httpmethod_byid(desc->http_method),
-		    desc->http_path == NULL ? "" : desc->http_path,
+		    desc->http_path == NULL ? "" : path,
 		    desc->http_query == NULL ? "" : "?",
-		    desc->http_query == NULL ? "" : desc->http_query,
+		    desc->http_query == NULL ? "" : query,
 		    desc->http_version == NULL ? "" : " ",
-		    desc->http_version == NULL ? "" : desc->http_version,
+		    desc->http_version == NULL ? "" : version,
 		    code, len,
-		    referrer == NULL ? "" : referrer->kv_value,
-		    agent == NULL ? "" : agent->kv_value) == -1)
-			return (-1);
+		    referrer == NULL ? "" : referrer_v,
+		    agent == NULL ? "" : agent_v);
+
 		break;
 
 	case LOG_FORMAT_CONNECTION:
-		if (evbuffer_add_printf(clt->clt_log, " [%s]",
-		    desc->http_path == NULL ? "" : desc->http_path) == -1)
-			return (-1);
+		/* URL-encode the path */
+		if (desc->http_path &&
+		    (path = url_encode(desc->http_path)) == NULL)
+			goto done;
+
+		ret = evbuffer_add_printf(clt->clt_log, " [%s]",
+		    desc->http_path == NULL ? "" : path);
+
 		break;
 	}
 
-	return (0);
+done:
+	free(user);
+	free(path);
+	free(query);
+	free(version);
+	free(referrer_v);
+	free(agent_v);
+
+	return (ret);
 }

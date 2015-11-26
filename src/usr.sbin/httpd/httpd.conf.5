@@ -1,4 +1,4 @@
-.\"	$OpenBSD: httpd.conf.5,v 1.57 2015/03/26 19:16:57 jmc Exp $
+.\"	$OpenBSD: httpd.conf.5,v 1.68 2015/07/19 05:17:27 reyk Exp $
 .\"
 .\" Copyright (c) 2014, 2015 Reyk Floeter <reyk@openbsd.org>
 .\"
@@ -14,7 +14,7 @@
 .\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 .\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 .\"
-.Dd $Mdocdate: March 26 2015 $
+.Dd $Mdocdate: July 19 2015 $
 .Dt HTTPD.CONF 5
 .Os
 .Sh NAME
@@ -112,6 +112,15 @@ directory.
 If not specified, it defaults to
 .Pa /var/www ,
 the home directory of the www user.
+.It Ic default type Ar type/subtype
+Set the default media type that is used if the media type for a
+specified extension is not found in the configured types or for files
+without a file extension;
+see the
+.Sx TYPES
+section below.
+If not specified, the default type is set to
+.Ar application/octet-stream .
 .It Ic logdir Ar directory
 Specifies the full path of the directory in which log files will be written.
 If not specified, it defaults to
@@ -131,14 +140,38 @@ The configured web servers.
 .Pp
 Each
 .Ic server
-must have a
-.Ar name
-and include one or more lines of the following syntax:
+section starts with a declaration of the server
+.Ar name :
+.Bl -tag -width Ds
+.It Ic server Ar name Brq ...
+Match the server name using shell globbing rules.
+This can be an explicit name,
+.Ar www.example.com ,
+or a name including wildcards,
+.Ar *.example.com .
+.It Ic server match Ar name Brq ...
+Match the server name using pattern matching,
+see
+.Xr patterns 7 .
+.El
+.Pp
+Followed by a block of options that is enclosed in curly brackets:
 .Bl -tag -width Ds
 .It Ic alias Ar name
 Specify an additional alias
 .Ar name
 for this server.
+.It Ic alias match Ar name
+Like the
+.Ic alias
+option,
+but
+.Ic match
+the
+.Ar name
+using pattern matching instead of shell globbing rules,
+see
+.Xr patterns 7 .
 .It Oo Ic no Oc Ic authenticate Oo Ar realm Oc Ic with Pa htpasswd
 Authenticate a remote user for
 .Ar realm
@@ -152,7 +185,7 @@ Use the
 directive to disable authentication in a location.
 .It Ic block drop
 Drop the connection without sending an error page.
-.It Ic block Op Ic return Ar code Op uri
+.It Ic block Op Ic return Ar code Op Ar uri
 Close the connection and send an error page.
 If the optional return code is not specified,
 .Xr httpd 8
@@ -166,7 +199,7 @@ argument can be used with return codes in the 3xx range to send a
 header for redirection to a specified URI.
 .Pp
 The
-.Ar url
+.Ar uri
 may contain predefined macros that will be expanded at runtime:
 .Pp
 .Bl -tag -width $DOCUMENT_URI -offset indent -compact
@@ -188,6 +221,12 @@ The configured IP address of the server.
 The configured TCP server port of the server.
 .It Ic $SERVER_NAME
 The name of the server.
+.It Pf % Ar n
+The capture index
+.Ar n
+of a string that was captured by the enclosing
+.Ic location match
+option.
 .El
 .It Ic connection Ar option
 Set the specified options and limits for HTTP connections.
@@ -206,6 +245,9 @@ Specify the inactivity timeout in seconds for accepted sessions.
 The default timeout is 600 seconds (10 minutes).
 The maximum is 2147483647 seconds (68 years).
 .El
+.It Ic default type Ar type/subtype
+Set the default media type for the specified location,
+overwriting the global setting.
 .It Ic directory Ar option
 Set the specified options when serving or accessing directories.
 Valid options are:
@@ -232,6 +274,21 @@ root directory of
 .Xr httpd 8
 and defaults to
 .Pa /run/slowcgi.sock .
+.It Ic hsts Oo Ar option Oc
+Enable HTTP Strict Transport Security.
+Valid options are:
+.Bl -tag -width Ds
+.It Ic max-age Ar seconds
+Set the maximum time in seconds a receiving user agent should regard
+this host as an HSTS host.
+The default is one year.
+.It Ic preload
+Confirm and authenticate that the site is permitted to be included in
+a browser's preload list.
+.It Ic subdomains
+Signal to the receiving user agent that this host and all sub domains
+of the host's domain should be considered HSTS hosts.
+.El
 .It Ic listen on Ar address Oo Ic tls Oc Ic port Ar number
 Set the listen address and port.
 This statement can be specified multiple times.
@@ -247,6 +304,22 @@ except
 .Ic location
 and
 .Ic tcp .
+.It Ic location match Ar path Brq ...
+Like the
+.Ic location
+option,
+but
+.Ic match
+the
+.Ar path
+using pattern matching instead of shell globbing rules,
+see
+.Xr patterns 7 .
+The pattern may contain captures that can be used in the
+.Ar uri
+of an enclosed
+.Ic block return
+option.
 .It Oo Ic no Oc Ic log Op Ar option
 Set the specified logging options.
 Logging is enabled by default using the standard
@@ -366,6 +439,8 @@ Specify the certificate to use for this server.
 The
 .Ar file
 should contain a PEM encoded certificate.
+The default is
+.Pa /etc/ssl/server.crt .
 .It Ic ciphers Ar string
 Specify the TLS cipher string.
 If not specified, the default value
@@ -392,6 +467,8 @@ should contain a PEM encoded private key and reside outside of the
 .Xr chroot 2
 root directory of
 .Nm httpd .
+The default is
+.Pa /etc/ssl/private/server.key .
 .It Ic protocols Ar string
 Specify the TLS protocols to enable for this server.
 If not specified, the value
@@ -451,14 +528,14 @@ server "default" {
 }
 
 types {
-	text/css			css
-	text/html			htm html
-	text/txt			txt
-	image/gif			gif
-	image/jpeg			jpg jpeg
-	image/png			png
-	application/javascript		js
-	application/xml			xml
+	text/css		css
+	text/html		html htm
+	text/txt		txt
+	image/gif		gif
+	image/jpeg		jpeg jpg
+	image/png		png
+	application/javascript	js
+	application/xml		xml
 }
 .Ed
 .Pp
@@ -514,16 +591,9 @@ server "www.example.com" {
 	listen on 10.0.0.1 port 80
 }
 .Ed
-.Pp
-The syntax of the types section is also compatible with the format
-used by nginx, so it is possible to include its
-.Pa mime.types
-file directly:
-.Bd -literal -offset indent
-include "/etc/nginx/mime.types"
-.Ed
 .Sh SEE ALSO
 .Xr htpasswd 1 ,
+.Xr patterns 7 ,
 .Xr httpd 8 ,
 .Xr slowcgi 8
 .Sh AUTHORS

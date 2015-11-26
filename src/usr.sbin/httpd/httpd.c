@@ -1,4 +1,4 @@
-/*	$OpenBSD: httpd.c,v 1.35 2015/02/23 18:43:18 reyk Exp $	*/
+/*	$OpenBSD: httpd.c,v 1.39 2015/08/20 13:00:23 reyk Exp $	*/
 
 /*
  * Copyright (c) 2014 Reyk Floeter <reyk@openbsd.org>
@@ -49,7 +49,7 @@ __dead void	 usage(void);
 
 int		 parent_configure(struct httpd *);
 void		 parent_configure_done(struct httpd *);
-void		 parent_reload(struct httpd *, u_int, const char *);
+void		 parent_reload(struct httpd *, unsigned int, const char *);
 void		 parent_reopen(struct httpd *);
 void		 parent_sig_handler(int, short, void *);
 void		 parent_shutdown(struct httpd *);
@@ -80,6 +80,8 @@ parent_sig_handler(int sig, short event, void *arg)
 		/* FALLTHROUGH */
 	case SIGCHLD:
 		do {
+			int len;
+
 			pid = waitpid(WAIT_ANY, &status, WNOHANG);
 			if (pid <= 0)
 				continue;
@@ -87,16 +89,20 @@ parent_sig_handler(int sig, short event, void *arg)
 			fail = 0;
 			if (WIFSIGNALED(status)) {
 				fail = 1;
-				asprintf(&cause, "terminated; signal %d",
+				len = asprintf(&cause, "terminated; signal %d",
 				    WTERMSIG(status));
 			} else if (WIFEXITED(status)) {
 				if (WEXITSTATUS(status) != 0) {
 					fail = 1;
-					asprintf(&cause, "exited abnormally");
+					len = asprintf(&cause,
+					    "exited abnormally");
 				} else
-					asprintf(&cause, "exited okay");
+					len = asprintf(&cause, "exited okay");
 			} else
 				fatalx("unexpected cause of SIGCHLD");
+
+			if (len == -1)
+				fatal("asprintf");
 
 			die = 1;
 
@@ -152,7 +158,7 @@ main(int argc, char *argv[])
 	int			 c;
 	unsigned int		 proc;
 	int			 debug = 0, verbose = 0;
-	u_int32_t		 opts = 0;
+	uint32_t		 opts = 0;
 	struct httpd		*env;
 	struct privsep		*ps;
 	const char		*conffile = CONF_FILE;
@@ -210,7 +216,7 @@ main(int argc, char *argv[])
 		errx(1, "unknown user %s", HTTPD_USER);
 
 	/* Configure the control socket */
-	ps->ps_csock.cs_name = HTTPD_SOCKET;
+	ps->ps_csock.cs_name = NULL;
 
 	log_init(debug);
 	log_verbose(verbose);
@@ -336,7 +342,7 @@ parent_configure(struct httpd *env)
 }
 
 void
-parent_reload(struct httpd *env, u_int reset, const char *filename)
+parent_reload(struct httpd *env, unsigned int reset, const char *filename)
 {
 	if (env->sc_reload) {
 		log_debug("%s: already in progress: %d pending",
@@ -404,6 +410,8 @@ parent_shutdown(struct httpd *env)
 
 	proc_kill(env->sc_ps);
 	control_cleanup(&env->sc_ps->ps_csock);
+	if (env->sc_ps->ps_csock.cs_name != NULL)
+		(void)unlink(env->sc_ps->ps_csock.cs_name);
 
 	free(env->sc_ps);
 	free(env);
@@ -433,7 +441,7 @@ int
 parent_dispatch_logger(int fd, struct privsep_proc *p, struct imsg *imsg)
 {
 	struct httpd		*env = p->p_env;
-	u_int			 v;
+	unsigned int		 v;
 	char			*str = NULL;
 
 	switch (imsg->hdr.type) {
@@ -583,9 +591,9 @@ canonicalize_host(const char *host, char *name, size_t len)
 const char *
 url_decode(char *url)
 {
-	char	*p, *q;
-	char	 hex[3];
-	u_long	 x;
+	char		*p, *q;
+	char		 hex[3];
+	unsigned long	 x;
 
 	hex[2] = '\0';
 	p = q = url;
@@ -784,7 +792,7 @@ socket_rlimit(int maxfd)
 char *
 evbuffer_getline(struct evbuffer *evb)
 {
-	u_int8_t	*ptr = EVBUFFER_DATA(evb);
+	uint8_t		*ptr = EVBUFFER_DATA(evb);
 	size_t		 len = EVBUFFER_LENGTH(evb);
 	char		*str;
 	size_t		 i;
@@ -816,7 +824,7 @@ evbuffer_getline(struct evbuffer *evb)
 }
 
 char *
-get_string(u_int8_t *ptr, size_t len)
+get_string(uint8_t *ptr, size_t len)
 {
 	size_t	 i;
 	char	*str;
@@ -833,9 +841,9 @@ get_string(u_int8_t *ptr, size_t len)
 }
 
 void *
-get_data(u_int8_t *ptr, size_t len)
+get_data(uint8_t *ptr, size_t len)
 {
-	u_int8_t	*data;
+	uint8_t		*data;
 
 	if ((data = calloc(1, len)) == NULL)
 		return (NULL);
@@ -849,7 +857,7 @@ sockaddr_cmp(struct sockaddr *a, struct sockaddr *b, int prefixlen)
 {
 	struct sockaddr_in	*a4, *b4;
 	struct sockaddr_in6	*a6, *b6;
-	u_int32_t		 av[4], bv[4], mv[4];
+	uint32_t		 av[4], bv[4], mv[4];
 
 	if (a->sa_family == AF_UNSPEC || b->sa_family == AF_UNSPEC)
 		return (0);
@@ -907,8 +915,8 @@ sockaddr_cmp(struct sockaddr *a, struct sockaddr *b, int prefixlen)
 	return (0);
 }
 
-u_int32_t
-prefixlen2mask(u_int8_t prefixlen)
+uint32_t
+prefixlen2mask(uint8_t prefixlen)
 {
 	if (prefixlen == 0)
 		return (0);
@@ -920,7 +928,7 @@ prefixlen2mask(u_int8_t prefixlen)
 }
 
 struct in6_addr *
-prefixlen2mask6(u_int8_t prefixlen, u_int32_t *mask)
+prefixlen2mask6(uint8_t prefixlen, uint32_t *mask)
 {
 	static struct in6_addr  s6;
 	int			i;
@@ -1209,7 +1217,7 @@ media_purge(struct mediatypes *types)
 }
 
 struct media_type *
-media_find(struct mediatypes *types, char *file)
+media_find(struct mediatypes *types, const char *file)
 {
 	struct media_type	*match, media;
 	char			*p;
@@ -1231,6 +1239,21 @@ media_find(struct mediatypes *types, char *file)
 	match = RB_FIND(mediatypes, types, &media);
 
 	return (match);
+}
+
+struct media_type *
+media_find_config(struct httpd *env, struct server_config *srv_conf,
+    const char *file)
+{
+	struct media_type	*match;
+
+	if ((match = media_find(env->sc_mediatypes, file)) != NULL)
+		return (match);
+	else if (srv_conf->flags & SRVFLAG_DEFAULT_TYPE)
+		return (&srv_conf->default_type);
+
+	/* fallback to the global default type */
+	return (&env->sc_default_type);
 }
 
 int
@@ -1262,7 +1285,7 @@ auth_add(struct serverauth *serverauth, struct auth *auth)
 }
 
 struct auth *
-auth_byid(struct serverauth *serverauth, u_int32_t id)
+auth_byid(struct serverauth *serverauth, uint32_t id)
 {
 	struct auth	*auth;
 

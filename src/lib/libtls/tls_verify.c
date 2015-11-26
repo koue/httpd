@@ -1,4 +1,4 @@
-/* $OpenBSD: tls_verify.c,v 1.8 2015/04/29 00:24:31 doug Exp $ */
+/* $OpenBSD: tls_verify.c,v 1.15 2015/09/29 13:10:53 jsing Exp $ */
 /*
  * Copyright (c) 2014 Jeremie Courreges-Anglas <jca@openbsd.org>
  *
@@ -26,11 +26,12 @@
 
 #include "tls_internal.h"
 
-int tls_match_name(const char *cert_name, const char *name);
-int tls_check_subject_altname(struct tls *ctx, X509 *cert, const char *name);
-int tls_check_common_name(struct tls *ctx, X509 *cert, const char *name);
+static int tls_match_name(const char *cert_name, const char *name);
+static int tls_check_subject_altname(struct tls *ctx, X509 *cert,
+    const char *name);
+static int tls_check_common_name(struct tls *ctx, X509 *cert, const char *name);
 
-int
+static int
 tls_match_name(const char *cert_name, const char *name)
 {
 	const char *cert_domain, *domain, *next_dot;
@@ -68,6 +69,9 @@ tls_match_name(const char *cert_name, const char *name)
 
 		domain = strchr(name, '.');
 
+		/* No wildcard match against a name with no host part. */
+		if (name[0] == '.')
+			return -1;
 		/* No wildcard match against a name with no domain part. */
 		if (domain == NULL || strlen(domain) == 1)
 			return -1;
@@ -80,11 +84,11 @@ tls_match_name(const char *cert_name, const char *name)
 }
 
 /* See RFC 5280 section 4.2.1.6 for SubjectAltName details. */
-int
+static int
 tls_check_subject_altname(struct tls *ctx, X509 *cert, const char *name)
 {
 	STACK_OF(GENERAL_NAME) *altname_stack = NULL;
-	union { struct in_addr ip4; struct in6_addr ip6; } addrbuf;
+	union tls_addr addrbuf;
 	int addrlen, type;
 	int count, i;
 	int rv = -1;
@@ -124,7 +128,7 @@ tls_check_subject_altname(struct tls *ctx, X509 *cert, const char *name)
 				len = ASN1_STRING_length(altname->d.dNSName);
 
 				if (len < 0 || len != strlen(data)) {
-					tls_set_error(ctx,
+					tls_set_errorx(ctx,
 					    "error verifying name '%s': "
 					    "NUL byte in subjectAltName, "
 					    "probably a malicious certificate",
@@ -167,7 +171,7 @@ tls_check_subject_altname(struct tls *ctx, X509 *cert, const char *name)
 			data = ASN1_STRING_data(altname->d.iPAddress);
 
 			if (datalen < 0) {
-				tls_set_error(ctx,
+				tls_set_errorx(ctx,
 				    "Unexpected negative length for an "
 				    "IP address: %d", datalen);
 				rv = -2;
@@ -190,14 +194,14 @@ tls_check_subject_altname(struct tls *ctx, X509 *cert, const char *name)
 	return rv;
 }
 
-int
+static int
 tls_check_common_name(struct tls *ctx, X509 *cert, const char *name)
 {
 	X509_NAME *subject_name;
 	char *common_name = NULL;
+	union tls_addr addrbuf;
 	int common_name_len;
 	int rv = -1;
-	union { struct in_addr ip4; struct in6_addr ip6; } addrbuf;
 
 	subject_name = X509_get_subject_name(cert);
 	if (subject_name == NULL)
@@ -217,7 +221,7 @@ tls_check_common_name(struct tls *ctx, X509 *cert, const char *name)
 
 	/* NUL bytes in CN? */
 	if (common_name_len != strlen(common_name)) {
-		tls_set_error(ctx, "error verifying name '%s': "
+		tls_set_errorx(ctx, "error verifying name '%s': "
 		    "NUL byte in Common Name field, "
 		    "probably a malicious certificate", name);
 		rv = -2;
@@ -239,19 +243,19 @@ tls_check_common_name(struct tls *ctx, X509 *cert, const char *name)
 
 	if (tls_match_name(common_name, name) == 0)
 		rv = 0;
-out:
+ out:
 	free(common_name);
 	return rv;
 }
 
 int
-tls_check_servername(struct tls *ctx, X509 *cert, const char *servername)
+tls_check_name(struct tls *ctx, X509 *cert, const char *name)
 {
 	int	rv;
 
-	rv = tls_check_subject_altname(ctx, cert, servername);
+	rv = tls_check_subject_altname(ctx, cert, name);
 	if (rv == 0 || rv == -2)
 		return rv;
 
-	return tls_check_common_name(ctx, cert, servername);
+	return tls_check_common_name(ctx, cert, name);
 }

@@ -1,4 +1,4 @@
-/*	$OpenBSD: server_file.c,v 1.54 2015/05/05 11:10:13 florian Exp $	*/
+/*	$OpenBSD: server_file.c,v 1.60 2015/08/03 11:45:17 florian Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -43,20 +43,20 @@ struct range {
 	off_t	end;
 };
 
-int	 	 server_file_access(struct httpd *, struct client *,
+int		 server_file_access(struct httpd *, struct client *,
 		    char *, size_t);
-int	 	 server_file_request(struct httpd *, struct client *,
+int		 server_file_request(struct httpd *, struct client *,
 		    char *, struct stat *);
-int	 	 server_partial_file_request(struct httpd *, struct client *,
+int		 server_partial_file_request(struct httpd *, struct client *,
 		    char *, struct stat *, char *);
-int	 	 server_file_index(struct httpd *, struct client *,
+int		 server_file_index(struct httpd *, struct client *,
 		    struct stat *);
 int		 server_file_modified_since(struct http_descriptor *,
 		    struct stat *);
-int	 	 server_file_method(struct client *);
-int	 	 parse_range_spec(char *, size_t, struct range *);
-struct range 	*parse_range(char *, size_t, int *);
-int	 	 buffer_add_range(int, struct evbuffer *, struct range *);
+int		 server_file_method(struct client *);
+int		 parse_range_spec(char *, size_t, struct range *);
+struct range	*parse_range(char *, size_t, int *);
+int		 buffer_add_range(int, struct evbuffer *, struct range *);
 
 int
 server_file_access(struct httpd *env, struct client *clt,
@@ -66,7 +66,7 @@ server_file_access(struct httpd *env, struct client *clt,
 	struct server_config	*srv_conf = clt->clt_srv_conf;
 	struct stat		 st;
 	struct kv		*r, key;
-	char			*newpath;
+	char			*newpath, *encodedpath;
 	int			 ret;
 
 	errno = 0;
@@ -90,10 +90,16 @@ server_file_access(struct httpd *env, struct client *clt,
 
 		/* Redirect to path with trailing "/" */
 		if (path[strlen(path) - 1] != '/') {
+			if ((encodedpath = url_encode(desc->http_path)) == NULL)
+				return (500);
 			if (asprintf(&newpath, "http%s://%s%s/",
 			    srv_conf->flags & SRVFLAG_TLS ? "s" : "",
-			    desc->http_host, desc->http_path) == -1)
+			    desc->http_host, encodedpath) == -1) {
+				free(encodedpath);
 				return (500);
+			}
+			free(encodedpath);
+
 			/* Path alias will be used for the redirection */
 			desc->http_path_alias = newpath;
 
@@ -232,13 +238,13 @@ server_file_request(struct httpd *env, struct client *clt, char *path,
 	}
 
 	if ((ret = server_file_modified_since(clt->clt_descreq, st)) != -1)
-		return ret;
+		return (ret);
 
 	/* Now open the file, should be readable or we have another problem */
 	if ((fd = open(path, O_RDONLY)) == -1)
 		goto abort;
 
-	media = media_find(env->sc_mediatypes, path);
+	media = media_find_config(env, srv_conf, path);
 	ret = server_response_http(clt, 200, media, st->st_size,
 	    MINIMUM(time(NULL), st->st_mtim.tv_sec));
 	switch (ret) {
@@ -256,6 +262,7 @@ server_file_request(struct httpd *env, struct client *clt, char *path,
 	if (clt->clt_srvbev != NULL)
 		bufferevent_free(clt->clt_srvbev);
 
+	clt->clt_srvbev_throttled = 0;
 	clt->clt_srvbev = bufferevent_new(clt->clt_fd, server_read,
 	    server_write, server_file_error, clt);
 	if (clt->clt_srvbev == NULL) {
@@ -290,15 +297,16 @@ int
 server_partial_file_request(struct httpd *env, struct client *clt, char *path,
     struct stat *st, char *range_str)
 {
+	struct server_config	*srv_conf = clt->clt_srv_conf;
 	struct http_descriptor	*resp = clt->clt_descresp;
 	struct http_descriptor	*desc = clt->clt_descreq;
 	struct media_type	*media, multipart_media;
 	struct range		*range;
 	struct evbuffer		*evb = NULL;
 	size_t			 content_length;
-	int		 	 code = 500, fd = -1, i, nranges, ret;
+	int			 code = 500, fd = -1, i, nranges, ret;
 	uint32_t		 boundary;
-	char		 	 content_range[64];
+	char			 content_range[64];
 	const char		*errstr = NULL;
 
 	/* Ignore range request for methods other than GET */
@@ -317,7 +325,7 @@ server_partial_file_request(struct httpd *env, struct client *clt, char *path,
 	if ((fd = open(path, O_RDONLY)) == -1)
 		goto abort;
 
-	media = media_find(env->sc_mediatypes, path);
+	media = media_find_config(env, srv_conf, path);
 	if ((evb = evbuffer_new()) == NULL) {
 		errstr = "failed to allocate file buffer";
 		goto abort;
@@ -325,7 +333,7 @@ server_partial_file_request(struct httpd *env, struct client *clt, char *path,
 
 	if (nranges == 1) {
 		(void)snprintf(content_range, sizeof(content_range),
-	    	    "bytes %lld-%lld/%lld", range->start, range->end,
+		    "bytes %lld-%lld/%lld", range->start, range->end,
 		    st->st_size);
 		if (kv_add(&resp->http_headers, "Content-Range",
 		    content_range) == NULL)
@@ -347,9 +355,7 @@ server_partial_file_request(struct httpd *env, struct client *clt, char *path,
 			content_length += i;
 			if ((i = evbuffer_add_printf(evb,
 			    "Content-Type: %s/%s\r\n",
-	    		    media == NULL ? "application" : media->media_type,
-	    		    media == NULL ?
-			    "octet-stream" : media->media_subtype)) == -1)
+			    media->media_type, media->media_subtype)) == -1)
 				goto abort;
 
 			content_length += i;
@@ -374,10 +380,10 @@ server_partial_file_request(struct httpd *env, struct client *clt, char *path,
 
 		/* prepare multipart/byteranges media type */
 		(void)strlcpy(multipart_media.media_type, "multipart",
-	    	    sizeof(multipart_media.media_type));
+		    sizeof(multipart_media.media_type));
 		(void)snprintf(multipart_media.media_subtype,
-	    	    sizeof(multipart_media.media_subtype),
-	    	    "byteranges; boundary=%ud", boundary);
+		    sizeof(multipart_media.media_subtype),
+		    "byteranges; boundary=%ud", boundary);
 		media = &multipart_media;
 	}
 
@@ -542,7 +548,7 @@ server_file_index(struct httpd *env, struct client *clt, struct stat *st)
 	close(fd);
 	fd = -1;
 
-	media = media_find(env->sc_mediatypes, "index.html");
+	media = media_find_config(env, srv_conf, "index.html");
 	ret = server_response_http(clt, 200, media, EVBUFFER_LENGTH(evb),
 	    dir_mtime);
 	switch (ret) {
@@ -633,20 +639,24 @@ server_file_error(struct bufferevent *bev, short error, void *arg)
 }
 
 int
-server_file_modified_since(struct http_descriptor * desc, struct stat * st)
+server_file_modified_since(struct http_descriptor *desc, struct stat *st)
 {
-	struct kv		 key, *since;
-	struct tm		 tm;
-
-	memset(&tm, 0, sizeof(struct tm));
+	struct kv	 key, *since;
+	struct tm	 tm;
 
 	key.kv_key = "If-Modified-Since";
 	if ((since = kv_find(&desc->http_headers, &key)) != NULL &&
 	    since->kv_value != NULL) {
-		if (strptime(since->kv_value, "%a, %d %h %Y %T %Z", &tm) !=
-		    NULL && timegm(&tm) >= st->st_mtim.tv_sec) {
+		memset(&tm, 0, sizeof(struct tm));
+
+		/*
+		 * Return "Not modified" if the file hasn't changed since
+		 * the requested time.
+		 */
+		if (strptime(since->kv_value,
+		    "%a, %d %h %Y %T %Z", &tm) != NULL &&
+		    timegm(&tm) >= st->st_mtim.tv_sec)
 			return (304);
-		}
 	}
 
 	return (-1);
@@ -656,7 +666,7 @@ struct range *
 parse_range(char *str, size_t file_sz, int *nranges)
 {
 	static struct range	 ranges[MAX_RANGES];
-	int	 	 	 i = 0;
+	int			 i = 0;
 	char			*p, *q;
 
 	/* Extract range unit */
@@ -692,7 +702,7 @@ parse_range(char *str, size_t file_sz, int *nranges)
 int
 parse_range_spec(char *str, size_t size, struct range *r)
 {
-	size_t	 	 start_str_len, end_str_len;
+	size_t		 start_str_len, end_str_len;
 	char		*p, *start_str, *end_str;
 	const char	*errstr;
 

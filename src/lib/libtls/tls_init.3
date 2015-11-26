@@ -1,4 +1,4 @@
-.\" $OpenBSD: tls_init.3,v 1.23 2015/04/03 22:33:43 jmc Exp $
+.\" $OpenBSD: tls_init.3,v 1.51 2015/10/08 07:22:02 jmc Exp $
 .\"
 .\" Copyright (c) 2014 Ted Unangst <tedu@openbsd.org>
 .\"
@@ -14,7 +14,7 @@
 .\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 .\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 .\"
-.Dd $Mdocdate: April 3 2015 $
+.Dd $Mdocdate: October 8 2015 $
 .Dt TLS_INIT 3
 .Os
 .Sh NAME
@@ -35,16 +35,29 @@
 .Nm tls_config_set_key_mem ,
 .Nm tls_config_set_protocols ,
 .Nm tls_config_set_verify_depth ,
+.Nm tls_config_prefer_ciphers_client ,
+.Nm tls_config_prefer_ciphers_server ,
 .Nm tls_config_clear_keys ,
 .Nm tls_config_insecure_noverifycert ,
 .Nm tls_config_insecure_noverifyname ,
+.Nm tls_config_insecure_noverifytime ,
 .Nm tls_config_verify ,
+.Nm tls_config_verify_client ,
+.Nm tls_config_verify_client_optional ,
+.Nm tls_peer_cert_provided ,
+.Nm tls_peer_cert_contains_name ,
+.Nm tls_peer_cert_issuer ,
+.Nm tls_peer_cert_subject ,
+.Nm tls_peer_cert_hash ,
+.Nm tls_peer_cert_notbefore ,
+.Nm tls_peer_cert_notafter ,
+.Nm tls_conn_version ,
+.Nm tls_conn_cipher ,
 .Nm tls_load_file ,
 .Nm tls_client ,
 .Nm tls_server ,
 .Nm tls_configure ,
 .Nm tls_reset ,
-.Nm tls_close ,
 .Nm tls_free ,
 .Nm tls_connect ,
 .Nm tls_connect_fds ,
@@ -52,8 +65,10 @@
 .Nm tls_connect_socket ,
 .Nm tls_accept_fds ,
 .Nm tls_accept_socket ,
+.Nm tls_handshake ,
 .Nm tls_read ,
-.Nm tls_write
+.Nm tls_write ,
+.Nm tls_close
 .Nd TLS client and server API
 .Sh SYNOPSIS
 .In tls.h
@@ -76,7 +91,7 @@
 .Ft "int"
 .Fn tls_config_set_cert_file "struct tls_config *config" "const char *cert_file"
 .Ft "int"
-.Fn tls_config_set_cert_mem  "struct tls_config *config" "const uint8_t *cert" "size_t len"
+.Fn tls_config_set_cert_mem "struct tls_config *config" "const uint8_t *cert" "size_t len"
 .Ft "int"
 .Fn tls_config_set_ciphers "struct tls_config *config" "const char *ciphers"
 .Ft "int"
@@ -92,13 +107,41 @@
 .Ft "void"
 .Fn tls_config_set_verify_depth "struct tls_config *config" "int verify_depth"
 .Ft "void"
+.Fn tls_config_prefer_ciphers_client "struct tls_config *config"
+.Ft "void"
+.Fn tls_config_prefer_ciphers_server "struct tls_config *config"
+.Ft "void"
 .Fn tls_config_clear_keys "struct tls_config *config"
 .Ft "void"
 .Fn tls_config_insecure_noverifycert "struct tls_config *config"
 .Ft "void"
 .Fn tls_config_insecure_noverifyname "struct tls_config *config"
 .Ft "void"
+.Fn tls_config_insecure_noverifytime "struct tls_config *config"
+.Ft "void"
 .Fn tls_config_verify "struct tls_config *config"
+.Ft "void"
+.Fn tls_config_verify_client "struct tls_config *config"
+.Ft "void"
+.Fn tls_config_verify_client_optional "struct tls_config *config"
+.Ft "int"
+.Fn tls_peer_cert_provided "struct tls *ctx"
+.Ft "int"
+.Fn tls_peer_cert_contains_name "struct tls *ctx" "const char *name"
+.Ft "const char *"
+.Fn tls_peer_cert_issuer "struct tls *ctx"
+.Ft "const char *"
+.Fn tls_peer_cert_subject "struct tls *ctx"
+.Ft "const char *"
+.Fn tls_peer_cert_hash "struct tls *ctx"
+.Ft "time_t"
+.Fn tls_peer_cert_notbefore "struct tls *ctx"
+.Ft "time_t"
+.Fn tls_peer_cert_notafter "struct tls *ctx"
+.Ft "const char *"
+.Fn tls_conn_version "struct tls *ctx"
+.Ft "const char *"
+.Fn tls_conn_cipher "struct tls *ctx"
 .Ft "uint8_t *"
 .Fn tls_load_file "const char *file" "size_t *len" "char *password"
 .Ft "struct tls *"
@@ -109,14 +152,13 @@
 .Fn tls_configure "struct tls *ctx" "struct tls_config *config"
 .Ft "void"
 .Fn tls_reset "struct tls *ctx"
-.Ft "int"
-.Fn tls_close "struct tls *ctx"
 .Ft "void"
 .Fn tls_free "struct tls *ctx"
 .Ft "int"
 .Fn tls_connect "struct tls *ctx" "const char *host" "const char *port"
 .Ft "int"
 .Fn tls_connect_fds "struct tls *ctx" "int fd_read" "int fd_write" "const char *servername"
+.Ft "int"
 .Fn tls_connect_servername "struct tls *ctx" "const char *host" "const char *port" "const char *servername"
 .Ft "int"
 .Fn tls_connect_socket "struct tls *ctx" "int s" "const char *servername"
@@ -125,9 +167,13 @@
 .Ft "int"
 .Fn tls_accept_socket "struct tls *tls" "struct tls **cctx" "int socket"
 .Ft "int"
-.Fn tls_read "struct tls *ctx" "void *buf" "size_t buflen" "size_t *outlen"
+.Fn tls_handshake "struct tls *ctx"
+.Ft "ssize_t"
+.Fn tls_read "struct tls *ctx" "void *buf" "size_t buflen"
+.Ft "ssize_t"
+.Fn tls_write "struct tls *ctx" "const void *buf" "size_t buflen"
 .Ft "int"
-.Fn tls_write "struct tls *ctx" "const void *buf" "size_t buflen" "size_t *outlen"
+.Fn tls_close "struct tls *ctx"
 .Sh DESCRIPTION
 The
 .Nm tls
@@ -147,9 +193,7 @@ function returns a new default configuration that can be used for future
 connections.
 Several functions exist to change the options of the configuration; see below.
 .Pp
-A
-.Em tls
-connection is represented as a
+A TLS connection is represented as a
 .Em context .
 A new
 .Em context
@@ -187,12 +231,16 @@ Alternatively, a new client connection can be accepted over a pair of existing
 file descriptors by calling
 .Fn tls_accept_fds .
 .Pp
+The TLS handshake can be completed by calling
+.Fn tls_handshake .
 Two functions are provided for input and output,
 .Fn tls_read
 and
 .Fn tls_write .
+Both of these functions will result in the TLS handshake being performed if it
+has not already completed.
 .Pp
-After use, a tls
+After use, a TLS
 .Em context
 should be closed with
 .Fn tls_close ,
@@ -262,6 +310,16 @@ sets the public certificate directly from memory.
 .It
 .Fn tls_config_set_ciphers
 sets the list of ciphers that may be used.
+Lists of ciphers are specified by name, and the
+permitted names are:
+.Pp
+.Bl -tag -width "default" -offset indent -compact
+.It Dv "secure"
+.It Dv "default" (an alias for secure)
+.It Dv "legacy"
+.It Dv "compat" (an alias for legacy)
+.El
+.Pp
 .Em (Client and server)
 .It
 .Fn tls_config_set_key_file
@@ -291,6 +349,17 @@ Additionally, the values
 (TLSv1.2 only) may be used.
 .Em (Client and server)
 .It
+.Fn tls_config_prefer_ciphers_client
+prefers ciphers in the client's cipher list when selecting a cipher suite.
+This is considered to be less secure than preferring the server's list.
+.Em (Server)
+.It
+.Fn tls_config_prefer_ciphers_server
+prefers ciphers in the server's cipher list when selecting a cipher suite.
+This is considered to be more secure than preferring the client's list and is
+the default.
+.Em (Server)
+.It
 .Fn tls_config_clear_keys
 clears any secret keys from memory.
 .Em (Server)
@@ -298,16 +367,113 @@ clears any secret keys from memory.
 .Fn tls_config_insecure_noverifycert
 disables certificate verification.
 Be extremely careful when using this option.
-.Em (Client)
+.Em (Client and server)
 .It
 .Fn tls_config_insecure_noverifyname
 disables server name verification.
 Be careful when using this option.
 .Em (Client)
 .It
+.Fn tls_config_insecure_noverifytime
+disables validity checking of certificates.
+Be careful when using this option.
+.Em (Client and server)
+.It
 .Fn tls_config_verify
 reenables server name and certificate verification.
 .Em (Client)
+.It
+.Fn tls_config_verify_client
+enables client certificate verification, requiring the client to send
+a certificate.
+.Em (Server)
+.It
+.Fn tls_peer_cert_provided
+checks if the peer of
+.Ar ctx
+has provided a certificate.
+.Fn tls_peer_cert_provided
+can only succeed after the handshake is complete.
+.Em (Server and client)
+.It
+.Fn tls_peer_cert_contains_name
+checks if the peer of a TLS
+.Ar ctx
+has povided a certificate that contains a
+SAN or CN that matches
+.Ar name .
+.Fn tls_peer_cert_contains_name
+can only succeed after the handshake is complete.
+.Em (Server and client)
+.It
+.Fn tls_peer_cert_subject
+returns a string
+corresponding to the subject of the peer certificate from
+.Ar ctx .
+.Fn tls_peer_cert_subject
+will only succeed after the handshake is complete.
+.Em (Server and client)
+.It
+.Fn tls_peer_cert_issuer
+returns a string
+corresponding to the issuer of the peer certificate from
+.Ar ctx .
+.Fn tls_peer_cert_issuer
+will only succeed after the handshake is complete.
+.Em (Server and client)
+.It
+.Fn tls_peer_cert_hash
+returns a string
+corresponding to a hash of the raw peer certificate from
+.Ar ctx
+prefixed by a hash name followed by a colon.
+The hash currently used is SHA256, though this
+could change in the future.
+The hash string for a certificate in file
+.Ar mycert.crt
+can be generated using the commands:
+.Bd -literal -offset indent
+h=$(openssl x509 -outform der -in mycert.crt | sha256)
+printf "SHA256:${h}\\n"
+.Ed
+.It
+.Fn tls_peer_cert_notbefore
+returns the time corresponding to the start of the validity period of
+the peer certificate from
+.Ar ctx .
+.Fn tls_peer_cert_notbefore
+will only succeed after the handshake is complete.
+.Em (Server and client)
+.It
+.Fn tls_peer_cert_notafter
+returns the time corresponding to the end of the validity period of
+the peer certificate from
+.Ar ctx .
+.Fn tls_peer_cert_notafter
+will only succeed after the handshake is complete.
+.Em (Server and client)
+.It
+.Fn tls_conn_version
+returns a string
+corresponding to a TLS version negotiated with the peer
+connected to
+.Ar ctx .
+.Fn tls_conn_version
+will only succeed after the handshake is complete.
+.It
+.Fn tls_conn_cipher
+returns a string
+corresponding to a the cipher suite negotated with the peer
+connected to
+.Ar ctx .
+.Fn tls_conn_cipher
+will only succeed after the handshake is complete.
+.Em (Server and client)
+.It
+.Fn tls_config_verify_client_opional
+enables client certificate verification, without requiring the client
+to send a certificate.
+.Em (Server)
 .It
 .Fn tls_load_file
 loads a certificate or key from disk into memory to be loaded with
@@ -325,24 +491,17 @@ The following functions create, prepare, and free a connection context.
 .Bl -bullet -offset four
 .It
 .Fn tls_client
-creates a new tls context for client connections.
+creates a new TLS context for client connections.
 .It
 .Fn tls_server
-creates a new tls context for server connections.
+creates a new TLS context for server connections.
 .It
 .Fn tls_configure
-readies a tls context for use by applying the configuration
+readies a TLS context for use by applying the configuration
 options.
 .It
-.Fn tls_close
-closes a connection after use.
-If the connection was established using
-.Fn tls_connect_fds ,
-only the TLS layer will be closed and it is the caller's responsibility to close
-the file descriptors.
-.It
 .Fn tls_free
-frees a tls context after use.
+frees a TLS context after use.
 .El
 .Pp
 The following functions initiate a connection and perform input and output
@@ -368,20 +527,23 @@ creates a new context suitable for reading and writing on an existing pair of
 file descriptors and returns it in
 .Fa *cctx .
 A configured server context should be passed in
-.Fa ctx
-and
-.Fa *cctx
-should be initialized to NULL.
+.Fa ctx .
 .It
 .Fn tls_accept_socket
 creates a new context suitable for reading and writing on an already
 established socket connection and returns it in
 .Fa *cctx .
 A configured server context should be passed in
-.Fa ctx
+.Fa ctx .
+.It
+.Fn tls_handshake
+performs the TLS handshake.
+It is only necessary to call this function if you need to guarantee that the
+handshake has completed, as both
+.Fn tls_read
 and
-.Fa *cctx
-should be initialized to NULL.
+.Fn tls_write
+will perform the TLS handshake if necessary.
 .It
 .Fn tls_read
 reads
@@ -399,38 +561,113 @@ bytes of data from
 to the socket.
 The amount of data written is returned in
 .Fa outlen .
+.It
+.Fn tls_close
+closes a connection after use.
+Only the TLS layer will be shut down and the caller is responsible for closing
+the file descriptors, unless the connection was established using
+.Fn tls_connect
+or
+.Fn tls_connect_servername .
 .El
 .Sh RETURN VALUES
-Functions that return
+The
+.Fn tls_peer_cert_provided
+and
+.Fn tls_peer_cert_contains_name
+functions return 1 if the check succeeds, and 0 if it does not.
+Functions that return a
+.Vt time_t
+will return a time in epoch-seconds on success, and -1 on error.
+Functions that return a
+.Vt ssize_t
+will return a size on success, and -1 on error.
+All other functions that return
 .Vt int
 will return 0 on success and -1 on error.
-Functions that return a pointer will return NULL on error.
+Functions that return a pointer will return NULL on error, which indicates an
+out of memory condition.
 .Pp
 The
-.Fn tls_close ,
-.Fn tls_read
+.Fn tls_handshake ,
+.Fn tls_read ,
+.Fn tls_write ,
 and
-.Fn tls_write
-functions, along with the
-.Fn tls_accept
-and
-.Fn tls_connect
-function families, have two special return values:
+.Fn tls_close
+functions have two special return values:
 .Pp
-.Bl -tag -width "TLS_WRITE_AGAIN" -offset indent -compact
-.It Dv TLS_READ_AGAIN
-A read operation is necessary to continue.
-.It Dv TLS_WRITE_AGAIN
-A write operation is necessary to continue.
+.Bl -tag -width "TLS_WANT_POLLOUT" -offset indent -compact
+.It Dv TLS_WANT_POLLIN
+The underlying read file descriptor needs to be readable in order to continue.
+.It Dv TLS_WANT_POLLOUT
+The underlying write file descriptor needs to be writeable in order to continue.
 .El
 .Pp
-The caller should call the appropriate function or, in the case of the
-.Fn tls_close
-and the
-.Fn tls_accept
+In the case of blocking file descriptors, the same function call should be
+repeated immediately.
+In the case of non-blocking file descriptors, the same function call should be
+repeated when the required condition has been met.
+.Pp
+Callers of these functions cannot rely on the value of the global
+.Ar errno .
+To prevent mishandling of error conditions,
+.Fn tls_handshake ,
+.Fn tls_read ,
+.Fn tls_write ,
 and
-.Fn tls_connect
-function families, repeat the call.
+.Fn tls_close
+all explicitly clear
+.Ar errno .
+.Sh EXAMPLES
+The following example demonstrates how to handle TLS writes on a blocking
+file descriptor:
+.Bd -literal -offset indent
+\&...
+while (len > 0) {
+	ssize_t ret;
+
+	ret = tls_write(ctx, buf, len);
+	if (ret == TLS_WANT_POLLIN || ret == TLS_WANT_POLLOUT)
+		continue;
+	if (ret < 0)
+		err(1, "tls_write: %s", tls_error(ctx));
+	buf += ret;
+	len -= ret;
+}
+\&...
+.Ed
+.Pp
+The following example demonstrates how to handle TLS writes on a
+non-blocking file descriptor using
+.Xr poll 2 :
+.Bd -literal -offset indent
+\&...
+pfd[0].fd = fd;
+pfd[0].events = POLLIN|POLLOUT;
+while (len > 0) {
+	nready = poll(pfd, 1, 0);
+	if (nready == -1)
+		err(1, "poll");
+	if ((pfd[0].revents & (POLLERR|POLLNVAL)))
+		errx(1, "bad fd %d", pfd[0].fd);
+	if ((pfd[0].revents & (pfd[0].events|POLLHUP))) {
+		ssize_t ret;
+
+		ret = tls_write(ctx, buf, len);
+		if (ret == TLS_WANT_POLLIN)
+			pfd[0].events = POLLIN;
+		else if (ret == TLS_WANT_POLLOUT)
+			pfd[0].events = POLLOUT;
+		else if (ret < 0)
+			err(1, "tls_write: %s", tls_error(ctx));
+		else {
+			buf += ret;
+			len -= ret;
+		}
+	}
+}
+\&...
+.Ed
 .Sh ERRORS
 The
 .Fn tls_error
