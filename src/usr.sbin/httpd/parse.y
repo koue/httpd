@@ -1,4 +1,4 @@
-/*	$OpenBSD: parse.y,v 1.67 2015/04/01 04:51:15 jsg Exp $  */
+/*	$OpenBSD: parse.y,v 1.76 2015/08/20 22:39:29 deraadt Exp $	*/
 
 /*
  * Copyright (c) 2007 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -111,7 +111,7 @@ int		 host_if(const char *, struct addresslist *,
 int		 host(const char *, struct addresslist *,
 		    int, struct portrange *, const char *, int);
 void		 host_free(struct addresslist *);
-struct server	*server_inherit(struct server *, const char *,
+struct server	*server_inherit(struct server *, struct server_config *,
 		    struct server_config *);
 int		 getservice(char *);
 int		 is_if_in_group(const char *, const char *);
@@ -135,14 +135,14 @@ typedef struct {
 
 %token	ACCESS ALIAS AUTO BACKLOG BODY BUFFER CERTIFICATE CHROOT CIPHERS COMMON
 %token	COMBINED CONNECTION DHE DIRECTORY ECDHE ERR FCGI INDEX IP KEY LISTEN
-%token  LOCATION LOG LOGDIR MAXIMUM NO NODELAY ON PORT PREFORK PROTOCOLS
-%token  REQUEST REQUESTS ROOT SACK SERVER SOCKET STRIP STYLE SYSLOG TCP TIMEOUT
-%token  TLS TYPES
+%token	LOCATION LOG LOGDIR MATCH MAXIMUM NO NODELAY ON PORT PREFORK PROTOCOLS
+%token	REQUEST REQUESTS ROOT SACK SERVER SOCKET STRIP STYLE SYSLOG TCP TIMEOUT
+%token	TLS TYPE TYPES HSTS MAXAGE SUBDOMAINS DEFAULT PRELOAD
 %token	ERROR INCLUDE AUTHENTICATE WITH BLOCK DROP RETURN PASS
 %token	<v.string>	STRING
 %token  <v.number>	NUMBER
 %type	<v.port>	port
-%type	<v.number>	opttls
+%type	<v.number>	opttls optmatch
 %type	<v.tv>		timeout
 %type	<v.string>	numberstring optstring
 %type	<v.auth>	authopts
@@ -202,28 +202,32 @@ main		: PREFORK NUMBER	{
 		| LOGDIR STRING		{
 			conf->sc_logdir = $2;
 		}
+		| DEFAULT TYPE mediastring	{
+			memcpy(&conf->sc_default_type, &media,
+			    sizeof(struct media_type));
+		}
 		;
 
-server		: SERVER STRING		{
+server		: SERVER optmatch STRING	{
 			struct server	*s;
 
 			if (!loadcfg) {
-				free($2);
+				free($3);
 				YYACCEPT;
 			}
 
 			if ((s = calloc(1, sizeof (*s))) == NULL)
 				fatal("out of memory");
 
-			if (strlcpy(s->srv_conf.name, $2,
+			if (strlcpy(s->srv_conf.name, $3,
 			    sizeof(s->srv_conf.name)) >=
 			    sizeof(s->srv_conf.name)) {
 				yyerror("server name truncated");
-				free($2);
+				free($3);
 				free(s);
 				YYERROR;
 			}
-			free($2);
+			free($3);
 
 			strlcpy(s->srv_conf.root, HTTPD_DOCROOT,
 			    sizeof(s->srv_conf.root));
@@ -239,7 +243,9 @@ server		: SERVER STRING		{
 			s->srv_conf.timeout.tv_sec = SERVER_TIMEOUT;
 			s->srv_conf.maxrequests = SERVER_MAXREQUESTS;
 			s->srv_conf.maxrequestbody = SERVER_MAXREQUESTBODY;
-			s->srv_conf.flags |= SRVFLAG_LOG;
+			s->srv_conf.flags = SRVFLAG_LOG;
+			if ($2)
+				s->srv_conf.flags |= SRVFLAG_SERVER_MATCH;
 			s->srv_conf.logformat = LOG_FORMAT_COMMON;
 			s->srv_conf.tls_protocols = TLS_PROTOCOLS_DEFAULT;
 			if ((s->srv_conf.tls_cert_file =
@@ -257,6 +263,8 @@ server		: SERVER STRING		{
 			strlcpy(s->srv_conf.tls_ecdhe_curve,
 			    HTTPD_TLS_ECDHE_CURVE,
 			    sizeof(s->srv_conf.tls_ecdhe_curve));
+
+			s->srv_conf.hsts_max_age = SERVER_HSTS_DEFAULT_AGE;
 
 			if (last_server_id == INT_MAX) {
 				yyerror("too many servers defined");
@@ -338,7 +346,7 @@ server		: SERVER STRING		{
 						continue;
 
 					if ((sn = server_inherit(srv,
-					    b->name, a)) == NULL) {
+					    b, a)) == NULL) {
 						serverconfig_free(srv_conf);
 						free(srv);
 						YYABORT;
@@ -409,30 +417,37 @@ serveroptsl	: LISTEN ON STRING opttls port {
 			}
 
 			if (alias != NULL) {
+				/* IP-based; use name match flags from parent */
+				alias->flags &= ~SRVFLAG_SERVER_MATCH;
+				alias->flags |= srv->srv_conf.flags &
+				    SRVFLAG_SERVER_MATCH;
 				TAILQ_INSERT_TAIL(&srv->srv_hosts,
 				    alias, entry);
 			}
 		}
-		| ALIAS STRING		{
+		| ALIAS optmatch STRING		{
 			struct server_config	*alias;
 
 			if (parentsrv != NULL) {
 				yyerror("alias inside location");
-				free($2);
+				free($3);
 				YYERROR;
 			}
 
 			if ((alias = calloc(1, sizeof(*alias))) == NULL)
 				fatal("out of memory");
 
-			if (strlcpy(alias->name, $2, sizeof(alias->name)) >=
+			if (strlcpy(alias->name, $3, sizeof(alias->name)) >=
 			    sizeof(alias->name)) {
 				yyerror("server alias truncated");
-				free($2);
+				free($3);
 				free(alias);
 				YYERROR;
 			}
-			free($2);
+			free($3);
+
+			if ($2)
+				alias->flags |= SRVFLAG_SERVER_MATCH;
 
 			TAILQ_INSERT_TAIL(&srv->srv_hosts, alias, entry);
 		}
@@ -460,38 +475,38 @@ serveroptsl	: LISTEN ON STRING opttls port {
 		| fastcgi
 		| authenticate
 		| filter
-		| LOCATION STRING		{
+		| LOCATION optmatch STRING	{
 			struct server	*s;
 
 			if (srv->srv_conf.ss.ss_family == AF_UNSPEC) {
 				yyerror("listen address not specified");
-				free($2);
+				free($3);
 				YYERROR;
 			}
 
 			if (parentsrv != NULL) {
-				yyerror("location %s inside location", $2);
-				free($2);
+				yyerror("location %s inside location", $3);
+				free($3);
 				YYERROR;
 			}
 
 			if (!loadcfg) {
-				free($2);
+				free($3);
 				YYACCEPT;
 			}
 
 			if ((s = calloc(1, sizeof (*s))) == NULL)
 				fatal("out of memory");
 
-			if (strlcpy(s->srv_conf.location, $2,
+			if (strlcpy(s->srv_conf.location, $3,
 			    sizeof(s->srv_conf.location)) >=
 			    sizeof(s->srv_conf.location)) {
 				yyerror("server location truncated");
-				free($2);
+				free($3);
 				free(s);
 				YYERROR;
 			}
-			free($2);
+			free($3);
 
 			if (strlcpy(s->srv_conf.name, srv->srv_conf.name,
 			    sizeof(s->srv_conf.name)) >=
@@ -505,6 +520,8 @@ serveroptsl	: LISTEN ON STRING opttls port {
 			/* A location entry uses the parent id */
 			s->srv_conf.parent_id = srv->srv_conf.id;
 			s->srv_conf.flags = SRVFLAG_LOCATION;
+			if ($2)
+				s->srv_conf.flags |= SRVFLAG_LOCATION_MATCH;
 			s->srv_s = -1;
 			memcpy(&s->srv_conf.ss, &srv->srv_conf.ss,
 			    sizeof(s->srv_conf.ss));
@@ -548,7 +565,43 @@ serveroptsl	: LISTEN ON STRING opttls port {
 			srv_conf = &parentsrv->srv_conf;
 			parentsrv = NULL;
 		}
+		| DEFAULT TYPE mediastring	{
+			srv_conf->flags |= SRVFLAG_DEFAULT_TYPE;
+			memcpy(&srv_conf->default_type, &media,
+			    sizeof(struct media_type));
+		}
 		| include
+		| hsts				{
+			if (parentsrv != NULL) {
+				yyerror("hsts inside location");
+				YYERROR;
+			}
+			srv->srv_conf.flags |= SRVFLAG_SERVER_HSTS;
+		}
+		;
+
+hsts		: HSTS '{' optnl hstsflags_l '}'
+		| HSTS hstsflags
+		| HSTS
+		;
+
+hstsflags_l	: hstsflags optcommanl hstsflags_l
+		| hstsflags optnl
+		;
+
+hstsflags	: MAXAGE NUMBER		{
+			if ($2 < 0 || $2 > INT_MAX) {
+				yyerror("invalid number of seconds: %lld", $2);
+				YYERROR;
+			}
+			srv_conf->hsts_max_age = $2;
+		}
+		| SUBDOMAINS		{
+			srv->srv_conf.hsts_flags |= HSTSFLAG_SUBDOMAINS;
+		}
+		| PRELOAD		{
+			srv->srv_conf.hsts_flags |= HSTSFLAG_PRELOAD;
+		}
 		;
 
 fastcgi		: NO FCGI		{
@@ -888,6 +941,10 @@ block		: BLOCK				{
 		}
 		;
 
+optmatch	: /* empty */		{ $$ = 0; }
+		| MATCH			{ $$ = 1; }
+		;
+
 optstring	: /* empty */		{ $$ = NULL; }
 		| STRING		{ $$ = $1; }
 		;
@@ -950,7 +1007,11 @@ mediaopts_l	: mediaopts_l mediaoptsl nl
 		| mediaoptsl nl
 		;
 
-mediaoptsl	: STRING '/' STRING	{
+mediaoptsl	: mediastring medianames_l optsemicolon
+		| include
+		;
+
+mediastring	: STRING '/' STRING	{
 			if (strlcpy(media.media_type, $1,
 			    sizeof(media.media_type)) >=
 			    sizeof(media.media_type) ||
@@ -964,8 +1025,7 @@ mediaoptsl	: STRING '/' STRING	{
 			}
 			free($1);
 			free($3);
-		} medianames_l optsemicolon
-		| include
+		}
 		;
 
 medianames_l	: medianames_l medianamesl
@@ -1098,12 +1158,14 @@ lookup(char *s)
 		{ "combined",		COMBINED },
 		{ "common",		COMMON },
 		{ "connection",		CONNECTION },
+		{ "default",		DEFAULT },
 		{ "dhe",		DHE },
 		{ "directory",		DIRECTORY },
 		{ "drop",		DROP },
 		{ "ecdhe",		ECDHE },
 		{ "error",		ERR },
 		{ "fastcgi",		FCGI },
+		{ "hsts",		HSTS },
 		{ "include",		INCLUDE },
 		{ "index",		INDEX },
 		{ "ip",			IP },
@@ -1112,13 +1174,16 @@ lookup(char *s)
 		{ "location",		LOCATION },
 		{ "log",		LOG },
 		{ "logdir",		LOGDIR },
+		{ "match",		MATCH },
 		{ "max",		MAXIMUM },
+		{ "max-age",		MAXAGE },
 		{ "no",			NO },
 		{ "nodelay",		NODELAY },
 		{ "on",			ON },
 		{ "pass",		PASS },
 		{ "port",		PORT },
 		{ "prefork",		PREFORK },
+		{ "preload",		PRELOAD },
 		{ "protocols",		PROTOCOLS },
 		{ "request",		REQUEST },
 		{ "requests",		REQUESTS },
@@ -1129,10 +1194,12 @@ lookup(char *s)
 		{ "socket",		SOCKET },
 		{ "strip",		STRIP },
 		{ "style",		STYLE },
+		{ "subdomains",		SUBDOMAINS },
 		{ "syslog",		SYSLOG },
 		{ "tcp",		TCP },
 		{ "timeout",		TIMEOUT },
 		{ "tls",		TLS },
+		{ "type",		TYPE },
 		{ "types",		TYPES },
 		{ "with",		WITH }
 	};
@@ -1149,10 +1216,10 @@ lookup(char *s)
 
 #define MAXPUSHBACK	128
 
-u_char	*parsebuf;
-int	 parseindex;
-u_char	 pushback_buffer[MAXPUSHBACK];
-int	 pushback_index = 0;
+unsigned char	*parsebuf;
+int		 parseindex;
+unsigned char	 pushback_buffer[MAXPUSHBACK];
+int		 pushback_index = 0;
 
 int
 lgetc(int quotec)
@@ -1244,10 +1311,10 @@ findeol(void)
 int
 yylex(void)
 {
-	u_char	 buf[8096];
-	u_char	*p, *val;
-	int	 quotec, next, c;
-	int	 token;
+	unsigned char	 buf[8096];
+	unsigned char	*p, *val;
+	int		 quotec, next, c;
+	int		 token;
 
 top:
 	p = buf;
@@ -1460,13 +1527,17 @@ popfile(void)
 int
 parse_config(const char *filename, struct httpd *x_conf)
 {
-	struct sym	*sym, *next;
+	struct sym		*sym, *next;
+	struct media_type	 dflt = HTTPD_DEFAULT_TYPE;
 
 	conf = x_conf;
 	if (config_init(conf) == -1) {
 		log_warn("%s: cannot initialize configuration", __func__);
 		return (-1);
 	}
+
+	/* Set default media type */
+	memcpy(&conf->sc_default_type, &dflt, sizeof(struct media_type));
 
 	errors = 0;
 
@@ -1897,7 +1968,7 @@ host_free(struct addresslist *al)
 }
 
 struct server *
-server_inherit(struct server *src, const char *name,
+server_inherit(struct server *src, struct server_config *alias,
     struct server_config *addr)
 {
 	struct server	*dst, *s, *dstl;
@@ -1935,7 +2006,7 @@ server_inherit(struct server *src, const char *name,
 	}
 
 	/* Now set alias and listen address */
-	strlcpy(dst->srv_conf.name, name, sizeof(dst->srv_conf.name));
+	strlcpy(dst->srv_conf.name, alias->name, sizeof(dst->srv_conf.name));
 	memcpy(&dst->srv_conf.ss, &addr->ss, sizeof(dst->srv_conf.ss));
 	dst->srv_conf.port = addr->port;
 	dst->srv_conf.prefixlen = addr->prefixlen;
@@ -1943,6 +2014,10 @@ server_inherit(struct server *src, const char *name,
 		dst->srv_conf.flags |= SRVFLAG_TLS;
 	else
 		dst->srv_conf.flags &= ~SRVFLAG_TLS;
+
+	/* Don't inherit the "match" option, use it from the alias */
+	dst->srv_conf.flags &= ~SRVFLAG_SERVER_MATCH;
+	dst->srv_conf.flags |= (alias->flags & SRVFLAG_SERVER_MATCH);
 
 	if (server_tls_load_keypair(dst) == -1) {
 		yyerror("failed to load public/private keys "
@@ -1983,7 +2058,8 @@ server_inherit(struct server *src, const char *name,
 			fatal("out of memory");
 
 		memcpy(&dstl->srv_conf, &s->srv_conf, sizeof(dstl->srv_conf));
-		strlcpy(dstl->srv_conf.name, name, sizeof(dstl->srv_conf.name));
+		strlcpy(dstl->srv_conf.name, alias->name,
+		    sizeof(dstl->srv_conf.name));
 
 		/* Copy the new Id and listen address */
 		dstl->srv_conf.id = ++last_server_id;
@@ -2023,7 +2099,7 @@ getservice(char *n)
 		return (s->s_port);
 	}
 
-	return (htons((u_short)llval));
+	return (htons((unsigned short)llval));
 }
 
 int
@@ -2048,9 +2124,8 @@ is_if_in_group(const char *ifname, const char *groupname)
 	}
 
 	len = ifgr.ifgr_len;
-	ifgr.ifgr_groups =
-	    (struct ifg_req *)calloc(len / sizeof(struct ifg_req),
-		sizeof(struct ifg_req));
+	ifgr.ifgr_groups = calloc(len / sizeof(struct ifg_req),
+	    sizeof(struct ifg_req));
 	if (ifgr.ifgr_groups == NULL)
 		err(1, "getifgroups");
 	if (ioctl(s, SIOCGIFGROUP, (caddr_t)&ifgr) == -1)

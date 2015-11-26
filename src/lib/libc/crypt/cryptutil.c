@@ -1,4 +1,4 @@
-/* $OpenBSD: cryptutil.c,v 1.9 2015/02/24 19:19:32 tedu Exp $ */
+/* $OpenBSD: cryptutil.c,v 1.12 2015/09/13 15:33:48 guenther Exp $ */
 /*
  * Copyright (c) 2014 Ted Unangst <tedu@openbsd.org>
  *
@@ -20,8 +20,6 @@
 #include <pwd.h>
 #include <login_cap.h>
 #include <errno.h>
-
-int bcrypt_autorounds(void);
 
 int
 crypt_checkpass(const char *pass, const char *goodhash)
@@ -50,6 +48,7 @@ fail:
 	errno = EACCES;
 	return -1;
 }
+DEF_WEAK(crypt_checkpass);
 
 int
 crypt_newhash(const char *pass, const char *pref, char *hash, size_t hashlen)
@@ -57,25 +56,42 @@ crypt_newhash(const char *pass, const char *pref, char *hash, size_t hashlen)
 	int rv = -1;
 	const char *defaultpref = "blowfish,8";
 	const char *errstr;
+	const char *choices[] = { "blowfish", "bcrypt" };
+	size_t maxchoice = sizeof(choices) / sizeof(choices[0]);
+	int i;
 	int rounds;
 
 	if (pref == NULL)
 		pref = defaultpref;
-	if (strncmp(pref, "blowfish,", 9) != 0) {
+
+	for (i = 0; i < maxchoice; i++) {
+		const char *choice = choices[i];
+		size_t len = strlen(choice);
+		if (strcmp(pref, choice) == 0) {
+			rounds = _bcrypt_autorounds();
+			break;
+		} else if (strncmp(pref, choice, len) == 0 &&
+		    pref[len] == ',') {
+			if (strcmp(pref + len + 1, "a") == 0) {
+				rounds = _bcrypt_autorounds();
+			} else {
+				rounds = strtonum(pref + len + 1, 4, 31, &errstr);
+				if (errstr) {
+					errno = EINVAL;
+					goto err;
+				}
+			}
+			break;
+		}
+	}
+	if (i == maxchoice) {
 		errno = EINVAL;
 		goto err;
 	}
-	if (strcmp(pref + 9, "a") == 0) {
-		rounds = bcrypt_autorounds();
-	} else {
-		rounds = strtonum(pref + 9, 4, 31, &errstr);
-		if (errstr) {
-			errno = EINVAL;
-			goto err;
-		}
-	}
+
 	rv = bcrypt_newhash(pass, rounds, hash, hashlen);
 
 err:
 	return rv;
 }
+DEF_WEAK(crypt_newhash);

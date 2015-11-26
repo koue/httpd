@@ -1,4 +1,4 @@
-/* $OpenBSD: tls_config.c,v 1.9 2015/02/22 15:09:54 jsing Exp $ */
+/* $OpenBSD: tls_config.c,v 1.14 2015/09/29 10:17:04 deraadt Exp $ */
 /*
  * Copyright (c) 2014 Joel Sing <jsing@openbsd.org>
  *
@@ -79,12 +79,14 @@ tls_config_new(void)
 
 	tls_config_set_protocols(config, TLS_PROTOCOLS_DEFAULT);
 	tls_config_set_verify_depth(config, 6);
-	
+
+	tls_config_prefer_ciphers_server(config);
+
 	tls_config_verify(config);
 
 	return (config);
 
-err:
+ err:
 	tls_config_free(config);
 	return (NULL);
 }
@@ -283,9 +285,15 @@ tls_config_set_verify_depth(struct tls_config *config, int verify_depth)
 }
 
 void
-tls_config_insecure_noverifycert(struct tls_config *config)
+tls_config_prefer_ciphers_client(struct tls_config *config)
 {
-	config->verify_cert = 0;
+	config->ciphers_server = 0;
+}
+
+void
+tls_config_prefer_ciphers_server(struct tls_config *config)
+{
+	config->ciphers_server = 1;
 }
 
 void
@@ -295,8 +303,34 @@ tls_config_insecure_noverifyname(struct tls_config *config)
 }
 
 void
+tls_config_insecure_noverifyname(struct tls_config *config)
+{
+	config->verify_name = 0;
+}
+
+void
+tls_config_insecure_noverifytime(struct tls_config *config)
+{
+	config->verify_time = 0;
+}
+
+void
 tls_config_verify(struct tls_config *config)
 {
 	config->verify_cert = 1;
 	config->verify_name = 1;
+	config->verify_time = 1;
+}
+
+void
+tls_config_verify_client(struct tls_config *config)
+{
+	config->verify_client = 1;
+}
+
+void
+tls_config_verify_client_optional(struct tls_config *config)
+{
+	config->verify_client = 2;
+>>>>>>> OpenBSD
 }

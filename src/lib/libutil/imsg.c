@@ -1,4 +1,4 @@
-/*	$OpenBSD: imsg.c,v 1.6 2014/06/30 00:26:22 deraadt Exp $	*/
+/*	$OpenBSD: imsg.c,v 1.10 2015/07/19 07:18:59 nicm Exp $	*/
 
 /*
  * Copyright (c) 2003, 2004 Henning Brauer <henning@openbsd.org>
@@ -36,7 +36,7 @@ void
 imsg_init(struct imsgbuf *ibuf, int fd)
 {
 	msgbuf_init(&ibuf->w);
-	bzero(&ibuf->r, sizeof(ibuf->r));
+	memset(&ibuf->r, 0, sizeof(ibuf->r));
 	ibuf->fd = fd;
 	ibuf->w.fd = fd;
 	ibuf->pid = getpid();
@@ -57,7 +57,8 @@ imsg_read(struct imsgbuf *ibuf)
 	int			 fd;
 	struct imsg_fd		*ifd;
 
-	bzero(&msg, sizeof(msg));
+	memset(&msg, 0, sizeof(msg));
+	memset(&cmsgbuf, 0, sizeof(cmsgbuf));
 
 	iov.iov_base = ibuf->r.buf + ibuf->r.wpos;
 	iov.iov_len = sizeof(ibuf->r.buf) - ibuf->r.wpos;
@@ -77,7 +78,7 @@ again:
 		free(ifd);
 		return (-1);
 	}
-	
+
 	if ((n = recvmsg(ibuf->fd, &msg, 0)) == -1) {
 		if (errno == EMSGSIZE)
 			goto fail;
@@ -142,7 +143,9 @@ imsg_get(struct imsgbuf *ibuf, struct imsg *imsg)
 		return (0);
 	datalen = imsg->hdr.len - IMSG_HEADER_SIZE;
 	ibuf->r.rptr = ibuf->r.buf + IMSG_HEADER_SIZE;
-	if ((imsg->data = malloc(datalen)) == NULL)
+	if (datalen == 0)
+		imsg->data = NULL;
+	else if ((imsg->data = malloc(datalen)) == NULL)
 		return (-1);
 
 	if (imsg->hdr.flags & IMSGF_HASFD)
@@ -286,7 +289,7 @@ int
 imsg_flush(struct imsgbuf *ibuf)
 {
 	while (ibuf->w.queued)
-		if (msgbuf_write(&ibuf->w) < 0)
+		if (msgbuf_write(&ibuf->w) <= 0)
 			return (-1);
 	return (0);
 }

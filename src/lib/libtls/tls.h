@@ -1,4 +1,4 @@
-/* $OpenBSD: tls.h,v 1.12 2015/03/31 14:03:38 jsing Exp $ */
+/* $OpenBSD: tls.h,v 1.26 2015/10/07 23:33:38 beck Exp $ */
 /*
  * Copyright (c) 2014 Joel Sing <jsing@openbsd.org>
  *
@@ -18,10 +18,14 @@
 #ifndef HEADER_TLS_H
 #define HEADER_TLS_H
 
-#ifdef __FreeBSD__
-#include <sys/types.h>
+#ifdef __cplusplus
+extern "C" {
 #endif
 
+#include <sys/types.h>
+
+#include <stddef.h>
+#include <stdint.h>
 
 #define TLS_API	20141031
 
@@ -34,8 +38,8 @@
 #define TLS_PROTOCOLS_ALL TLS_PROTOCOL_TLSv1
 #define TLS_PROTOCOLS_DEFAULT TLS_PROTOCOL_TLSv1_2
 
-#define TLS_READ_AGAIN	-2
-#define TLS_WRITE_AGAIN	-3
+#define TLS_WANT_POLLIN		-2
+#define TLS_WANT_POLLOUT	-3
 
 struct tls;
 struct tls_config;
@@ -64,12 +68,19 @@ int tls_config_set_key_mem(struct tls_config *_config, const uint8_t *_key,
 void tls_config_set_protocols(struct tls_config *_config, uint32_t _protocols);
 void tls_config_set_verify_depth(struct tls_config *_config, int _verify_depth);
 
-void tls_config_clear_keys(struct tls_config *_config);
-int tls_config_parse_protocols(uint32_t *_protocols, const char *_protostr);
+void tls_config_prefer_ciphers_client(struct tls_config *_config);
+void tls_config_prefer_ciphers_server(struct tls_config *_config);
 
 void tls_config_insecure_noverifycert(struct tls_config *_config);
 void tls_config_insecure_noverifyname(struct tls_config *_config);
+void tls_config_insecure_noverifytime(struct tls_config *_config);
 void tls_config_verify(struct tls_config *_config);
+
+void tls_config_verify_client(struct tls_config *_config);
+void tls_config_verify_client_optional(struct tls_config *_config);
+
+void tls_config_clear_keys(struct tls_config *_config);
+int tls_config_parse_protocols(uint32_t *_protocols, const char *_protostr);
 
 struct tls *tls_client(void);
 struct tls *tls_server(void);
@@ -86,11 +97,27 @@ int tls_connect_fds(struct tls *_ctx, int _fd_read, int _fd_write,
 int tls_connect_servername(struct tls *_ctx, const char *_host,
     const char *_port, const char *_servername);
 int tls_connect_socket(struct tls *_ctx, int _s, const char *_servername);
-int tls_read(struct tls *_ctx, void *_buf, size_t _buflen, size_t *_outlen);
-int tls_write(struct tls *_ctx, const void *_buf, size_t _buflen,
-    size_t *_outlen);
+int tls_handshake(struct tls *_ctx);
+ssize_t tls_read(struct tls *_ctx, void *_buf, size_t _buflen);
+ssize_t tls_write(struct tls *_ctx, const void *_buf, size_t _buflen);
 int tls_close(struct tls *_ctx);
 
+int tls_peer_cert_provided(struct tls *ctx);
+int tls_peer_cert_contains_name(struct tls *ctx, const char *name);
+
+const char * tls_peer_cert_hash(struct tls *_ctx);
+const char * tls_peer_cert_issuer(struct tls *ctx);
+const char * tls_peer_cert_subject(struct tls *ctx);
+time_t	tls_peer_cert_notbefore(struct tls *ctx);
+time_t	tls_peer_cert_notafter(struct tls *ctx);
+
+const char * tls_conn_version(struct tls *ctx);
+const char * tls_conn_cipher(struct tls *ctx);
+
 uint8_t *tls_load_file(const char *_file, size_t *_len, char *_password);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* HEADER_TLS_H */
