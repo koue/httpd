@@ -1,4 +1,4 @@
-.\" $OpenBSD: tls_init.3,v 1.10 2015/02/07 23:45:06 reyk Exp $
+.\" $OpenBSD: tls_init.3,v 1.23 2015/04/03 22:33:43 jmc Exp $
 .\"
 .\" Copyright (c) 2014 Ted Unangst <tedu@openbsd.org>
 .\"
@@ -14,14 +14,15 @@
 .\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 .\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 .\"
-.Dd $Mdocdate: February 7 2015 $
-.Dt TLS 3
+.Dd $Mdocdate: April 3 2015 $
+.Dt TLS_INIT 3
 .Os
 .Sh NAME
 .Nm tls_init ,
 .Nm tls_error ,
 .Nm tls_config_new ,
 .Nm tls_config_free ,
+.Nm tls_config_parse_protocols ,
 .Nm tls_config_set_ca_file ,
 .Nm tls_config_set_ca_path ,
 .Nm tls_config_set_ca_mem ,
@@ -35,8 +36,8 @@
 .Nm tls_config_set_protocols ,
 .Nm tls_config_set_verify_depth ,
 .Nm tls_config_clear_keys ,
-.Nm tls_config_insecure_noverifyhost ,
 .Nm tls_config_insecure_noverifycert ,
+.Nm tls_config_insecure_noverifyname ,
 .Nm tls_config_verify ,
 .Nm tls_load_file ,
 .Nm tls_client ,
@@ -47,7 +48,9 @@
 .Nm tls_free ,
 .Nm tls_connect ,
 .Nm tls_connect_fds ,
+.Nm tls_connect_servername ,
 .Nm tls_connect_socket ,
+.Nm tls_accept_fds ,
 .Nm tls_accept_socket ,
 .Nm tls_read ,
 .Nm tls_write
@@ -62,6 +65,8 @@
 .Fn tls_config_new "void"
 .Ft "void"
 .Fn tls_config_free "struct tls_config *config"
+.Ft "int"
+.Fn tls_config_parse_protocols "uint32_t *protocols" "const char *protostr"
 .Ft "int"
 .Fn tls_config_set_ca_file "struct tls_config *config" "const char *ca_file"
 .Ft "int"
@@ -82,16 +87,16 @@
 .Fn tls_config_set_key_file "struct tls_config *config" "const char *key_file"
 .Ft "int"
 .Fn tls_config_set_key_mem "struct tls_config *config" "const uint8_t *key" "size_t len"
-.Ft "int"
+.Ft "void"
 .Fn tls_config_set_protocols "struct tls_config *config" "uint32_t protocols"
-.Ft "int"
+.Ft "void"
 .Fn tls_config_set_verify_depth "struct tls_config *config" "int verify_depth"
 .Ft "void"
 .Fn tls_config_clear_keys "struct tls_config *config"
 .Ft "void"
-.Fn tls_config_insecure_noverifyhost "struct tls_config *config"
-.Ft "void"
 .Fn tls_config_insecure_noverifycert "struct tls_config *config"
+.Ft "void"
+.Fn tls_config_insecure_noverifyname "struct tls_config *config"
 .Ft "void"
 .Fn tls_config_verify "struct tls_config *config"
 .Ft "uint8_t *"
@@ -111,9 +116,12 @@
 .Ft "int"
 .Fn tls_connect "struct tls *ctx" "const char *host" "const char *port"
 .Ft "int"
-.Fn tls_connect_fds "struct tls *ctx" "int fd_read" "int fd_write" "const char *hostname"
+.Fn tls_connect_fds "struct tls *ctx" "int fd_read" "int fd_write" "const char *servername"
+.Fn tls_connect_servername "struct tls *ctx" "const char *host" "const char *port" "const char *servername"
 .Ft "int"
-.Fn tls_connect_socket "struct tls *ctx" "int s" "const char *hostname"
+.Fn tls_connect_socket "struct tls *ctx" "int s" "const char *servername"
+.Ft "int"
+.Fn tls_accept_fds "struct tls *tls" "struct tls **cctx" "int fd_read" "int fd_write"
 .Ft "int"
 .Fn tls_accept_socket "struct tls *tls" "struct tls **cctx" "int socket"
 .Ft "int"
@@ -130,6 +138,7 @@ Both clients and servers are supported.
 The
 .Fn tls_init
 function should be called once before any function is used.
+It may be called more than once, but not concurrently.
 .Pp
 Before a connection is created, a configuration must be created.
 The
@@ -159,6 +168,12 @@ A client connection is initiated after configuration by calling
 .Fn tls_connect .
 This function will create a new socket, connect to the specified host and
 port, and then establish a secure connection.
+The
+.Fn tls_connect_servername
+function has the same behaviour, however the name to use for verification is
+explicitly provided, rather than being inferred from the
+.Ar host
+value.
 An already existing socket can be upgraded to a secure connection by calling
 .Fn tls_connect_socket .
 Alternatively, a secure connection can be established over a pair of existing
@@ -168,6 +183,9 @@ file descriptors by calling
 A server can accept a new client connection by calling
 .Fn tls_accept_socket
 on an already established socket connection.
+Alternatively, a new client connection can be accepted over a pair of existing
+file descriptors by calling
+.Fn tls_accept_fds .
 .Pp
 Two functions are provided for input and output,
 .Fn tls_read
@@ -199,6 +217,22 @@ allocates a new default configuration object.
 .Fn tls_config_free
 frees a configuration object.
 .El
+.Pp
+The
+.Fn tls_config_parse_protocols
+function parses a protocol string and returns the corresponding value via the
+.Ar protocols
+argument.
+This value can then be passed to the
+.Fn tls_config_set_protocols
+function.
+The protocol string is a comma or colon separated list of keywords.
+Valid keywords are tlsv1.0, tlsv1.1, tlsv1.2, all (all supported protocols),
+default (an alias for secure), legacy (an alias for all) and secure (currently
+TLSv1.2 only).
+If a value has a negative prefix (in the form of a leading exclamation mark)
+then it is removed from the list of available protocols, rather than being
+added to it.
 .Pp
 The following functions modify a configuration by setting parameters.
 Configuration options may apply to only clients or only servers or both.
@@ -250,30 +284,32 @@ Possible values are the bitwise OR of:
 .Pp
 Additionally, the values
 .Dv TLS_PROTOCOL_TLSv1
-(all TLS versions) and
+(TLSv1.0, TLSv1.1 and TLSv1.2),
+.Dv TLS_PROTOCOLS_ALL
+(all supported protocols) and
 .Dv TLS_PROTOCOLS_DEFAULT
-(currently all TLS versions) may be used.
+(TLSv1.2 only) may be used.
 .Em (Client and server)
 .It
 .Fn tls_config_clear_keys
 clears any secret keys from memory.
 .Em (Server)
 .It
-.Fn tls_config_insecure_noverifyhost
-disables hostname verification.
-Be careful when using this option.
-.Em (Client)
-.It
 .Fn tls_config_insecure_noverifycert
 disables certificate verification.
 Be extremely careful when using this option.
 .Em (Client)
 .It
-.Fn tls_config_verify
-reenables hostname and certificate verification.
+.Fn tls_config_insecure_noverifyname
+disables server name verification.
+Be careful when using this option.
 .Em (Client)
 .It
-.Fn tls_load_keys
+.Fn tls_config_verify
+reenables server name and certificate verification.
+.Em (Client)
+.It
+.Fn tls_load_file
 loads a certificate or key from disk into memory to be loaded with
 .Fn tls_config_set_ca_mem ,
 .Fn tls_config_set_cert_mem
@@ -327,8 +363,25 @@ connects a client context to a pair of existing file descriptors.
 .Fn tls_connect_socket
 connects a client context to an already established socket connection.
 .It
+.Fn tls_accept_fds
+creates a new context suitable for reading and writing on an existing pair of
+file descriptors and returns it in
+.Fa *cctx .
+A configured server context should be passed in
+.Fa ctx
+and
+.Fa *cctx
+should be initialized to NULL.
+.It
 .Fn tls_accept_socket
-accepts a client context on an already established socket connection.
+creates a new context suitable for reading and writing on an already
+established socket connection and returns it in
+.Fa *cctx .
+A configured server context should be passed in
+.Fa ctx
+and
+.Fa *cctx
+should be initialized to NULL.
 .It
 .Fn tls_read
 reads
@@ -352,7 +405,37 @@ Functions that return
 .Vt int
 will return 0 on success and -1 on error.
 Functions that return a pointer will return NULL on error.
-.\" .Sh ERRORS
+.Pp
+The
+.Fn tls_close ,
+.Fn tls_read
+and
+.Fn tls_write
+functions, along with the
+.Fn tls_accept
+and
+.Fn tls_connect
+function families, have two special return values:
+.Pp
+.Bl -tag -width "TLS_WRITE_AGAIN" -offset indent -compact
+.It Dv TLS_READ_AGAIN
+A read operation is necessary to continue.
+.It Dv TLS_WRITE_AGAIN
+A write operation is necessary to continue.
+.El
+.Pp
+The caller should call the appropriate function or, in the case of the
+.Fn tls_close
+and the
+.Fn tls_accept
+and
+.Fn tls_connect
+function families, repeat the call.
+.Sh ERRORS
+The
+.Fn tls_error
+function may be used to retrieve a string containing more information
+about the most recent error.
 .\" .Sh SEE ALSO
 .Sh HISTORY
 The

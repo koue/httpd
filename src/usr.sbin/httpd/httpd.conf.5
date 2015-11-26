@@ -1,4 +1,4 @@
-.\"	$OpenBSD: httpd.conf.5,v 1.50 2015/02/07 08:12:30 jmc Exp $
+.\"	$OpenBSD: httpd.conf.5,v 1.57 2015/03/26 19:16:57 jmc Exp $
 .\"
 .\" Copyright (c) 2014, 2015 Reyk Floeter <reyk@openbsd.org>
 .\"
@@ -14,7 +14,7 @@
 .\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 .\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 .\"
-.Dd $Mdocdate: February 7 2015 $
+.Dd $Mdocdate: March 26 2015 $
 .Dt HTTPD.CONF 5
 .Os
 .Sh NAME
@@ -157,13 +157,38 @@ Close the connection and send an error page.
 If the optional return code is not specified,
 .Xr httpd 8
 denies access with a
-.Sq 404 Forbidden
+.Sq 403 Forbidden
 response.
 The optional
 .Ar uri
 argument can be used with return codes in the 3xx range to send a
 .Sq Location:
 header for redirection to a specified URI.
+.Pp
+The
+.Ar url
+may contain predefined macros that will be expanded at runtime:
+.Pp
+.Bl -tag -width $DOCUMENT_URI -offset indent -compact
+.It Ic $DOCUMENT_URI
+The request path.
+.It Ic $QUERY_STRING
+The optional query string of the request.
+.It Ic $REMOTE_ADDR
+The IP address of the connected client.
+.It Ic $REMOTE_PORT
+The TCP source port of the connected client.
+.It Ic $REMOTE_USER
+The remote user for HTTP authentication.
+.It Ic $REQUEST_URI
+The request path and optional query string.
+.It Ic $SERVER_ADDR
+The configured IP address of the server.
+.It Ic $SERVER_PORT
+The configured TCP server port of the server.
+.It Ic $SERVER_NAME
+The name of the server.
+.El
 .It Ic connection Ar option
 Set the specified options and limits for HTTP connections.
 Valid options are:
@@ -367,6 +392,14 @@ should contain a PEM encoded private key and reside outside of the
 .Xr chroot 2
 root directory of
 .Nm httpd .
+.It Ic protocols Ar string
+Specify the TLS protocols to enable for this server.
+If not specified, the value
+.Qq default
+will be used (secure protocols; TLSv1.2-only).
+Refer to the
+.Xr tls_config_parse_protocols 3
+function for other valid protocol string values.
 .El
 .El
 .Sh TYPES
@@ -482,8 +515,8 @@ server "www.example.com" {
 }
 .Ed
 .Pp
-The syntax of the types section is also compatible with the format used by nginx,
-so it is possible to include its
+The syntax of the types section is also compatible with the format
+used by nginx, so it is possible to include its
 .Pa mime.types
 file directly:
 .Bd -literal -offset indent
@@ -491,7 +524,8 @@ include "/etc/nginx/mime.types"
 .Ed
 .Sh SEE ALSO
 .Xr htpasswd 1 ,
-.Xr httpd 8
+.Xr httpd 8 ,
+.Xr slowcgi 8
 .Sh AUTHORS
 .An -nosplit
 The
