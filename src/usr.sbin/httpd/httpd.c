@@ -851,6 +851,7 @@ prefixlen2mask6(u_int8_t prefixlen, u_int32_t *mask)
 	return (&s6);
 }
 
+#ifndef __FreeBSD__
 int
 accept_reserve(int sockfd, struct sockaddr *addr, socklen_t *addrlen,
     int reserve, volatile int *counter)
@@ -868,6 +869,7 @@ accept_reserve(int sockfd, struct sockaddr *addr, socklen_t *addrlen,
 	}
 	return (ret);
 }
+#endif
 
 struct kv *
 kv_add(struct kvtree *keys, char *key, char *value)

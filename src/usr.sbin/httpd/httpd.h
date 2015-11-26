@@ -35,6 +35,11 @@
 #include <imsg.h>
 #include <tls.h>
 
+#ifdef __FreeBSD__
+#include <unistd.h>
+#define HOST_NAME_MAX _SC_HOST_NAME_MAX
+#endif
+
 #define CONF_FILE		"/etc/httpd.conf"
 #define HTTPD_SOCKET		"/var/run/httpd.sock"
 #define HTTPD_USER		"www"
@@ -597,8 +602,10 @@ void		*get_data(u_int8_t *, size_t);
 int		 sockaddr_cmp(struct sockaddr *, struct sockaddr *, int);
 struct in6_addr *prefixlen2mask6(u_int8_t, u_int32_t *);
 u_int32_t	 prefixlen2mask(u_int8_t);
+#ifndef __FreeBSD__
 int		 accept_reserve(int, struct sockaddr *, socklen_t *, int,
 		    volatile int *);
+#endif
 struct kv	*kv_add(struct kvtree *, char *, char *);
 int		 kv_set(struct kv *, char *, ...);
 int		 kv_setkey(struct kv *, char *, ...);

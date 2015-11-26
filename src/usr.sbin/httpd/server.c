@@ -484,9 +484,11 @@ server_socket(struct sockaddr_storage *ss, in_port_t port,
 			val = 0;
 		else
 			val = 1;
+#ifndef __FreeBSD__
 		if (setsockopt(s, IPPROTO_TCP, TCP_SACK_ENABLE,
 		    &val, sizeof(val)) == -1)
 			goto bad;
+#endif
 	}
 
 	return (s);
@@ -823,8 +825,12 @@ server_accept(int fd, short event, void *arg)
 		return;
 
 	slen = sizeof(ss);
+#ifndef __FreeBSD__ /* file descriptor accounting */
 	if ((s = accept_reserve(fd, (struct sockaddr *)&ss,
 	    &slen, FD_RESERVE, &server_inflight)) == -1) {
+#else
+	if ((s = accept(fd, (struct sockaddr *)&ss, (socklen_t *)&slen)) == -1) {
+#endif
 		/*
 		 * Pause accept if we are out of file descriptors, or
 		 * libevent will haunt us here too.

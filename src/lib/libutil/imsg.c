@@ -69,6 +69,7 @@ imsg_read(struct imsgbuf *ibuf)
 	if ((ifd = calloc(1, sizeof(struct imsg_fd))) == NULL)
 		return (-1);
 
+#ifndef __FreeBSD__ /* no getdtablecount() */
 again:
 	if (getdtablecount() + imsg_fd_overhead +
 	    (CMSG_SPACE(sizeof(int))-CMSG_SPACE(0))/sizeof(int)
@@ -77,13 +78,16 @@ again:
 		free(ifd);
 		return (-1);
 	}
+#endif
 	
 	if ((n = recvmsg(ibuf->fd, &msg, 0)) == -1) {
 		if (errno == EMSGSIZE)
 			goto fail;
 		if (errno != EINTR && errno != EAGAIN)
 			goto fail;
+#ifndef __FreeBSD__
 		goto again;
+#endif
 	}
 
 	ibuf->r.wpos += n;

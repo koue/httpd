@@ -18,6 +18,10 @@
 #ifndef HEADER_TLS_H
 #define HEADER_TLS_H
 
+#ifdef __FreeBSD__
+#include <sys/types.h>
+#endif
+
 #define TLS_API	20141031
 
 #define TLS_PROTOCOL_TLSv1_0	(1 << 1)
