@@ -1,4 +1,4 @@
-/*	$OpenBSD: parse.y,v 1.64 2015/02/08 04:50:32 reyk Exp $	*/
+/*	$OpenBSD: parse.y,v 1.67 2015/04/01 04:51:15 jsg Exp $  */
 
 /*
  * Copyright (c) 2007 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -135,8 +135,9 @@ typedef struct {
 
 %token	ACCESS ALIAS AUTO BACKLOG BODY BUFFER CERTIFICATE CHROOT CIPHERS COMMON
 %token	COMBINED CONNECTION DHE DIRECTORY ECDHE ERR FCGI INDEX IP KEY LISTEN
-%token	LOCATION LOG LOGDIR MAXIMUM NO NODELAY ON PORT PREFORK REQUEST REQUESTS
-%token	ROOT SACK SERVER SOCKET STRIP STYLE SYSLOG TCP TIMEOUT TLS TYPES
+%token  LOCATION LOG LOGDIR MAXIMUM NO NODELAY ON PORT PREFORK PROTOCOLS
+%token  REQUEST REQUESTS ROOT SACK SERVER SOCKET STRIP STYLE SYSLOG TCP TIMEOUT
+%token  TLS TYPES
 %token	ERROR INCLUDE AUTHENTICATE WITH BLOCK DROP RETURN PASS
 %token	<v.string>	STRING
 %token  <v.number>	NUMBER
@@ -240,6 +241,7 @@ server		: SERVER STRING		{
 			s->srv_conf.maxrequestbody = SERVER_MAXREQUESTBODY;
 			s->srv_conf.flags |= SRVFLAG_LOG;
 			s->srv_conf.logformat = LOG_FORMAT_COMMON;
+			s->srv_conf.tls_protocols = TLS_PROTOCOLS_DEFAULT;
 			if ((s->srv_conf.tls_cert_file =
 			    strdup(HTTPD_TLS_CERT)) == NULL)
 				fatal("out of memory");
@@ -297,6 +299,13 @@ server		: SERVER STRING		{
 			if (srv->srv_conf.ss.ss_family == AF_UNSPEC) {
 				yyerror("listen address not specified");
 				serverconfig_free(srv_conf);
+				free(srv);
+				YYERROR;
+			}
+
+			if ((srv->srv_conf.flags & SRVFLAG_TLS) &&
+			    srv->srv_conf.tls_protocols == 0) {
+				yyerror("no TLS protocols");
 				free(srv);
 				YYERROR;
 			}
@@ -642,6 +651,15 @@ tlsopts		: CERTIFICATE STRING		{
 			    sizeof(srv_conf->tls_ecdhe_curve)) >=
 			    sizeof(srv_conf->tls_ecdhe_curve)) {
 				yyerror("ecdhe too long");
+				free($2);
+				YYERROR;
+			}
+			free($2);
+		}
+		| PROTOCOLS STRING		{
+			if (tls_config_parse_protocols(
+			    &srv_conf->tls_protocols, $2) != 0) {
+				yyerror("invalid TLS protocols");
 				free($2);
 				YYERROR;
 			}
@@ -1101,6 +1119,7 @@ lookup(char *s)
 		{ "pass",		PASS },
 		{ "port",		PORT },
 		{ "prefork",		PREFORK },
+		{ "protocols",		PROTOCOLS },
 		{ "request",		REQUEST },
 		{ "requests",		REQUESTS },
 		{ "return",		RETURN },
@@ -1896,6 +1915,8 @@ server_inherit(struct server *src, const char *name,
 		fatal("out of memory");
 	dst->srv_conf.tls_cert = NULL;
 	dst->srv_conf.tls_key = NULL;
+	dst->srv_conf.tls_cert_len = 0;
+	dst->srv_conf.tls_key_len = 0;
 
 	if (src->srv_conf.return_uri != NULL &&
 	    (dst->srv_conf.return_uri =

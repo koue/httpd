@@ -1,4 +1,4 @@
-/* $OpenBSD: tls_server.c,v 1.5 2015/02/07 09:50:09 jsing Exp $ */
+/* $OpenBSD: tls_server.c,v 1.7 2015/03/31 14:03:38 jsing Exp $ */
 /*
  * Copyright (c) 2014 Joel Sing <jsing@openbsd.org>
  *
@@ -99,7 +99,7 @@ err:
 }
 
 int
-tls_accept_socket(struct tls *ctx, struct tls **cctx, int socket)
+tls_accept_fds(struct tls *ctx, struct tls **cctx, int fd_read, int fd_write)
 {
 	struct tls *conn_ctx = *cctx;
 	int ret, err;
@@ -116,14 +116,13 @@ tls_accept_socket(struct tls *ctx, struct tls **cctx, int socket)
 		}
 		*cctx = conn_ctx;
 
-		conn_ctx->socket = socket;
-
 		if ((conn_ctx->ssl_conn = SSL_new(ctx->ssl_ctx)) == NULL) {
 			tls_set_error(ctx, "ssl failure");
 			goto err;
 		}
 
-		if (SSL_set_fd(conn_ctx->ssl_conn, socket) != 1) {
+		if (SSL_set_rfd(conn_ctx->ssl_conn, fd_read) != 1 ||
+		    SSL_set_wfd(conn_ctx->ssl_conn, fd_write) != 1) {
 			tls_set_error(ctx, "ssl set fd failure");
 			goto err;
 		}
@@ -131,7 +130,7 @@ tls_accept_socket(struct tls *ctx, struct tls **cctx, int socket)
 	}
 
 	if ((ret = SSL_accept(conn_ctx->ssl_conn)) != 1) {
-		err = tls_ssl_error(conn_ctx, ret, "accept");
+		err = tls_ssl_error(ctx, conn_ctx->ssl_conn, ret, "accept");
 		if (err == TLS_READ_AGAIN || err == TLS_WRITE_AGAIN) {
 			return (err);
 		}
@@ -142,4 +141,16 @@ tls_accept_socket(struct tls *ctx, struct tls **cctx, int socket)
 
 err:
 	return (-1);
+}
+
+int
+tls_accept_socket(struct tls *ctx, struct tls **cctx, int socket)
+{
+	int rv;
+
+	rv = tls_accept_fds(ctx, cctx, socket, socket);
+	if (*cctx != NULL)
+		(*cctx)->socket = socket;
+
+	return (rv);
 }

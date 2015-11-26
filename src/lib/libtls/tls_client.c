@@ -1,4 +1,4 @@
-/* $OpenBSD: tls_client.c,v 1.13 2015/02/09 09:23:39 reyk Exp $ */
+/* $OpenBSD: tls_client.c,v 1.17 2015/03/31 12:21:27 jsing Exp $ */
 /*
  * Copyright (c) 2014 Joel Sing <jsing@openbsd.org>
  *
@@ -83,6 +83,13 @@ tls_connect_host(struct tls *ctx, const char *host, const char *port,
 int
 tls_connect(struct tls *ctx, const char *host, const char *port)
 {
+	return tls_connect_servername(ctx, host, port, NULL);
+}
+
+int
+tls_connect_servername(struct tls *ctx, const char *host, const char *port,
+    const char *servername)
+{
 	const char *h = NULL, *p = NULL;
 	char *hs = NULL, *ps = NULL;
 	int rv = -1, s = -1, ret;
@@ -128,7 +135,10 @@ tls_connect(struct tls *ctx, const char *host, const char *port)
 	    (s = tls_connect_host(ctx, h, p, AF_UNSPEC, AI_ADDRCONFIG)) == -1)
 		goto err;
 
-	if (tls_connect_socket(ctx, s, h) != 0) {
+	if (servername == NULL)
+		servername = h;
+
+	if (tls_connect_socket(ctx, s, servername) != 0) {
 		close(s);
 		goto err;
 	}
@@ -136,7 +146,6 @@ tls_connect(struct tls *ctx, const char *host, const char *port)
 	rv = 0;
 
 err:
-
 	free(hs);
 	free(ps);
 
@@ -144,16 +153,16 @@ err:
 }
 
 int
-tls_connect_socket(struct tls *ctx, int s, const char *hostname)
+tls_connect_socket(struct tls *ctx, int s, const char *servername)
 {
 	ctx->socket = s;
 
-	return tls_connect_fds(ctx, s, s, hostname);
+	return tls_connect_fds(ctx, s, s, servername);
 }
 
 int
 tls_connect_fds(struct tls *ctx, int fd_read, int fd_write,
-    const char *hostname)
+    const char *servername)
 {
 	union { struct in_addr ip4; struct in6_addr ip6; } addrbuf;
 	X509 *cert = NULL;
@@ -180,8 +189,8 @@ tls_connect_fds(struct tls *ctx, int fd_read, int fd_write,
 	if (tls_configure_ssl(ctx) != 0)
 		goto err;
 
-	if (ctx->config->verify_host) {
-		if (hostname == NULL) {
+	if (ctx->config->verify_name) {
+		if (servername == NULL) {
 			tls_set_error(ctx, "server name not specified");
 			goto err;
 		}
@@ -226,18 +235,18 @@ tls_connect_fds(struct tls *ctx, int fd_read, int fd_write,
 	 * RFC4366 (SNI): Literal IPv4 and IPv6 addresses are not
 	 * permitted in "HostName".
 	 */
-	if (hostname != NULL &&
-	    inet_pton(AF_INET, hostname, &addrbuf) != 1 &&
-	    inet_pton(AF_INET6, hostname, &addrbuf) != 1) {
-		if (SSL_set_tlsext_host_name(ctx->ssl_conn, hostname) == 0) {
-			tls_set_error(ctx, "SNI host name failed");
+	if (servername != NULL &&
+	    inet_pton(AF_INET, servername, &addrbuf) != 1 &&
+	    inet_pton(AF_INET6, servername, &addrbuf) != 1) {
+		if (SSL_set_tlsext_host_name(ctx->ssl_conn, servername) == 0) {
+			tls_set_error(ctx, "server name indication failure");
 			goto err;
 		}
 	}
 
  connecting:
 	if ((ret = SSL_connect(ctx->ssl_conn)) != 1) {
-		err = tls_ssl_error(ctx, ret, "connect");
+		err = tls_ssl_error(ctx, ctx->ssl_conn, ret, "connect");
 		if (err == TLS_READ_AGAIN || err == TLS_WRITE_AGAIN) {
 			ctx->flags |= TLS_CONNECTING;
 			return (err);
@@ -246,18 +255,19 @@ tls_connect_fds(struct tls *ctx, int fd_read, int fd_write,
 	}
 	ctx->flags &= ~TLS_CONNECTING;
 
-	if (ctx->config->verify_host) {
+	if (ctx->config->verify_name) {
 		cert = SSL_get_peer_certificate(ctx->ssl_conn);
 		if (cert == NULL) {
 			tls_set_error(ctx, "no server certificate");
 			goto err;
 		}
-		if ((ret = tls_check_hostname(ctx, cert, hostname)) != 0) {
+		if ((ret = tls_check_servername(ctx, cert, servername)) != 0) {
 			if (ret != -2)
-				tls_set_error(ctx, "host `%s' not present in"
-				    " server certificate", hostname);
+				tls_set_error(ctx, "name `%s' not present in"
+				    " server certificate", servername);
 			goto err;
 		}
+		X509_free(cert);
 	}
 
 	return (0);

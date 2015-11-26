@@ -1,4 +1,4 @@
-/*	$OpenBSD: httpd.h,v 1.77 2015/02/07 23:56:02 reyk Exp $	*/
+/*	$OpenBSD: httpd.h,v 1.82 2015/03/15 22:08:45 florian Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -415,6 +415,7 @@ struct server_config {
 	u_int8_t		*tls_key;
 	size_t			 tls_key_len;
 	char			*tls_key_file;
+	u_int32_t		 tls_protocols;
 
 	u_int32_t		 flags;
 	int			 strip;
@@ -534,7 +535,6 @@ int	 server_bufferevent_write_chunk(struct client *,
 	    struct evbuffer *, size_t);
 int	 server_bufferevent_add(struct event *, int);
 int	 server_bufferevent_write(struct client *, void *, size_t);
-void	 server_inflight_dec(struct client *, const char *);
 struct server *
 	 server_byaddr(struct sockaddr *, in_port_t);
 struct server_config *
@@ -588,10 +588,13 @@ int	 fcgi_add_stdin(struct client *, struct evbuffer *);
 void		 event_again(struct event *, int, short,
 		    void (*)(int, short, void *),
 		    struct timeval *, struct timeval *, void *);
+int		 expand_string(char *, size_t, const char *, const char *);
 const char	*url_decode(char *);
+char		*url_encode(const char *);
 const char	*canonicalize_host(const char *, char *, size_t);
 const char	*canonicalize_path(const char *, char *, size_t);
 size_t		 path_info(char *);
+char		*escape_html(const char *);
 void		 imsg_event_add(struct imsgev *);
 int		 imsg_compose_event(struct imsgev *, u_int16_t, u_int32_t,
 		    pid_t, int, void *, u_int16_t);

@@ -1,4 +1,4 @@
-/* $OpenBSD: tls_internal.h,v 1.9 2015/02/07 09:50:09 jsing Exp $ */
+/* $OpenBSD: tls_internal.h,v 1.12 2015/03/31 12:21:27 jsing Exp $ */
 /*
  * Copyright (c) 2014 Jeremie Courreges-Anglas <jca@openbsd.org>
  * Copyright (c) 2014 Joel Sing <jsing@openbsd.org>
@@ -25,6 +25,9 @@
 
 #define _PATH_SSL_CA_FILE "/etc/ssl/cert.pem"
 
+#define TLS_CIPHERS_COMPAT	"ALL:!aNULL:!eNULL"
+#define TLS_CIPHERS_DEFAULT	"TLSv1.2+AEAD+ECDHE:TLSv1.2+AEAD+DHE"
+
 struct tls_config {
 	const char *ca_file;
 	const char *ca_path;
@@ -41,8 +44,8 @@ struct tls_config {
 	size_t key_len;
 	uint32_t protocols;
 	int verify_cert;
-	int verify_host;
 	int verify_depth;
+	int verify_name;
 };
 
 #define TLS_CLIENT		(1 << 0)
@@ -66,7 +69,7 @@ struct tls {
 struct tls *tls_new(void);
 struct tls *tls_server_conn(struct tls *ctx);
 
-int tls_check_hostname(struct tls *ctx, X509 *cert, const char *host);
+int tls_check_servername(struct tls *ctx, X509 *cert, const char *servername);
 int tls_configure_keypair(struct tls *ctx);
 int tls_configure_server(struct tls *ctx);
 int tls_configure_ssl(struct tls *ctx);
@@ -74,6 +77,7 @@ int tls_host_port(const char *hostport, char **host, char **port);
 int tls_set_error(struct tls *ctx, char *fmt, ...)
     __attribute__((__format__ (printf, 2, 3)))
     __attribute__((__nonnull__ (2)));
-int tls_ssl_error(struct tls *ctx, int ssl_ret, const char *prefix);
+int tls_ssl_error(struct tls *ctx, SSL *ssl_conn, int ssl_ret,
+    const char *prefix);
 
 #endif /* HEADER_TLS_INTERNAL_H */

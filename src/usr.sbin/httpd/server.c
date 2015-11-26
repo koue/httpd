@@ -1,4 +1,4 @@
-/*	$OpenBSD: server.c,v 1.57 2015/02/07 23:56:02 reyk Exp $	*/
+/*	$OpenBSD: server.c,v 1.63 2015/04/23 16:59:28 florian Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -66,6 +66,7 @@ void		 server_tls_writecb(int, short, void *);
 void		 server_accept(int, short, void *);
 void		 server_accept_tls(int, short, void *);
 void		 server_input(struct client *);
+void		 server_inflight_dec(struct client *, const char *);
 
 extern void	 bufferevent_read_pressure_cb(struct evbuffer *, size_t,
 		    size_t, void *);
@@ -174,6 +175,9 @@ server_tls_init(struct server *srv)
 		log_warn("%s: failed to get tls server", __func__);
 		return (-1);
 	}
+
+	tls_config_set_protocols(srv->srv_tls_config,
+	    srv->srv_conf.tls_protocols);
 
 	if (tls_config_set_ciphers(srv->srv_tls_config,
 	    srv->srv_conf.tls_ciphers) != 0) {
@@ -320,6 +324,7 @@ serverconfig_reset(struct server_config *srv_conf)
 {
 	srv_conf->tls_cert_file = srv_conf->tls_key_file = NULL;
 	srv_conf->tls_cert = srv_conf->tls_key = NULL;
+	srv_conf->return_uri = NULL;
 	srv_conf->auth = NULL;
 }
 
@@ -825,12 +830,8 @@ server_accept(int fd, short event, void *arg)
 		return;
 
 	slen = sizeof(ss);
-#ifndef __FreeBSD__ /* file descriptor accounting */
 	if ((s = accept_reserve(fd, (struct sockaddr *)&ss,
 	    &slen, FD_RESERVE, &server_inflight)) == -1) {
-#else
-	if ((s = accept(fd, (struct sockaddr *)&ss, (socklen_t *)&slen)) == -1) {
-#endif
 		/*
 		 * Pause accept if we are out of file descriptors, or
 		 * libevent will haunt us here too.
@@ -851,6 +852,11 @@ server_accept(int fd, short event, void *arg)
 		goto err;
 
 	if ((clt = calloc(1, sizeof(*clt))) == NULL)
+		goto err;
+
+	/* Pre-allocate log buffer */
+	clt->clt_log = evbuffer_new();
+	if (clt->clt_log == NULL)
 		goto err;
 
 	clt->clt_s = s;
@@ -900,13 +906,6 @@ server_accept(int fd, short event, void *arg)
 		return;
 	}
 
-	/* Pre-allocate log buffer */
-	clt->clt_log = evbuffer_new();
-	if (clt->clt_log == NULL) {
-		server_close(clt, "failed to allocate log buffer");
-		return;
-	}
-
 	if (srv->srv_conf.flags & SRVFLAG_TLS) {
 		event_again(&clt->clt_ev, clt->clt_s, EV_TIMEOUT|EV_READ,
 		    server_accept_tls, &clt->clt_tv_start,
@@ -920,13 +919,12 @@ server_accept(int fd, short event, void *arg)
  err:
 	if (s != -1) {
 		close(s);
-		if (clt != NULL)
-			free(clt);
+		free(clt);
 		/*
 		 * the client struct was not completly set up, but still
 		 * counted as an inflight client. account for this.
 		 */
-		server_inflight_dec(clt, __func__);
+		server_inflight_dec(NULL, __func__);
 	}
 }
 
@@ -1012,7 +1010,11 @@ server_sendlog(struct server_config *srv_conf, int cmd, const char *emsg, ...)
 	iov[1].iov_base = msg;
 	iov[1].iov_len = strlen(msg) + 1;
 
-	proc_composev_imsg(env->sc_ps, PROC_LOGGER, -1, cmd, -1, iov, 2);
+	if (proc_composev_imsg(env->sc_ps, PROC_LOGGER, -1, cmd, -1, iov,
+	    2) != 0) {
+		log_warn("%s: failed to compose imsg", __func__);
+		return;
+	}
 }
 
 void
