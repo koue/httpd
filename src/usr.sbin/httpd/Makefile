@@ -5,6 +5,12 @@ SRCS=		parse.y
 SRCS+=		config.c control.c httpd.c log.c logger.c proc.c getdtablecount.c
 SRCS+=		server.c server_http.c server_file.c server_fcgi.c
 
+.PATH: ${.CURDIR}/../../lib/libc/gen
+SRCS+=	vis.c
+
+.PATH: ${.CURDIR}/../../lib/libssl/src/crypto/asn1
+SRCS+=	a_time_tm.c
+
 .PATH:	${.CURDIR}/../../lib/libc/crypt
 SRCS+=	bcrypt.c \
 	cryptutil.c
@@ -13,6 +19,8 @@ SRCS+=	bcrypt.c \
 SRCS+=	tls.c \
 	tls_client.c \
 	tls_config.c \
+	tls_conninfo.c \
+	tls_peer.c \
 	tls_server.c \
 	tls_util.c \
 	tls_verify.c
@@ -49,6 +57,7 @@ CFLAGS+=	-Wsign-compare
 CFLAGS+=	-I${.CURDIR}/../../../libevent \
 		-I${.CURDIR}/../../lib/libutil \
 		-I${.CURDIR}/../../lib/libtls \
+		-I${.CURDIR}/../../lib/libssl/src/crypto \
 		-I${.CURDIR}/../../include \
 		-L /usr/local/lib \
 		-I /usr/local/include

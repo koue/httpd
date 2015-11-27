@@ -303,12 +303,6 @@ tls_config_insecure_noverifyname(struct tls_config *config)
 }
 
 void
-tls_config_insecure_noverifyname(struct tls_config *config)
-{
-	config->verify_name = 0;
-}
-
-void
 tls_config_insecure_noverifytime(struct tls_config *config)
 {
 	config->verify_time = 0;
@@ -332,5 +326,4 @@ void
 tls_config_verify_client_optional(struct tls_config *config)
 {
 	config->verify_client = 2;
->>>>>>> OpenBSD
 }

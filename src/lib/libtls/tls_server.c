@@ -111,7 +111,7 @@ tls_configure_server(struct tls *ctx)
 }
 
 int
-tls_accept_fds(struct tls *ctx, struct tls **cctx, int fd_read, int fd_write)
+tls_accept_socket(struct tls *ctx, struct tls **cctx, int socket)
 {
 	return (tls_accept_fds(ctx, cctx, socket, socket));
 }
@@ -178,17 +178,5 @@ tls_handshake_server(struct tls *ctx)
 	rv = 0;
 
  err:
-	return (rv);
-}
-
-int
-tls_accept_socket(struct tls *ctx, struct tls **cctx, int socket)
-{
-	int rv;
-
-	rv = tls_accept_fds(ctx, cctx, socket, socket);
-	if (*cctx != NULL)
-		(*cctx)->socket = socket;
-
 	return (rv);
 }

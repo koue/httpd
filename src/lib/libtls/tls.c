@@ -31,6 +31,11 @@
 #include <tls.h>
 #include "tls_internal.h"
 
+#ifdef __FreeBSD__
+/* Do not check certificate/CRL validity against current time */
+# define X509_V_FLAG_NO_CHECK_TIME               0x200000
+#endif
+
 static struct tls_config *tls_config_default;
 
 int

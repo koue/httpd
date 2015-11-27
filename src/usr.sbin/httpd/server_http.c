@@ -41,6 +41,11 @@
 #include "http.h"
 #include "patterns.h"
 
+#ifdef __FreeBSD__
+/* check /usr/include/vis.h */
+#define VIS_DQ		0x00200
+#endif
+
 static int	 server_httpmethod_cmp(const void *, const void *);
 static int	 server_httperror_cmp(const void *, const void *);
 void		 server_httpdesc_free(struct http_descriptor *);
@@ -801,13 +806,6 @@ server_abort_http(struct client *clt, unsigned int code, const char *msg)
 			extraheader = NULL;
 		}
 		break;
-	case 416:
-		if (asprintf(&extraheader,
-		    "Content-Range: %s\r\n", msg) == -1) {
-			code = 500;
-			extraheader = NULL;
-		}
-		break;
 	default:
 		/*
 		 * Do not send details of the error.  Traditionally,
@@ -886,7 +884,6 @@ server_abort_http(struct client *clt, unsigned int code, const char *msg)
 		server_close(clt, httpmsg);
 		free(httpmsg);
 	}
-	free(ptr);
 }
 
 void
@@ -1042,94 +1039,6 @@ server_expand_http(struct client *clt, const char *val, char *buf,
 			ret = expand_string(buf, len, "$SERVER_NAME", str);
 			free(str);
 			if (ret != 0)
-				return (NULL);
-		}
-	}
-
-	return (buf);
-}
-
-char *
-server_expand_http(struct client *clt, const char *val, char *buf,
-    size_t len)
-{
-	struct http_descriptor	*desc = clt->clt_descreq;
-	struct server_config	*srv_conf = clt->clt_srv_conf;
-	char			 ibuf[128], *str;
-
-	if (strlcpy(buf, val, len) >= len)
-		return (NULL);
-
-	if (strstr(val, "$DOCUMENT_URI") != NULL) {
-		if (expand_string(buf, len, "$DOCUMENT_URI",
-		    desc->http_path) != 0)
-			return (NULL);
-	}
-	if (strstr(val, "$QUERY_STRING") != NULL) {
-		if (expand_string(buf, len, "$QUERY_STRING",
-		    desc->http_query == NULL ? "" :
-		    desc->http_query) != 0)
-			return (NULL);
-	}
-	if (strstr(val, "$REMOTE_") != NULL) {
-		if (strstr(val, "$REMOTE_ADDR") != NULL) {
-			if (print_host(&clt->clt_ss,
-			    ibuf, sizeof(ibuf)) == NULL)
-				return (NULL);
-			if (expand_string(buf, len,
-			    "$REMOTE_ADDR", ibuf) != 0)
-				return (NULL);
-		}
-		if (strstr(val, "$REMOTE_PORT") != NULL) {
-			snprintf(ibuf, sizeof(ibuf),
-			    "%u", ntohs(clt->clt_port));
-			if (expand_string(buf, len,
-			    "$REMOTE_PORT", ibuf) != 0)
-				return (NULL);
-		}
-		if (strstr(val, "$REMOTE_USER") != NULL) {
-			if ((srv_conf->flags & SRVFLAG_AUTH) &&
-			    clt->clt_remote_user != NULL)
-				str = clt->clt_remote_user;
-			else
-				str = "";
-			if (expand_string(buf, len,
-			    "$REMOTE_USER", str) != 0)
-				return (NULL);
-		}
-	}
-	if (strstr(val, "$REQUEST_URI") != NULL) {
-		if (desc->http_query == NULL) {
-			if ((str = strdup(desc->http_path)) == NULL)
-				return (NULL);
-		} else if (asprintf(&str, "%s?%s",
-		    desc->http_path, desc->http_query) == -1)
-			return (NULL);
-		if (expand_string(buf, len, "$REQUEST_URI", str) != 0) {
-			free(str);
-			return (NULL);
-		}
-		free(str);
-	}
-	if (strstr(val, "$SERVER_") != NULL) {
-		if (strstr(val, "$SERVER_ADDR") != NULL) {
-			if (print_host(&srv_conf->ss,
-			    ibuf, sizeof(ibuf)) == NULL)
-				return (NULL);
-			if (expand_string(buf, len,
-			    "$SERVER_ADDR", ibuf) != 0)
-				return (NULL);
-		}
-		if (strstr(val, "$SERVER_PORT") != NULL) {
-			snprintf(ibuf, sizeof(ibuf), "%u",
-			    ntohs(srv_conf->port));
-			if (expand_string(buf, len,
-			    "$SERVER_PORT", ibuf) != 0)
-				return (NULL);
-		}
-		if (strstr(val, "$SERVER_NAME") != NULL) {
-			if (expand_string(buf, len,
-			    "$SERVER_NAME", srv_conf->name) != 0)
 				return (NULL);
 		}
 	}
