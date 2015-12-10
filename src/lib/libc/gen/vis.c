@@ -36,10 +36,9 @@
 #include <stdlib.h>
 #include <vis.h>
 
-#ifndef __FreeBSD__
 #define	isoctal(c)	(((u_char)(c)) >= '0' && ((u_char)(c)) <= '7')
 #define	isvisible(c,flag)						\
-	(((c) == '\\' || (flag & VIS_ALL) == 0) &&			\
+	(((c) == '\\' || (flag & VIS_HTTP1866) == 0) &&			\
 	(((u_int)(c) <= UCHAR_MAX && isascii((u_char)(c)) &&		\
 	(((c) != '*' && (c) != '?' && (c) != '[' && (c) != '#') ||	\
 		(flag & VIS_GLOB) == 0) && isgraph((u_char)(c))) ||	\
@@ -50,6 +49,10 @@
 		(c) == '\007' || (c) == '\r' ||				\
 		isgraph((u_char)(c))))))
 
+#ifdef __FreeBSD__
+void *reallocarray(void *, size_t, size_t);
+#endif
+
 /*
  * vis - visually encode characters
  */
@@ -57,7 +60,7 @@ char *
 vis(char *dst, int c, int flag, int nextc)
 {
 	if (isvisible(c, flag)) {
-		if ((c == '"' && (flag & VIS_DQ) != 0) ||
+		if ((c == '"' && (flag & VIS_MIMESTYLE) != 0) ||
 		    (c == '\\' && (flag & VIS_NOSLASH) == 0))
 			*dst++ = '\\';
 		*dst++ = c;
@@ -137,7 +140,9 @@ done:
 	*dst = '\0';
 	return (dst);
 }
+#ifndef __FreeBSD__
 DEF_WEAK(vis);
+#endif
 
 /*
  * strvis, strnvis, strvisx - visually encode characters from src into dst
@@ -163,6 +168,7 @@ strvis(char *dst, const char *src, int flag)
 	*dst = '\0';
 	return (dst - start);
 }
+#ifndef __FreeBSD__
 DEF_WEAK(strvis);
 
 int

@@ -41,11 +41,6 @@
 #include "http.h"
 #include "patterns.h"
 
-#ifdef __FreeBSD__
-/* check /usr/include/vis.h */
-#define VIS_DQ		0x00200
-#endif
-
 static int	 server_httpmethod_cmp(const void *, const void *);
 static int	 server_httperror_cmp(const void *, const void *);
 void		 server_httpdesc_free(struct http_descriptor *);
@@ -789,7 +784,7 @@ server_abort_http(struct client *clt, unsigned int code, const char *msg)
 		msg = buf;
 		break;
 	case 401:
-		if (stravis(&escapedmsg, msg, VIS_DQ) == -1) {
+		if (stravis(&escapedmsg, msg, VIS_MIMESTYLE) == -1) {
 			code = 500;
 			extraheader = NULL;
 		} else if (asprintf(&extraheader,
