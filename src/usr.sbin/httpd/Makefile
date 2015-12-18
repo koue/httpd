@@ -59,8 +59,8 @@ CFLAGS+=	-I${.CURDIR}/../../../libevent \
 		-I${.CURDIR}/../../lib/libtls \
 		-I${.CURDIR}/../../lib/libssl/src/crypto \
 		-I${.CURDIR}/../../include \
-		-L /usr/local/lib \
-		-I /usr/local/include
+		-L ${PREFIX}/lib \
+		-I ${PREFIX}/include
 CFLAGS+=	-D__dead='' \
 		-DHAVE_CONFIG_H
 CLEANFILES+=	y.tab.h
