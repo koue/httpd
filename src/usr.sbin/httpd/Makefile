@@ -1,5 +1,6 @@
 #	$OpenBSD: Makefile,v 1.28 2015/06/23 15:23:14 reyk Exp $
 
+LOCALBASE?=	/usr/local
 PROG=		httpd
 SRCS=		parse.y
 SRCS+=		config.c control.c httpd.c log.c logger.c proc.c getdtablecount.c
@@ -59,8 +60,8 @@ CFLAGS+=	-I${.CURDIR}/../../../libevent \
 		-I${.CURDIR}/../../lib/libtls \
 		-I${.CURDIR}/../../lib/libssl/src/crypto \
 		-I${.CURDIR}/../../include \
-		-L /usr/local/lib \
-		-I /usr/local/include
+		-L ${LOCALBASE}/lib \
+		-I ${LOCALBASE}/include
 CFLAGS+=	-D__dead='' \
 		-DHAVE_CONFIG_H
 CLEANFILES+=	y.tab.h
