@@ -48,7 +48,7 @@ fail:
 	errno = EACCES;
 	return -1;
 }
-#ifndef __FreeBSD__
+#ifdef __OpenBSD__
 DEF_WEAK(crypt_checkpass);
 #endif
 
@@ -96,6 +96,6 @@ crypt_newhash(const char *pass, const char *pref, char *hash, size_t hashlen)
 err:
 	return rv;
 }
-#ifndef __FreeBSD__
+#ifdef __OpenBSD__
 DEF_WEAK(crypt_newhash);
 #endif

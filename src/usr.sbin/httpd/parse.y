@@ -54,7 +54,7 @@
 #include "httpd.h"
 #include "http.h"
 
-#ifdef __FreeBSD__
+#ifndef __OpenBSD__
 #include <stdlib.h>
 #endif
 
@@ -1790,10 +1790,10 @@ host_dns(const char *s, struct addresslist *al, int max,
 	hints.ai_socktype = SOCK_DGRAM; /* DUMMY */
 	hints.ai_flags = AI_ADDRCONFIG;
 	error = getaddrinfo(s, NULL, &hints, &res0);
-#ifdef __FreeBSD__
-	if (error == EAI_AGAIN || error == EAI_NONAME)
-#else
+#ifdef __OpenBSD__
 	if (error == EAI_AGAIN || error == EAI_NODATA || error == EAI_NONAME)
+#else
+	if (error == EAI_AGAIN || error == EAI_NONAME)
 #endif
 		return (0);
 	if (error) {

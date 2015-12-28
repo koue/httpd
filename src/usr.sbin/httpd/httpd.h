@@ -38,7 +38,7 @@
 
 #include "patterns.h"
 
-#ifdef __FreeBSD__
+#ifndef __OpenBSD__
 #include <unistd.h>
 #define HOST_NAME_MAX _SC_HOST_NAME_MAX
 #endif
@@ -633,7 +633,7 @@ void		*get_data(uint8_t *, size_t);
 int		 sockaddr_cmp(struct sockaddr *, struct sockaddr *, int);
 struct in6_addr *prefixlen2mask6(uint8_t, uint32_t *);
 uint32_t	 prefixlen2mask(uint8_t);
-#ifndef __FreeBSD__
+#ifdef __OpenBSD__
 int		 accept_reserve(int, struct sockaddr *, socklen_t *, int,
 		    volatile int *);
 #endif

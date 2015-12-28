@@ -504,7 +504,7 @@ server_socket(struct sockaddr_storage *ss, in_port_t port,
 			val = 0;
 		else
 			val = 1;
-#ifndef __FreeBSD__
+#ifdef __OpenBSD__
 		if (setsockopt(s, IPPROTO_TCP, TCP_SACK_ENABLE,
 		    &val, sizeof(val)) == -1)
 			goto bad;

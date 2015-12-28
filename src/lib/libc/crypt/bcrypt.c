@@ -40,7 +40,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __FreeBSD__
+#ifndef __OpenBSD__
 #include <time.h>
 #endif
 
@@ -219,7 +219,7 @@ bcrypt_newhash(const char *pass, int log_rounds, char *hash, size_t hashlen)
 	explicit_bzero(salt, sizeof(salt));
 	return 0;
 }
-#ifndef __FreeBSD__
+#ifdef __OpenBSD__
 DEF_WEAK(bcrypt_newhash);
 #endif
 
@@ -239,7 +239,7 @@ bcrypt_checkpass(const char *pass, const char *goodhash)
 	explicit_bzero(hash, sizeof(hash));
 	return 0;
 }
-#ifndef __FreeBSD__
+#ifdef __OpenBSD__
 DEF_WEAK(bcrypt_checkpass);
 #endif
 
@@ -401,6 +401,6 @@ bcrypt(const char *pass, const char *salt)
 
 	return gencrypted;
 }
-#ifndef __FreeBSD__
+#ifdef __OpenBSD__
 DEF_WEAK(bcrypt);
 #endif

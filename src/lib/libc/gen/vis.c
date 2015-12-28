@@ -49,7 +49,7 @@
 		(c) == '\007' || (c) == '\r' ||				\
 		isgraph((u_char)(c))))))
 
-#ifdef __FreeBSD__
+#ifndef __OpenBSD__
 void *reallocarray(void *, size_t, size_t);
 #endif
 
@@ -140,7 +140,7 @@ done:
 	*dst = '\0';
 	return (dst);
 }
-#ifndef __FreeBSD__
+#ifdef __OpenBSD__
 DEF_WEAK(vis);
 #endif
 
@@ -168,7 +168,7 @@ strvis(char *dst, const char *src, int flag)
 	*dst = '\0';
 	return (dst - start);
 }
-#ifndef __FreeBSD__
+#ifdef __OpenBSD__
 DEF_WEAK(strvis);
 
 int
