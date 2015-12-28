@@ -1,4 +1,4 @@
-/*	$OpenBSD: server_http.c,v 1.99 2015/09/07 14:46:24 reyk Exp $	*/
+/*	$OpenBSD: server_http.c,v 1.103 2015/12/07 20:30:17 mmcc Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -102,26 +102,18 @@ server_httpdesc_free(struct http_descriptor *desc)
 {
 	if (desc == NULL)
 		return;
-	if (desc->http_path != NULL) {
-		free(desc->http_path);
-		desc->http_path = NULL;
-	}
-	if (desc->http_path_alias != NULL) {
-		free(desc->http_path_alias);
-		desc->http_path_alias = NULL;
-	}
-	if (desc->http_query != NULL) {
-		free(desc->http_query);
-		desc->http_query = NULL;
-	}
-	if (desc->http_version != NULL) {
-		free(desc->http_version);
-		desc->http_version = NULL;
-	}
-	if (desc->http_host != NULL) {
-		free(desc->http_host);
-		desc->http_host = NULL;
-	}
+
+	free(desc->http_path);
+	desc->http_path = NULL;
+	free(desc->http_path_alias);
+	desc->http_path_alias = NULL;
+	free(desc->http_query);
+	desc->http_query = NULL;
+	free(desc->http_version);
+	desc->http_version = NULL;
+	free(desc->http_host);
+	desc->http_host = NULL;
+
 	kv_purge(&desc->http_headers);
 	desc->http_lastheader = NULL;
 	desc->http_method = 0;
@@ -195,6 +187,7 @@ server_http_authenticate(struct server_config *srv_conf, struct client *clt)
 		}
 	}
 done:
+	free(line);
 	if (fp != NULL)
 		fclose(fp);
 
@@ -597,8 +590,7 @@ server_read_httpchunks(struct bufferevent *bev, void *arg)
 	case 0:
 		/* Chunk is terminated by an empty newline */
 		line = evbuffer_readln(src, NULL, EVBUFFER_EOL_CRLF_STRICT);
-		if (line != NULL)
-			free(line);
+		free(line);
 		if (server_bufferevent_print(clt, "\r\n") == -1)
 			goto fail;
 		clt->clt_toread = TOREAD_HTTP_CHUNK_LENGTH;
@@ -918,7 +910,7 @@ server_expand_http(struct client *clt, const char *val, char *buf,
 	/* Find previously matched substrings by index */
 	for (p = val; clt->clt_srv_match.sm_nmatch &&
 	    (p = strstr(p, "%")) != NULL; p++) {
-		if (!isdigit(*(p + 1)))
+		if (!isdigit((unsigned char)*(p + 1)))
 			continue;
 
 		/* Copy number, leading '%' char and add trailing \0 */

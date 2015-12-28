@@ -1,4 +1,4 @@
-/*	$OpenBSD: server.c,v 1.80 2015/09/11 13:21:09 jsing Exp $	*/
+/*	$OpenBSD: server.c,v 1.83 2015/12/02 15:13:00 reyk Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -244,6 +244,9 @@ server_init(struct privsep *ps, struct privsep_proc *p, void *arg)
 	/* Unlimited file descriptors (use system limits) */
 	socket_rlimit(-1);
 
+	if (pledge("stdio rpath inet unix recvfd", NULL) == -1)
+		fatal("pledge");
+
 #if 0
 	/* Schedule statistics timer */
 	evtimer_set(&env->sc_statev, server_statistics, NULL);
@@ -438,7 +441,8 @@ server_socket(struct sockaddr_storage *ss, in_port_t port,
 	if (server_socket_af(ss, port) == -1)
 		goto bad;
 
-	s = fd == -1 ? socket(ss->ss_family, SOCK_STREAM, IPPROTO_TCP) : fd;
+	s = fd == -1 ? socket(ss->ss_family, SOCK_STREAM | SOCK_NONBLOCK,
+	    IPPROTO_TCP) : fd;
 	if (s == -1)
 		goto bad;
 
@@ -454,8 +458,6 @@ server_socket(struct sockaddr_storage *ss, in_port_t port,
 		    sizeof(int)) == -1)
 			goto bad;
 	}
-	if (fcntl(s, F_SETFL, O_NONBLOCK) == -1)
-		goto bad;
 	if (srv_conf->tcpflags & TCPFLAG_BUFSIZ) {
 		val = srv_conf->tcpbufsiz;
 		if (setsockopt(s, SOL_SOCKET, SO_RCVBUF,
@@ -856,9 +858,6 @@ server_accept(int fd, short event, void *arg)
 	if (server_clients >= SERVER_MAX_CLIENTS)
 		goto err;
 
-	if (fcntl(s, F_SETFL, O_NONBLOCK) == -1)
-		goto err;
-
 	if ((clt = calloc(1, sizeof(*clt))) == NULL)
 		goto err;
 
@@ -1021,8 +1020,7 @@ server_sendlog(struct server_config *srv_conf, int cmd, const char *emsg, ...)
 	iov[1].iov_base = msg;
 	iov[1].iov_len = strlen(msg) + 1;
 
-	if (proc_composev_imsg(env->sc_ps, PROC_LOGGER, -1, cmd, -1, iov,
-	    2) != 0) {
+	if (proc_composev(env->sc_ps, PROC_LOGGER, cmd, iov, 2) != 0) {
 		log_warn("%s: failed to compose imsg", __func__);
 		return;
 	}
