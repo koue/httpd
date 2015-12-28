@@ -244,8 +244,10 @@ server_init(struct privsep *ps, struct privsep_proc *p, void *arg)
 	/* Unlimited file descriptors (use system limits) */
 	socket_rlimit(-1);
 
+#ifdef __OpenBSD__
 	if (pledge("stdio rpath inet unix recvfd", NULL) == -1)
 		fatal("pledge");
+#endif
 
 #if 0
 	/* Schedule statistics timer */

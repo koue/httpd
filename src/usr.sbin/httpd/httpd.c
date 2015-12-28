@@ -251,9 +251,11 @@ main(int argc, char *argv[])
 	setproctitle("parent");
 	log_procinit("parent");
 
+#ifdef __OpenBSD__
 	if (pledge("stdio rpath wpath cpath inet dns proc ioctl sendfd",
 	    NULL) == -1)
 		fatal("pledge");
+#endif
 
 	event_init();
 
