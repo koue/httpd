@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Nikola Kolev
+ * Copyright (c) 2015-2016 Nikola Kolev
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -28,12 +28,19 @@
  *
  */
 
+#ifndef HAVE_GETDTABLECOUNT
+
 #include <stdio.h>
+#include <unistd.h>
 #include <sys/param.h>
 #include <sys/socket.h>
 #include <sys/sysctl.h>
 #include <sys/queue.h>
+#include <sys/types.h>
+#include <sys/user.h>
 #include <libprocstat.h>
+
+#include "getdtablecount.h"
 
 int
 getdtablecount(void) {
@@ -43,7 +50,7 @@ getdtablecount(void) {
 	struct filestat *fst;
 	unsigned int fd_count = 0;
 	pid_t pid;
-	int cnt;
+	unsigned int cnt;
 
 	procstat = procstat_open_sysctl();
 	if (procstat == NULL)
@@ -65,3 +72,5 @@ getdtablecount(void) {
 	procstat_freeprocs(procstat, kipp);
 	return fd_count;
 }
+
+#endif

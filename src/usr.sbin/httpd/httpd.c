@@ -44,6 +44,7 @@
 #include <pwd.h>
 
 #include "httpd.h"
+#include "getdtablecount.h"
 
 #define MAXIMUM(a, b)	(((a) > (b)) ? (a) : (b))
 

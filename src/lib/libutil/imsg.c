@@ -27,6 +27,7 @@
 #include <unistd.h>
 
 #include "imsg.h"
+#include "getdtablecount.h"
 
 int	 imsg_fd_overhead = 0;
 
