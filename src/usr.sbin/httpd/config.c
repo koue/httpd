@@ -433,6 +433,12 @@ config_getserver_config(struct httpd *env, struct server *srv,
 			    strdup(parent->return_uri)) == NULL)
 				goto fail;
 		}
+		
+		/* Don't inherit rewrite settings */
+		/* f = SRVFLAG_REWRITE;
+		srv_conf->flags |= (parent->flags & f);
+		strlcpy(srv_conf->rewrite_uri, parent->rewrite_uri,
+			sizeof(srv_conf->rewrite_uri)); */
 
 		f = SRVFLAG_DEFAULT_TYPE;
 		if ((srv_conf->flags & f) == 0) {
