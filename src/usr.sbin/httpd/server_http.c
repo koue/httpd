@@ -1047,6 +1047,8 @@ server_response(struct httpd *httpd, struct client *clt)
 	int			 portval = -1, ret;
 	char			*hostval;
 	const char		*errstr = NULL;
+	char			buf[IBUF_READ_SIZE];
+	int n;
 
 	/* Canonicalize the request path */
 	if (desc->http_path == NULL ||
@@ -1151,6 +1153,44 @@ server_response(struct httpd *httpd, struct client *clt)
 	/* Now search for the location */
 	srv_conf = server_getlocation(clt, desc->http_path);
 
+
+	/* URL Rewriting logic */
+	DPRINTF("%s: URL Rewriting logic, flags: %08X, rewrite_uri: %s, "
+		"http_path: %s\n", __func__, srv_conf->flags,
+		srv_conf->rewrite_uri, desc->http_path);
+	for (n = 0; srv_conf->flags & SRVFLAG_REWRITE; n++) {
+		if (n > SERVER_MAX_RECUR_REWR) {
+			server_abort_http(clt, 500, "recursive "
+			    "rewrite limit exceeded");
+			return (-1);
+		}
+		DPRINTF("%s: Rewrite from: %s to %s, n: %d\n", __func__,
+			desc->http_path, srv_conf->rewrite_uri, n);
+		if (server_expand_http(clt, srv_conf->rewrite_uri, buf,
+		    sizeof(buf)) == NULL) {
+			server_abort_http(clt, 500, strerror(errno));
+			return (-1);
+		}
+		if (desc->http_path != NULL) {
+			free(desc->http_path);
+			desc->http_path = NULL;
+		}
+		desc->http_path = strdup(buf);
+		if (desc->http_path == NULL) {
+			server_abort_http(clt, 500, strerror(errno));
+			return (-1);
+		}
+		desc->http_query = strchr(desc->http_path, '?');
+		if (desc->http_query != NULL) {
+			*desc->http_query++ = '\0';
+			desc->http_query = strdup(desc->http_query);
+			if (desc->http_query == NULL) {
+				server_abort_http(clt, 500, strerror(errno));
+			}
+		}
+		srv_conf = server_getlocation(clt, desc->http_path);
+	}
+
 	if (srv_conf->flags & SRVFLAG_BLOCK) {
 		server_abort_http(clt, srv_conf->return_code,
 		    srv_conf->return_uri);
@@ -1193,8 +1233,10 @@ server_getlocation(struct client *clt, const char *path)
 	TAILQ_FOREACH(location, &srv->srv_hosts, entry) {
 #ifdef DEBUG
 		if (location->flags & SRVFLAG_LOCATION) {
-			DPRINTF("%s: location \"%s\" path \"%s\"",
-			    __func__, location->location, path);
+			DPRINTF("%s: location \"%s\" path \"%s\" flags: %08X "
+			    "rewrite_uri: %s",
+			    __func__, location->location, path, location->flags,
+			    location->rewrite_uri);
 		}
 #endif
 		if ((location->flags & SRVFLAG_LOCATION) &&

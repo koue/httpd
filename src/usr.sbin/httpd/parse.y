@@ -138,7 +138,7 @@ typedef struct {
 %token	LOCATION LOG LOGDIR MATCH MAXIMUM NO NODELAY ON PORT PREFORK PROTOCOLS
 %token	REQUEST REQUESTS ROOT SACK SERVER SOCKET STRIP STYLE SYSLOG TCP TIMEOUT
 %token	TLS TYPE TYPES HSTS MAXAGE SUBDOMAINS DEFAULT PRELOAD
-%token	ERROR INCLUDE AUTHENTICATE WITH BLOCK DROP RETURN PASS
+%token	ERROR INCLUDE AUTHENTICATE WITH BLOCK DROP RETURN PASS REWRITE
 %token	<v.string>	STRING
 %token  <v.number>	NUMBER
 %type	<v.port>	port
@@ -929,6 +929,17 @@ filter		: block RETURN NUMBER optstring	{
 			/* Forbidden */
 			srv_conf->return_code = 403;
 		}
+		| PASS REWRITE STRING		{
+			srv_conf->flags |= SRVFLAG_REWRITE;
+			if (strlcpy(srv_conf->rewrite_uri, $3,
+			    sizeof(srv_conf->rewrite_uri)) >=
+			    sizeof(srv_conf->rewrite_uri)) {
+			    yyerror("url rewrite string too long");
+			    free($3);
+			    YYERROR;
+			}
+			free($3);
+		}
 		| PASS				{
 			srv_conf->flags &= ~SRVFLAG_BLOCK;
 			srv_conf->flags |= SRVFLAG_NO_BLOCK;
@@ -1188,6 +1199,7 @@ lookup(char *s)
 		{ "request",		REQUEST },
 		{ "requests",		REQUESTS },
 		{ "return",		RETURN },
+		{ "rewrite", 		REWRITE },
 		{ "root",		ROOT },
 		{ "sack",		SACK },
 		{ "server",		SERVER },
