@@ -41,6 +41,10 @@
 #include "http.h"
 #include "patterns.h"
 
+#ifndef __OpenBSD__
+#include "compat.h"
+#endif
+
 static int	 server_httpmethod_cmp(const void *, const void *);
 static int	 server_httperror_cmp(const void *, const void *);
 void		 server_httpdesc_free(struct http_descriptor *);

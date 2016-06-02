@@ -25,6 +25,10 @@
 
 #include "o_time.h"
 
+#ifndef __OpenBSD__
+#include "compat.h"
+#endif
+
 #define RFC5280 0
 #define GENTIME_LENGTH 15
 #define UTCTIME_LENGTH 13

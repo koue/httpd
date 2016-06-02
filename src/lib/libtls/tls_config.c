@@ -22,6 +22,10 @@
 #include <tls.h>
 #include "tls_internal.h"
 
+#ifndef __OpenBSD__
+#include "compat.h"
+#endif
+
 static int
 set_string(const char **dest, const char *src)
 {

@@ -50,7 +50,7 @@
 		isgraph((u_char)(c))))))
 
 #ifndef __OpenBSD__
-void *reallocarray(void *, size_t, size_t);
+#include "compat.h"
 #endif
 
 /*

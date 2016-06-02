@@ -21,6 +21,10 @@
 #include <login_cap.h>
 #include <errno.h>
 
+#ifndef __OpenBSD__
+#include "compat.h"
+#endif
+
 int
 crypt_checkpass(const char *pass, const char *goodhash)
 {

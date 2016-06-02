@@ -23,6 +23,10 @@
 #include <tls.h>
 #include "tls_internal.h"
 
+#ifndef __OpenBSD__
+#include "compat.h"
+#endif
+
 static int
 tls_hex_string(const unsigned char *in, size_t inlen, char **out,
     size_t *outlen)

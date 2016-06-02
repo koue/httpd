@@ -42,6 +42,7 @@
 
 #ifndef __OpenBSD__
 #include <time.h>
+#include "compat.h"
 #endif
 
 /* This implementation is adaptable to current computing power.

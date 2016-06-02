@@ -45,6 +45,10 @@
 
 #include "httpd.h"
 
+#ifndef __OpenBSD__
+#include "compat.h"
+#endif
+
 #define MINIMUM(a, b)	(((a) < (b)) ? (a) : (b))
 
 int		 server_dispatch_parent(int, struct privsep_proc *,
