@@ -174,10 +174,24 @@ proc_open(struct privsep *ps, struct privsep_proc *p,
 				if (pa->pp_pipes[procs[proc].p_id][j] != -1)
 					continue;
 
+#ifdef __FreeBSD__
+#  if __FreeBSD_version < 1000000
+				if (socketpair(AF_UNIX,
+				    SOCK_STREAM,
+				    PF_UNSPEC, fds) == -1)
+					fatal("socketpair");
+#  else
 				if (socketpair(AF_UNIX,
 				    SOCK_STREAM | SOCK_NONBLOCK,
 				    PF_UNSPEC, fds) == -1)
 					fatal("socketpair");
+#  endif
+#else
+				if (socketpair(AF_UNIX,
+				    SOCK_STREAM | SOCK_NONBLOCK,
+				    PF_UNSPEC, fds) == -1)
+					fatal("socketpair");
+#endif
 
 				pa->pp_pipes[procs[proc].p_id][j] = fds[0];
 				pb->pp_pipes[src][i] = fds[1];

@@ -447,8 +447,18 @@ server_socket(struct sockaddr_storage *ss, in_port_t port,
 	if (server_socket_af(ss, port) == -1)
 		goto bad;
 
+#ifdef __FreeBSD__
+#  if __FreeBSD_version < 1000000
+	s = fd == -1 ? socket(ss->ss_family, SOCK_STREAM,
+	    IPPROTO_TCP) : fd;
+#  else
 	s = fd == -1 ? socket(ss->ss_family, SOCK_STREAM | SOCK_NONBLOCK,
 	    IPPROTO_TCP) : fd;
+#  endif
+#else
+	s = fd == -1 ? socket(ss->ss_family, SOCK_STREAM | SOCK_NONBLOCK,
+	    IPPROTO_TCP) : fd;
+#endif
 	if (s == -1)
 		goto bad;
 
