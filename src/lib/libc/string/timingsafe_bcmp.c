@@ -27,4 +27,6 @@ timingsafe_bcmp(const void *b1, const void *b2, size_t n)
 		ret |= *p1++ ^ *p2++;
 	return (ret != 0);
 }
+#ifdef __OpenBSD__
 DEF_WEAK(timingsafe_bcmp);
+#endif

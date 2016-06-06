@@ -23,10 +23,15 @@
 #include <limits.h>
 #include <pwd.h>
 #include <readpassphrase.h>
+#define _WITH_GETLINE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+#ifndef __OpenBSD__
+#include "compat.h"
+#endif
 
 __dead void	usage(void);
 void		nag(char*);
@@ -57,8 +62,10 @@ main(int argc, char** argv)
 	ssize_t linelen;
 	mode_t old_umask;
 
+#ifdef __OpenBSD__
 	if (pledge("stdio rpath wpath cpath flock tmppath tty", NULL) == -1)
 		err(1, "pledge");
+#endif
 
 	while ((c = getopt(argc, argv, "I")) != -1) {
 		switch (c) {
@@ -80,8 +87,10 @@ main(int argc, char** argv)
 			file = argv[0];
 		else if (argc > 1)
 			usage();
+#ifdef __OpenBSD__
 		else if (pledge("stdio", NULL) == -1)
 			err(1, "pledge");
+#endif
 
 		if ((linelen = getline(&line, &linesize, stdin)) == -1)
 			err(1, "cannot read login:password from stdin");
@@ -100,8 +109,10 @@ main(int argc, char** argv)
 
 		switch (argc) {
 		case 1:
+#ifdef __OpenBSD__
 			if (pledge("stdio tty", NULL) == -1)
 				err(1, "pledge");
+#endif
 			if ((loginlen = asprintf(&login, "%s:", argv[0])) == -1)
 				err(1, "asprintf");
 			break;

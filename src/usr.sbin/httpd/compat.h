@@ -49,5 +49,7 @@ char *
 bcrypt(const char *pass, const char *salt);
 int
 stravis(char **outp, const char *src, int flag);
+int
+timingsafe_bcmp(const void *b1, const void *b2, size_t n);
 
 #endif
