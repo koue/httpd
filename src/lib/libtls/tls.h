@@ -1,4 +1,4 @@
-/* $OpenBSD: tls.h,v 1.29 2016/05/27 14:21:24 jsing Exp $ */
+/* $OpenBSD: tls.h,v 1.38 2016/09/13 13:40:58 tedu Exp $ */
 /*
  * Copyright (c) 2014 Joel Sing <jsing@openbsd.org>
  *
@@ -27,7 +27,7 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
-#define TLS_API	20141031
+#define TLS_API	20160904
 
 #define TLS_PROTOCOL_TLSv1_0	(1 << 1)
 #define TLS_PROTOCOL_TLSv1_1	(1 << 2)
@@ -44,6 +44,11 @@ extern "C" {
 struct tls;
 struct tls_config;
 
+typedef ssize_t (*tls_read_cb)(struct tls *_ctx, void *_buf, size_t _buflen,
+    void *_cb_arg);
+typedef ssize_t (*tls_write_cb)(struct tls *_ctx, const void *_buf,
+    size_t _buflen, void *_cb_arg);
+
 int tls_init(void);
 
 const char *tls_config_error(struct tls_config *_config);
@@ -52,6 +57,12 @@ const char *tls_error(struct tls *_ctx);
 struct tls_config *tls_config_new(void);
 void tls_config_free(struct tls_config *_config);
 
+int tls_config_add_keypair_file(struct tls_config *_config,
+    const char *_cert_file, const char *_key_file);
+int tls_config_add_keypair_mem(struct tls_config *_config, const uint8_t *_cert,
+    size_t _cert_len, const uint8_t *_key, size_t _key_len);
+
+int tls_config_set_alpn(struct tls_config *_config, const char *_alpn);
 int tls_config_set_ca_file(struct tls_config *_config, const char *_ca_file);
 int tls_config_set_ca_path(struct tls_config *_config, const char *_ca_path);
 int tls_config_set_ca_mem(struct tls_config *_config, const uint8_t *_ca,
@@ -96,12 +107,16 @@ void tls_free(struct tls *_ctx);
 int tls_accept_fds(struct tls *_ctx, struct tls **_cctx, int _fd_read,
     int _fd_write);
 int tls_accept_socket(struct tls *_ctx, struct tls **_cctx, int _socket);
+int tls_accept_cbs(struct tls *_ctx, struct tls **_cctx,
+    tls_read_cb _read_cb, tls_write_cb _write_cb, void *_cb_arg);
 int tls_connect(struct tls *_ctx, const char *_host, const char *_port);
 int tls_connect_fds(struct tls *_ctx, int _fd_read, int _fd_write,
     const char *_servername);
 int tls_connect_servername(struct tls *_ctx, const char *_host,
     const char *_port, const char *_servername);
 int tls_connect_socket(struct tls *_ctx, int _s, const char *_servername);
+int tls_connect_cbs(struct tls *_ctx, tls_read_cb _read_cb,
+    tls_write_cb _write_cb, void *_cb_arg, const char *_servername);
 int tls_handshake(struct tls *_ctx);
 ssize_t tls_read(struct tls *_ctx, void *_buf, size_t _buflen);
 ssize_t tls_write(struct tls *_ctx, const void *_buf, size_t _buflen);
@@ -116,8 +131,10 @@ const char *tls_peer_cert_subject(struct tls *_ctx);
 time_t	tls_peer_cert_notbefore(struct tls *_ctx);
 time_t	tls_peer_cert_notafter(struct tls *_ctx);
 
-const char *tls_conn_version(struct tls *_ctx);
+const char *tls_conn_alpn_selected(struct tls *_ctx);
 const char *tls_conn_cipher(struct tls *_ctx);
+const char *tls_conn_servername(struct tls *_ctx);
+const char *tls_conn_version(struct tls *_ctx);
 
 uint8_t *tls_load_file(const char *_file, size_t *_len, char *_password);
 

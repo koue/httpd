@@ -1,4 +1,4 @@
-/* $OpenBSD: tls_config.c,v 1.18 2016/05/27 14:38:40 jsing Exp $ */
+/* $OpenBSD: tls_config.c,v 1.28 2016/08/22 14:55:59 jsing Exp $ */
 /*
  * Copyright (c) 2014 Joel Sing <jsing@openbsd.org>
  *
@@ -15,9 +15,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <sys/stat.h>
+
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include <tls.h>
 #include "tls_internal.h"
@@ -64,9 +68,11 @@ tls_keypair_new()
 }
 
 static int
-tls_keypair_set_cert_file(struct tls_keypair *keypair, const char *cert_file)
+tls_keypair_set_cert_file(struct tls_keypair *keypair, struct tls_error *error,
+    const char *cert_file)
 {
-	return set_string(&keypair->cert_file, cert_file);
+	return tls_config_load_file(error, "certificate", cert_file,
+	    &keypair->cert_mem, &keypair->cert_len);
 }
 
 static int
@@ -77,9 +83,13 @@ tls_keypair_set_cert_mem(struct tls_keypair *keypair, const uint8_t *cert,
 }
 
 static int
-tls_keypair_set_key_file(struct tls_keypair *keypair, const char *key_file)
+tls_keypair_set_key_file(struct tls_keypair *keypair, struct tls_error *error,
+    const char *key_file)
 {
-	return set_string(&keypair->key_file, key_file);
+	if (keypair->key_mem != NULL)
+		explicit_bzero(keypair->key_mem, keypair->key_len);
+	return tls_config_load_file(error, "key", key_file,
+	    &keypair->key_mem, &keypair->key_len);
 }
 
 static int
@@ -106,12 +116,57 @@ tls_keypair_free(struct tls_keypair *keypair)
 
 	tls_keypair_clear(keypair);
 
-	free((char *)keypair->cert_file);
 	free(keypair->cert_mem);
-	free((char *)keypair->key_file);
 	free(keypair->key_mem);
 
 	free(keypair);
+}
+
+int
+tls_config_load_file(struct tls_error *error, const char *filetype,
+    const char *filename, char **buf, size_t *len)
+{
+	struct stat st;
+	int fd = -1;
+
+	free(*buf);
+	*buf = NULL;
+	*len = 0;
+
+	if ((fd = open(filename, O_RDONLY)) == -1) {
+		tls_error_set(error, "failed to open %s file '%s'",
+		    filetype, filename);
+		goto fail;
+	}
+	if (fstat(fd, &st) != 0) {
+		tls_error_set(error, "failed to stat %s file '%s'",
+		    filetype, filename);
+		goto fail;
+	}
+	*len = (size_t)st.st_size;
+	if ((*buf = malloc(*len)) == NULL) {
+		tls_error_set(error, "failed to allocate buffer for "
+		    "%s file", filetype);
+		goto fail;
+	}
+	if (read(fd, *buf, *len) != *len) {
+		tls_error_set(error, "failed to read %s file '%s'",
+		    filetype, filename);
+		goto fail;
+	}
+	close(fd);
+	return 0;
+
+ fail:
+	if (fd != -1)
+		close(fd);
+	if (*buf != NULL)
+		explicit_bzero(*buf, *len);
+	free(*buf);
+	*buf = NULL;
+	*len = 0;
+
+	return -1;
 }
 
 struct tls_config *
@@ -128,8 +183,6 @@ tls_config_new(void)
 	/*
 	 * Default configuration.
 	 */
-	if (tls_config_set_ca_file(config, _PATH_SSL_CA_FILE) != 0)
-		goto err;
 	if (tls_config_set_dheparams(config, "none") != 0)
 		goto err;
 	if (tls_config_set_ecdhecurve(config, "auto") != 0)
@@ -166,12 +219,24 @@ tls_config_free(struct tls_config *config)
 
 	free(config->error.msg);
 
-	free((char *)config->ca_file);
+	free(config->alpn);
 	free((char *)config->ca_mem);
 	free((char *)config->ca_path);
 	free((char *)config->ciphers);
 
 	free(config);
+}
+
+static void
+tls_config_keypair_add(struct tls_config *config, struct tls_keypair *keypair)
+{
+	struct tls_keypair *kp;
+
+	kp = config->keypair;
+	while (kp->next != NULL)
+		kp = kp->next;
+
+	kp->next = keypair;
 }
 
 const char *
@@ -249,10 +314,122 @@ tls_config_parse_protocols(uint32_t *protocols, const char *protostr)
 	return (0);
 }
 
+static int
+tls_config_parse_alpn(struct tls_config *config, const char *alpn,
+    char **alpn_data, size_t *alpn_len)
+{
+	size_t buf_len, i, len;
+	char *buf = NULL;
+	char *s = NULL;
+	char *p, *q;
+
+	free(*alpn_data);
+	*alpn_data = NULL;
+	*alpn_len = 0;
+
+	if ((buf_len = strlen(alpn) + 1) > 65535) {
+		tls_config_set_errorx(config, "alpn too large");
+		goto err;
+	}
+
+	if ((buf = malloc(buf_len)) == NULL) {
+		tls_config_set_errorx(config, "out of memory");
+		goto err;
+	}
+
+	if ((s = strdup(alpn)) == NULL) {
+		tls_config_set_errorx(config, "out of memory");
+		goto err;
+	}
+
+	i = 0;
+	q = s;
+	while ((p = strsep(&q, ",")) != NULL) {
+		if ((len = strlen(p)) == 0) {
+			tls_config_set_errorx(config,
+			    "alpn protocol with zero length");
+			goto err;
+		}
+		if (len > 255) {
+			tls_config_set_errorx(config,
+			    "alpn protocol too long");
+			goto err;
+		}
+		buf[i++] = len & 0xff;
+		memcpy(&buf[i], p, len);
+		i += len;
+	}
+
+	free(s);
+
+	*alpn_data = buf;
+	*alpn_len = buf_len;
+
+	return (0);
+
+ err:
+	free(buf);
+	free(s);
+
+	return (-1);
+}
+
+int
+tls_config_set_alpn(struct tls_config *config, const char *alpn)
+{
+	return tls_config_parse_alpn(config, alpn, &config->alpn,
+	    &config->alpn_len);
+}
+
+int
+tls_config_add_keypair_file(struct tls_config *config,
+    const char *cert_file, const char *key_file)
+{
+	struct tls_keypair *keypair;
+
+	if ((keypair = tls_keypair_new()) == NULL)
+		return (-1);
+	if (tls_keypair_set_cert_file(keypair, &config->error, cert_file) != 0)
+		goto err;
+	if (tls_keypair_set_key_file(keypair, &config->error, key_file) != 0)
+		goto err;
+
+	tls_config_keypair_add(config, keypair);
+
+	return (0);
+
+ err:
+	tls_keypair_free(keypair);
+	return (-1);
+}
+
+int
+tls_config_add_keypair_mem(struct tls_config *config, const uint8_t *cert,
+    size_t cert_len, const uint8_t *key, size_t key_len)
+{
+	struct tls_keypair *keypair;
+
+	if ((keypair = tls_keypair_new()) == NULL)
+		return (-1);
+	if (tls_keypair_set_cert_mem(keypair, cert, cert_len) != 0)
+		goto err;
+	if (tls_keypair_set_key_mem(keypair, key, key_len) != 0)
+		goto err;
+
+	tls_config_keypair_add(config, keypair);
+
+	return (0);
+
+ err:
+	tls_keypair_free(keypair);
+	return (-1);
+}
+
 int
 tls_config_set_ca_file(struct tls_config *config, const char *ca_file)
 {
-	return set_string(&config->ca_file, ca_file);
+	return tls_config_load_file(&config->error, "CA", ca_file,
+	    &config->ca_mem, &config->ca_len);
 }
 
 int
@@ -270,7 +447,8 @@ tls_config_set_ca_mem(struct tls_config *config, const uint8_t *ca, size_t len)
 int
 tls_config_set_cert_file(struct tls_config *config, const char *cert_file)
 {
-	return tls_keypair_set_cert_file(config->keypair, cert_file);
+	return tls_keypair_set_cert_file(config->keypair, &config->error,
+	    cert_file);
 }
 
 int
@@ -283,15 +461,35 @@ tls_config_set_cert_mem(struct tls_config *config, const uint8_t *cert,
 int
 tls_config_set_ciphers(struct tls_config *config, const char *ciphers)
 {
+	SSL_CTX *ssl_ctx = NULL;
+
 	if (ciphers == NULL ||
 	    strcasecmp(ciphers, "default") == 0 ||
 	    strcasecmp(ciphers, "secure") == 0)
 		ciphers = TLS_CIPHERS_DEFAULT;
-	else if (strcasecmp(ciphers, "compat") == 0 ||
-	    strcasecmp(ciphers, "legacy") == 0)
+	else if (strcasecmp(ciphers, "compat") == 0)
 		ciphers = TLS_CIPHERS_COMPAT;
+	else if (strcasecmp(ciphers, "legacy") == 0)
+		ciphers = TLS_CIPHERS_LEGACY;
+	else if (strcasecmp(ciphers, "all") == 0 ||
+	    strcasecmp(ciphers, "insecure") == 0)
+		ciphers = TLS_CIPHERS_ALL;
 
+	if ((ssl_ctx = SSL_CTX_new(SSLv23_method())) == NULL) {
+		tls_config_set_errorx(config, "out of memory");
+		goto fail;
+	}
+	if (SSL_CTX_set_cipher_list(ssl_ctx, ciphers) != 1) {
+		tls_config_set_errorx(config, "no ciphers for '%s'", ciphers);
+		goto fail;
+	}
+
+	SSL_CTX_free(ssl_ctx);
 	return set_string(&config->ciphers, ciphers);
+
+ fail:
+	SSL_CTX_free(ssl_ctx);
+	return -1;
 }
 
 int
@@ -337,7 +535,8 @@ tls_config_set_ecdhecurve(struct tls_config *config, const char *name)
 int
 tls_config_set_key_file(struct tls_config *config, const char *key_file)
 {
-	return tls_keypair_set_key_file(config->keypair, key_file);
+	return tls_keypair_set_key_file(config->keypair, &config->error,
+	    key_file);
 }
 
 int

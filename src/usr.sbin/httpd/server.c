@@ -1,4 +1,4 @@
-/*	$OpenBSD: server.c,v 1.85 2016/04/28 17:18:06 jsing Exp $	*/
+/*	$OpenBSD: server.c,v 1.95 2016/08/30 14:31:53 rzalamena Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -16,7 +16,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <sys/param.h>	/* nitems */
 #include <sys/types.h>
 #include <sys/queue.h>
 #include <sys/time.h>
@@ -63,9 +62,9 @@ int		 server_socket_listen(struct sockaddr_storage *, in_port_t,
 int		 server_tls_init(struct server *);
 void		 server_tls_readcb(int, short, void *);
 void		 server_tls_writecb(int, short, void *);
+void		 server_tls_handshake(int, short, void *);
 
 void		 server_accept(int, short, void *);
-void		 server_handshake_tls(int, short, void *);
 void		 server_input(struct client *);
 void		 server_inflight_dec(struct client *, const char *);
 
@@ -76,28 +75,22 @@ volatile int server_clients;
 volatile int server_inflight = 0;
 uint32_t server_cltid;
 
-static struct httpd		*env = NULL;
-int				 proc_id;
-
 static struct privsep_proc procs[] = {
 	{ "parent",	PROC_PARENT,	server_dispatch_parent },
 	{ "logger",	PROC_LOGGER,	server_dispatch_logger }
 };
 
-pid_t
+void
 server(struct privsep *ps, struct privsep_proc *p)
 {
-	pid_t	 pid;
-	env = ps->ps_env;
-	pid = proc_run(ps, p, procs, nitems(procs), server_init, NULL);
-	server_http(env);
-	return (pid);
+	proc_run(ps, p, procs, nitems(procs), server_init, NULL);
+	server_http();
 }
 
 void
 server_shutdown(void)
 {
-	config_purge(env, CONFIG_ALL);
+	config_purge(httpd_env, CONFIG_ALL);
 	usleep(200);	/* XXX server needs to shutdown last */
 }
 
@@ -115,7 +108,7 @@ server_privinit(struct server *srv)
 	 * There's no need to open a new socket if a server with the
 	 * same address already exists.
 	 */
-	TAILQ_FOREACH(s, env->sc_servers, srv_entry) {
+	TAILQ_FOREACH(s, httpd_env->sc_servers, srv_entry) {
 		if (s != srv && s->srv_s != -1 &&
 		    s->srv_conf.port == srv->srv_conf.port &&
 		    sockaddr_cmp((struct sockaddr *)&s->srv_conf.ss,
@@ -128,6 +121,33 @@ server_privinit(struct server *srv)
 	if ((srv->srv_s = server_socket_listen(&srv->srv_conf.ss,
 	    srv->srv_conf.port, &srv->srv_conf)) == -1)
 		return (-1);
+
+	return (0);
+}
+
+int
+server_tls_cmp(struct server *s1, struct server *s2, int match_keypair)
+{
+	struct server_config	*sc1, *sc2;
+
+	sc1 = &s1->srv_conf;
+	sc2 = &s2->srv_conf;
+
+	if (sc1->tls_protocols != sc2->tls_protocols)
+		return (-1);
+	if (strcmp(sc1->tls_ciphers, sc2->tls_ciphers) != 0)
+		return (-1);
+	if (strcmp(sc1->tls_dhe_params, sc2->tls_dhe_params) != 0)
+		return (-1);
+	if (strcmp(sc1->tls_ecdhe_curve, sc2->tls_ecdhe_curve) != 0)
+		return (-1);
+
+	if (match_keypair) {
+		if (strcmp(sc1->tls_cert_file, sc2->tls_cert_file) != 0)
+			return (-1);
+		if (strcmp(sc1->tls_key_file, sc2->tls_key_file) != 0)
+			return (-1);
+	}
 
 	return (0);
 }
@@ -159,10 +179,12 @@ server_tls_load_keypair(struct server *srv)
 int
 server_tls_init(struct server *srv)
 {
+	struct server_config *srv_conf;
+
 	if ((srv->srv_conf.flags & SRVFLAG_TLS) == 0)
 		return (0);
 
-	log_debug("%s: setting up TLS for %s", __func__, srv->srv_conf.name);
+	log_debug("%s: setting up tls for %s", __func__, srv->srv_conf.name);
 
 	if (tls_init() != 0) {
 		log_warnx("%s: failed to initialise tls", __func__);
@@ -207,8 +229,21 @@ server_tls_init(struct server *srv)
 		return (-1);
 	}
 
+	TAILQ_FOREACH(srv_conf, &srv->srv_hosts, entry) {
+		if (srv_conf->tls_cert == NULL || srv_conf->tls_key == NULL)
+			continue;
+		log_debug("%s: adding keypair for server %s", __func__,
+		    srv->srv_conf.name);
+		if (tls_config_add_keypair_mem(srv->srv_tls_config,
+		    srv_conf->tls_cert, srv_conf->tls_cert_len,
+		    srv_conf->tls_key, srv_conf->tls_key_len) != 0) {
+			log_warnx("%s: failed to add tls keypair", __func__);
+			return (-1);
+		}
+	}
+
 	if (tls_configure(srv->srv_tls_ctx, srv->srv_tls_config) != 0) {
-		log_warnx("%s: failed to configure TLS - %s", __func__,
+		log_warnx("%s: failed to configure tls - %s", __func__,
 		    tls_error(srv->srv_tls_ctx));
 		return (-1);
 	}
@@ -230,13 +265,10 @@ server_tls_init(struct server *srv)
 void
 server_init(struct privsep *ps, struct privsep_proc *p, void *arg)
 {
-	server_http(ps->ps_env);
+	server_http();
 
 	if (config_init(ps->ps_env) == -1)
 		fatal("failed to initialize configuration");
-
-	/* Set to current prefork id */
-	proc_id = p->p_instance;
 
 	/* We use a custom shutdown callback */
 	p->p_shutdown = server_shutdown;
@@ -249,9 +281,9 @@ server_init(struct privsep *ps, struct privsep_proc *p, void *arg)
 
 #if 0
 	/* Schedule statistics timer */
-	evtimer_set(&env->sc_statev, server_statistics, NULL);
-	memcpy(&tv, &env->sc_statinterval, sizeof(tv));
-	evtimer_add(&env->sc_statev, &tv);
+	evtimer_set(&ps->ps_env->sc_statev, server_statistics, NULL);
+	memcpy(&tv, &ps->ps_env->sc_statinterval, sizeof(tv));
+	evtimer_add(&ps->ps_env->sc_statev, &tv);
 #endif
 }
 
@@ -260,7 +292,10 @@ server_launch(void)
 {
 	struct server		*srv;
 
-	TAILQ_FOREACH(srv, env->sc_servers, srv_entry) {
+	TAILQ_FOREACH(srv, httpd_env->sc_servers, srv_entry) {
+		log_debug("%s: configuring server %s", __func__,
+		    srv->srv_conf.name);
+
 		server_tls_init(srv);
 		server_http_init(srv);
 
@@ -288,7 +323,7 @@ server_purge(struct server *srv)
 
 	if (srv->srv_s != -1)
 		close(srv->srv_s);
-	TAILQ_REMOVE(env->sc_servers, srv, srv_entry);
+	TAILQ_REMOVE(httpd_env->sc_servers, srv, srv_entry);
 
 	/* cleanup sessions */
 	while ((clt =
@@ -347,7 +382,7 @@ server_byaddr(struct sockaddr *addr, in_port_t port)
 {
 	struct server	*srv;
 
-	TAILQ_FOREACH(srv, env->sc_servers, srv_entry) {
+	TAILQ_FOREACH(srv, httpd_env->sc_servers, srv_entry) {
 		if (port == srv->srv_conf.port &&
 		    sockaddr_cmp((struct sockaddr *)&srv->srv_conf.ss,
 		    addr, srv->srv_conf.prefixlen) == 0)
@@ -363,7 +398,7 @@ serverconfig_byid(uint32_t id)
 	struct server		*srv;
 	struct server_config	*srv_conf;
 
-	TAILQ_FOREACH(srv, env->sc_servers, srv_entry) {
+	TAILQ_FOREACH(srv, httpd_env->sc_servers, srv_entry) {
 		if (srv->srv_conf.id == id)
 			return (&srv->srv_conf);
 		TAILQ_FOREACH(srv_conf, &srv->srv_hosts, entry) {
@@ -382,7 +417,7 @@ server_foreach(int (*srv_cb)(struct server *,
 	struct server		*srv;
 	struct server_config	*srv_conf;
 
-	TAILQ_FOREACH(srv, env->sc_servers, srv_entry) {
+	TAILQ_FOREACH(srv, httpd_env->sc_servers, srv_entry) {
 		if ((srv_cb)(srv, &srv->srv_conf, arg) == -1)
 			return (-1);
 		TAILQ_FOREACH(srv_conf, &srv->srv_hosts, entry) {
@@ -392,6 +427,33 @@ server_foreach(int (*srv_cb)(struct server *,
 	}
 
 	return (0);
+}
+
+struct server *
+server_match(struct server *s2, int match_name)
+{
+	struct server	*s1;
+
+	/* Attempt to find matching server. */
+	TAILQ_FOREACH(s1, httpd_env->sc_servers, srv_entry) {
+		if ((s1->srv_conf.flags & SRVFLAG_LOCATION) != 0)
+			continue;
+		if (match_name) {
+			if (strcmp(s1->srv_conf.name, s2->srv_conf.name) != 0)
+				continue;
+		}
+		if (s1->srv_conf.port != s2->srv_conf.port)
+			continue;
+		if (sockaddr_cmp(
+		    (struct sockaddr *)&s1->srv_conf.ss,
+		    (struct sockaddr *)&s2->srv_conf.ss,
+		    s1->srv_conf.prefixlen) != 0)
+			continue;
+
+		return (s1);
+	}
+
+	return (NULL);
 }
 
 int
@@ -903,9 +965,6 @@ server_accept(int fd, short event, void *arg)
 	server_clients++;
 	SPLAY_INSERT(client_tree, &srv->srv_clients, clt);
 
-	/* Increment the per-relay client counter */
-	//srv->srv_stats[proc_id].last++;
-
 	/* Pre-allocate output buffer */
 	clt->clt_output = evbuffer_new();
 	if (clt->clt_output == NULL) {
@@ -920,7 +979,7 @@ server_accept(int fd, short event, void *arg)
 			return;
 		}
 		event_again(&clt->clt_ev, clt->clt_s, EV_TIMEOUT|EV_READ,
-		    server_handshake_tls, &clt->clt_tv_start,
+		    server_tls_handshake, &clt->clt_tv_start,
 		    &srv->srv_conf.timeout, clt);
 		return;
 	}
@@ -941,14 +1000,14 @@ server_accept(int fd, short event, void *arg)
 }
 
 void
-server_handshake_tls(int fd, short event, void *arg)
+server_tls_handshake(int fd, short event, void *arg)
 {
 	struct client *clt = (struct client *)arg;
 	struct server *srv = (struct server *)clt->clt_srv;
 	int ret;
 
 	if (event == EV_TIMEOUT) {
-		server_close(clt, "TLS handshake timeout");
+		server_close(clt, "tls handshake timeout");
 		return;
 	}
 
@@ -960,16 +1019,16 @@ server_handshake_tls(int fd, short event, void *arg)
 		server_input(clt);
 	} else if (ret == TLS_WANT_POLLIN) {
 		event_again(&clt->clt_ev, clt->clt_s, EV_TIMEOUT|EV_READ,
-		    server_handshake_tls, &clt->clt_tv_start,
+		    server_tls_handshake, &clt->clt_tv_start,
 		    &srv->srv_conf.timeout, clt);
 	} else if (ret == TLS_WANT_POLLOUT) {
 		event_again(&clt->clt_ev, clt->clt_s, EV_TIMEOUT|EV_WRITE,
-		    server_handshake_tls, &clt->clt_tv_start,
+		    server_tls_handshake, &clt->clt_tv_start,
 		    &srv->srv_conf.timeout, clt);
 	} else {
-		log_warnx("%s: TLS handshake failed - %s", __func__,
+		log_debug("%s: tls handshake failed - %s", __func__,
 		    tls_error(clt->clt_tls_ctx));
-		server_close(clt, "TLS handshake failed");
+		server_close(clt, "tls handshake failed");
 	}
 }
 
@@ -1020,7 +1079,7 @@ server_sendlog(struct server_config *srv_conf, int cmd, const char *emsg, ...)
 	iov[1].iov_base = msg;
 	iov[1].iov_len = strlen(msg) + 1;
 
-	if (proc_composev(env->sc_ps, PROC_LOGGER, cmd, iov, 2) != 0) {
+	if (proc_composev(httpd_env->sc_ps, PROC_LOGGER, cmd, iov, 2) != 0) {
 		log_warn("%s: failed to compose imsg", __func__);
 		return;
 	}
@@ -1122,25 +1181,25 @@ server_dispatch_parent(int fd, struct privsep_proc *p, struct imsg *imsg)
 {
 	switch (imsg->hdr.type) {
 	case IMSG_CFG_MEDIA:
-		config_getmedia(env, imsg);
+		config_getmedia(httpd_env, imsg);
 		break;
 	case IMSG_CFG_AUTH:
-		config_getauth(env, imsg);
+		config_getauth(httpd_env, imsg);
 		break;
 	case IMSG_CFG_SERVER:
-		config_getserver(env, imsg);
+		config_getserver(httpd_env, imsg);
 		break;
 	case IMSG_CFG_TLS:
-		config_gettls(env, imsg);
+		config_gettls(httpd_env, imsg);
 		break;
 	case IMSG_CFG_DONE:
-		config_getcfg(env, imsg);
+		config_getcfg(httpd_env, imsg);
 		break;
 	case IMSG_CTL_START:
 		server_launch();
 		break;
 	case IMSG_CTL_RESET:
-		config_getreset(env, imsg);
+		config_getreset(httpd_env, imsg);
 		break;
 	default:
 		return (-1);
