@@ -1,4 +1,4 @@
-/*	$OpenBSD: httpd.h,v 1.103 2016/04/28 14:20:11 jsing Exp $	*/
+/*	$OpenBSD: httpd.h,v 1.121 2016/10/05 16:58:19 reyk Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -42,6 +42,9 @@
 #include <unistd.h>
 #define HOST_NAME_MAX _SC_HOST_NAME_MAX
 #endif
+#ifndef nitems
+#define nitems(_a) (sizeof((_a)) / sizeof((_a)[0]))
+#endif
 
 #define CONF_FILE		"/etc/httpd.conf"
 #define HTTPD_SOCKET		"/var/run/httpd.sock"
@@ -57,7 +60,7 @@
 #define HTTPD_LOGVIS		VIS_NL|VIS_TAB|VIS_CSTYLE
 #define HTTPD_TLS_CERT		"/etc/ssl/server.crt"
 #define HTTPD_TLS_KEY		"/etc/ssl/private/server.key"
-#define HTTPD_TLS_CIPHERS	"HIGH:!aNULL"
+#define HTTPD_TLS_CIPHERS	"compat"
 #define HTTPD_TLS_DHE_PARAMS	"none"
 #define HTTPD_TLS_ECDHE_CURVE	"auto"
 #define FD_RESERVE		5
@@ -66,7 +69,6 @@
 #define SERVER_TIMEOUT		600
 #define SERVER_CACHESIZE	-1	/* use default size */
 #define SERVER_NUMPROC		3
-#define SERVER_MAXPROC		32
 #define SERVER_MAXHEADERLENGTH	8192
 #define SERVER_MAXREQUESTS	100	/* max requests per connection */
 #define SERVER_MAXREQUESTBODY	1048576	/* 1M */
@@ -86,6 +88,9 @@
 #define CONFIG_ALL		0xff
 
 #define FCGI_CONTENT_SIZE	65535
+
+#define PROC_PARENT_SOCK_FILENO	3
+#define PROC_MAX_INSTANCES	32
 
 enum httpchunk {
 	TOREAD_UNLIMITED		= -1,
@@ -199,6 +204,7 @@ enum imsg_type {
 	IMSG_CTL_OK,
 	IMSG_CTL_FAIL,
 	IMSG_CTL_VERBOSE,
+	IMSG_CTL_PROCFD,
 	IMSG_CTL_RESET,
 	IMSG_CTL_SHUTDOWN,
 	IMSG_CTL_RELOAD,
@@ -237,11 +243,9 @@ struct privsep {
 
 	struct imsgev			*ps_ievs[PROC_MAX];
 	const char			*ps_title[PROC_MAX];
-	pid_t				 ps_pid[PROC_MAX];
 	uint8_t				 ps_what[PROC_MAX];
 
 	unsigned int			 ps_instances[PROC_MAX];
-	unsigned int			 ps_ninstances;
 	unsigned int			 ps_instance;
 
 	struct control_sock		 ps_csock;
@@ -265,19 +269,34 @@ struct privsep_proc {
 	enum privsep_procid	 p_id;
 	int			(*p_cb)(int, struct privsep_proc *,
 				    struct imsg *);
-	pid_t			(*p_init)(struct privsep *,
+	void			(*p_init)(struct privsep *,
 				    struct privsep_proc *);
-	void			(*p_shutdown)(void);
-	unsigned int		 p_instance;
 	const char		*p_chroot;
 	struct privsep		*p_ps;
-	struct httpd		*p_env;
+	void			(*p_shutdown)(void);
+	struct passwd		*p_pw;
+};
+
+struct privsep_fd {
+	enum privsep_procid		 pf_procid;
+	unsigned int			 pf_instance;
 };
 
 enum fcgistate {
 	FCGI_READ_HEADER,
 	FCGI_READ_CONTENT,
 	FCGI_READ_PADDING
+};
+
+struct fcgi_data {
+	enum fcgistate		 state;
+	int			 toread;
+	int			 padding_len;
+	int			 type;
+	int			 chunked;
+	int			 end;
+	int			 status;
+	int			 headersdone;
 };
 
 struct client {
@@ -311,12 +330,7 @@ struct client {
 	int			 clt_done;
 	int			 clt_chunk;
 	int			 clt_inflight;
-	enum fcgistate		 clt_fcgi_state;
-	int			 clt_fcgi_toread;
-	int			 clt_fcgi_padding_len;
-	int			 clt_fcgi_type;
-	int			 clt_fcgi_chunked;
-	int			 clt_fcgi_end;
+	struct fcgi_data	 clt_fcgi;
 	char			*clt_remote_user;
 	struct evbuffer		*clt_srvevb;
 
@@ -518,7 +532,7 @@ int	 control_init(struct privsep *, struct control_sock *);
 int	 control_listen(struct control_sock *);
 void	 control_cleanup(struct control_sock *);
 void	 control_dispatch_imsg(int, short, void *);
-void	 control_imsg_forward(struct imsg *);
+void	 control_imsg_forward(struct privsep *, struct imsg *);
 struct ctl_conn	*
 	 control_connbyfd(int);
 
@@ -530,7 +544,8 @@ int	 load_config(const char *, struct httpd *);
 int	 cmdline_symset(char *);
 
 /* server.c */
-pid_t	 server(struct privsep *, struct privsep_proc *);
+void	 server(struct privsep *, struct privsep_proc *);
+int	 server_tls_cmp(struct server *, struct server *, int);
 int	 server_tls_load_keypair(struct server *);
 int	 server_privinit(struct server *);
 void	 server_purge(struct server *);
@@ -565,12 +580,14 @@ struct server_config *
 	 serverconfig_byid(uint32_t);
 int	 server_foreach(int (*)(struct server *,
 	    struct server_config *, void *), void *);
+struct server *
+	 server_match(struct server *, int);
 
 SPLAY_PROTOTYPE(client_tree, client, clt_nodes, server_client_cmp);
 
 /* server_http.c */
 void	 server_http_init(struct server *);
-void	 server_http(struct httpd *);
+void	 server_http(void);
 int	 server_httpdesc_init(struct client *);
 void	 server_read_http(struct bufferevent *, void *);
 void	 server_abort_http(struct client *, unsigned int, const char *);
@@ -620,9 +637,6 @@ const char	*canonicalize_host(const char *, char *, size_t);
 const char	*canonicalize_path(const char *, char *, size_t);
 size_t		 path_info(char *);
 char		*escape_html(const char *);
-void		 imsg_event_add(struct imsgev *);
-int		 imsg_compose_event(struct imsgev *, uint16_t, uint32_t,
-		    pid_t, int, void *, uint16_t);
 void		 socket_rlimit(int);
 char		*evbuffer_getline(struct evbuffer *);
 char		*get_string(uint8_t *, size_t);
@@ -667,6 +681,8 @@ const char	*print_time(struct timeval *, struct timeval *, char *, size_t);
 const char	*printb_flags(const uint32_t, const char *);
 void		 getmonotime(struct timeval *);
 
+extern struct httpd *httpd_env;
+
 /* log.c */
 void	log_init(int, int);
 void	log_procinit(const char *);
@@ -689,11 +705,14 @@ __dead void fatalx(const char *, ...)
 	    __attribute__((__format__ (printf, 1, 2)));
 
 /* proc.c */
-void	 proc_init(struct privsep *, struct privsep_proc *, unsigned int);
+enum privsep_procid
+	    proc_getid(struct privsep_proc *, unsigned int, const char *);
+void	 proc_init(struct privsep *, struct privsep_proc *, unsigned int,
+	    int, char **, enum privsep_procid);
 void	 proc_kill(struct privsep *);
-void	 proc_listen(struct privsep *, struct privsep_proc *, size_t);
+void	 proc_connect(struct privsep *);
 void	 proc_dispatch(int, short event, void *);
-pid_t	 proc_run(struct privsep *, struct privsep_proc *,
+void	 proc_run(struct privsep *, struct privsep_proc *,
 	    struct privsep_proc *, unsigned int,
 	    void (*)(struct privsep *, struct privsep_proc *, void *), void *);
 void	 proc_range(struct privsep *, enum privsep_procid, int *, int *);
@@ -733,7 +752,7 @@ int	 config_setauth(struct httpd *, struct auth *);
 int	 config_getauth(struct httpd *, struct imsg *);
 
 /* logger.c */
-pid_t	 logger(struct privsep *, struct privsep_proc *);
+void	 logger(struct privsep *, struct privsep_proc *);
 int	 logger_open_priv(struct imsg *);
 
 #endif /* _HTTPD_H */

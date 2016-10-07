@@ -1,4 +1,4 @@
-.\" $OpenBSD: tls_init.3,v 1.61 2016/05/27 11:25:57 sthen Exp $
+.\" $OpenBSD: tls_init.3,v 1.72 2016/09/13 13:40:58 tedu Exp $
 .\"
 .\" Copyright (c) 2014 Ted Unangst <tedu@openbsd.org>
 .\"
@@ -14,7 +14,7 @@
 .\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 .\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 .\"
-.Dd $Mdocdate: May 27 2016 $
+.Dd $Mdocdate: September 13 2016 $
 .Dt TLS_INIT 3
 .Os
 .Sh NAME
@@ -24,6 +24,9 @@
 .Nm tls_config_new ,
 .Nm tls_config_free ,
 .Nm tls_config_parse_protocols ,
+.Nm tls_config_add_keypair_file ,
+.Nm tls_config_add_keypair_mem ,
+.Nm tls_config_set_alpn ,
 .Nm tls_config_set_ca_file ,
 .Nm tls_config_set_ca_path ,
 .Nm tls_config_set_ca_mem ,
@@ -54,8 +57,10 @@
 .Nm tls_peer_cert_hash ,
 .Nm tls_peer_cert_notbefore ,
 .Nm tls_peer_cert_notafter ,
-.Nm tls_conn_version ,
+.Nm tls_conn_alpn_selected ,
 .Nm tls_conn_cipher ,
+.Nm tls_conn_servername ,
+.Nm tls_conn_version ,
 .Nm tls_load_file ,
 .Nm tls_client ,
 .Nm tls_server ,
@@ -66,8 +71,10 @@
 .Nm tls_connect_fds ,
 .Nm tls_connect_servername ,
 .Nm tls_connect_socket ,
+.Nm tls_connect_cbs ,
 .Nm tls_accept_fds ,
 .Nm tls_accept_socket ,
+.Nm tls_accept_cbs ,
 .Nm tls_handshake ,
 .Nm tls_read ,
 .Nm tls_write ,
@@ -87,6 +94,12 @@
 .Fn tls_config_free "struct tls_config *config"
 .Ft "int"
 .Fn tls_config_parse_protocols "uint32_t *protocols" "const char *protostr"
+.Ft "int"
+.Fn tls_config_add_keypair_file "struct tls_config *config" "const char *cert_file" "const char *key_file"
+.Ft "int"
+.Fn tls_config_add_keypair_mem "struct tls_config *config" "const uint8_t *cert" "size_t cert_len" "const uint8_t *key" "size_t key_len"
+.Ft "int"
+.Fn tls_config_set_alpn "struct tls_config *config" "const char *alpn"
 .Ft "int"
 .Fn tls_config_set_ca_file "struct tls_config *config" "const char *ca_file"
 .Ft "int"
@@ -148,9 +161,13 @@
 .Ft "time_t"
 .Fn tls_peer_cert_notafter "struct tls *ctx"
 .Ft "const char *"
-.Fn tls_conn_version "struct tls *ctx"
+.Fn tls_conn_alpn_selected "struct tls *ctx"
 .Ft "const char *"
 .Fn tls_conn_cipher "struct tls *ctx"
+.Ft "const char *"
+.Fn tls_conn_servername "struct tls *ctx"
+.Ft "const char *"
+.Fn tls_conn_version "struct tls *ctx"
 .Ft "uint8_t *"
 .Fn tls_load_file "const char *file" "size_t *len" "char *password"
 .Ft "struct tls *"
@@ -172,9 +189,13 @@
 .Ft "int"
 .Fn tls_connect_socket "struct tls *ctx" "int s" "const char *servername"
 .Ft "int"
+.Fn tls_connect_cbs "struct tls *ctx" "ssize_t (*tls_read_cb)(struct tls *ctx, void *buf, size_t buflen, void *cb_arg)" "ssize_t (*tls_write_cb)(struct tls *ctx, const void *buf, size_t buflen, void *cb_arg)" "void *cb_arg" "const char *servername"
+.Ft "int"
 .Fn tls_accept_fds "struct tls *tls" "struct tls **cctx" "int fd_read" "int fd_write"
 .Ft "int"
 .Fn tls_accept_socket "struct tls *tls" "struct tls **cctx" "int socket"
+.Ft "int"
+.Fn tls_accept_cbs "struct tls *ctx" "struct tls **cctx" "ssize_t (*tls_read_cb)(struct *ctx, void *buf, size_t buflen, void *cb_arg)" "ssize_t (*tls_write_cb)(struct tls *ctx, const void *buf, size_t buflen, void *cb_arg)" "void *cb_arg"
 .Ft "int"
 .Fn tls_handshake "struct tls *ctx"
 .Ft "ssize_t"
@@ -232,6 +253,11 @@ An already existing socket can be upgraded to a secure connection by calling
 Alternatively, a secure connection can be established over a pair of existing
 file descriptors by calling
 .Fn tls_connect_fds .
+Calling
+.Fn tls_connect_cbs
+allows read and write callback functions to handle data transfers.
+The specified cb_arg parameter is passed back to the functions,
+and can contain a pointer to any caller-specified data.
 .Pp
 A server can accept a new client connection by calling
 .Fn tls_accept_socket
@@ -239,6 +265,11 @@ on an already established socket connection.
 Alternatively, a new client connection can be accepted over a pair of existing
 file descriptors by calling
 .Fn tls_accept_fds .
+Calling
+.Fn tls_accept_cbs
+allows read and write callback functions to handle data transfers.
+The specified cb_arg parameter is passed back to the functions,
+and can contain a pointer to any caller-specified data.
 .Pp
 The TLS handshake can be completed by calling
 .Fn tls_handshake .
@@ -265,7 +296,7 @@ The
 function initializes global data structures.
 It should be called once before any other functions.
 .Pp
-The following functions create and free configuration objects.
+The following functions create and free configuration objects:
 .Bl -bullet -offset four
 .It
 .Fn tls_config_new
@@ -291,61 +322,68 @@ If a value has a negative prefix (in the form of a leading exclamation mark)
 then it is removed from the list of available protocols, rather than being
 added to it.
 .Pp
-The following functions modify a configuration by setting parameters.
-Configuration options may apply to only clients or only servers or both.
+The following functions modify a configuration by setting parameters (the
+configuration options apply to both clients and servers, unless noted
+otherwise):
 .Bl -bullet -offset four
+.It
+.Fn tls_config_add_keypair_file
+adds an additional public certificate and private key from the specified files,
+used as an alternative certificate for Server Name Indication (server only).
+.It
+.Fn tls_config_set_keypair_mem
+adds an additional public certificate and private key from memory,
+used as an alternative certificate for Server Name Indication (server only).
+.It
+.Fn tls_config_set_alpn
+sets the ALPN protocols that are supported.
+The alpn string is a comma separated list of protocols, in order of preference.
 .It
 .Fn tls_config_set_ca_file
 sets the filename used to load a file
 containing the root certificates.
-.Em (Client and Server)
 .It
 .Fn tls_config_set_ca_path
 sets the path (directory) which should be searched for root
 certificates.
-.Em (Client and Server)
 .It
 .Fn tls_config_set_ca_mem
 sets the root certificates directly from memory.
-.Em (Client and Server)
 .It
 .Fn tls_config_set_cert_file
 sets file from which the public certificate will be read.
-.Em (Client and server)
 .It
 .Fn tls_config_set_cert_mem
 sets the public certificate directly from memory.
-.Em (Client and server)
 .It
 .Fn tls_config_set_ciphers
 sets the list of ciphers that may be used.
 Lists of ciphers are specified by name, and the
 permitted names are:
 .Pp
-.Bl -tag -width "default" -offset indent -compact
-.It Dv "secure"
-.It Dv "default" (an alias for secure)
+.Bl -tag -width "insecure" -offset indent -compact
+.It Dv "secure" (or alias "default")
+.It Dv "compat"
 .It Dv "legacy"
-.It Dv "compat" (an alias for legacy)
+.It Dv "insecure" (or alias "all")
 .El
 .Pp
-.Em (Client and server)
+Alternatively, libssl cipher strings can be specified.
+See the CIPHERS section of
+.Xr openssl 1
+for further information.
 .It
 .Fn tls_config_set_key_file
 sets the file from which the private key will be read.
-.Em (Client and server)
 .It
 .Fn tls_config_set_key_mem
 directly sets the private key from memory.
-.Em (Client and server)
 .It
 .Fn tls_config_set_keypair_file
 sets the files from which the public certificate and private key will be read.
-.Em (Client and server)
 .It
 .Fn tls_config_set_keypair_mem
 directly sets the public certificate and private key from memory.
-.Em (Client and server)
 .It
 .Fn tls_config_set_protocols
 sets which versions of the protocol may be used.
@@ -364,59 +402,75 @@ Additionally, the values
 (all supported protocols) and
 .Dv TLS_PROTOCOLS_DEFAULT
 (TLSv1.2 only) may be used.
-.Em (Client and server)
 .It
 .Fn tls_config_prefer_ciphers_client
-prefers ciphers in the client's cipher list when selecting a cipher suite.
+prefers ciphers in the client's cipher list when selecting a cipher suite
+(server only).
 This is considered to be less secure than preferring the server's list.
-.Em (Server)
 .It
 .Fn tls_config_prefer_ciphers_server
-prefers ciphers in the server's cipher list when selecting a cipher suite.
+prefers ciphers in the server's cipher list when selecting a cipher suite
+(server only).
 This is considered to be more secure than preferring the client's list and is
 the default.
-.Em (Server)
 .It
 .Fn tls_config_clear_keys
 clears any secret keys from memory.
-.Em (Server)
 .It
 .Fn tls_config_insecure_noverifycert
 disables certificate verification.
 Be extremely careful when using this option.
-.Em (Client and server)
 .It
 .Fn tls_config_insecure_noverifyname
-disables server name verification.
+disables server name verification (client only).
 Be careful when using this option.
-.Em (Client)
 .It
 .Fn tls_config_insecure_noverifytime
 disables validity checking of certificates.
 Be careful when using this option.
-.Em (Client and server)
 .It
 .Fn tls_config_verify
 reenables server name and certificate verification.
-.Em (Client)
 .It
 .Fn tls_config_verify_client
 enables client certificate verification, requiring the client to send
-a certificate.
-.Em (Server)
+a certificate (server only).
 .It
 .Fn tls_config_verify_client_optional
 enables client certificate verification, without requiring the client
-to send a certificate.
-.Em (Server)
+to send a certificate (server only).
+.El
+.Pp
+The following functions return information about a TLS connection and will only
+succeed after the handshake is complete (the connection information applies
+to both clients and servers, unless noted otherwise):
+.Bl -bullet -offset four
+.It
+.Fn tls_conn_alpn_selected
+returns a string that specifies the ALPN protocol selected for use with the peer
+connected to
+.Ar ctx .
+If no protocol was selected then NULL is returned.
+.It
+.Fn tls_conn_cipher
+returns a string corresponding to the cipher suite negotiated with the peer
+connected to
+.Ar ctx .
+.It
+.Fn tls_conn_servername
+returns a string corresponding to the servername that the client connected to
+.Ar ctx
+requested by sending a TLS Server Name Indication extension (server only).
+.It
+.Fn tls_conn_version
+returns a string corresponding to a TLS version negotiated with the peer
+connected to
+.Ar ctx .
 .It
 .Fn tls_peer_cert_provided
 checks if the peer of
 .Ar ctx
 has provided a certificate.
-.Fn tls_peer_cert_provided
-can only succeed after the handshake is complete.
-.Em (Server and client)
 .It
 .Fn tls_peer_cert_contains_name
 checks if the peer of a TLS
@@ -424,25 +478,16 @@ checks if the peer of a TLS
 has provided a certificate that contains a
 SAN or CN that matches
 .Ar name .
-.Fn tls_peer_cert_contains_name
-can only succeed after the handshake is complete.
-.Em (Server and client)
 .It
 .Fn tls_peer_cert_subject
 returns a string
 corresponding to the subject of the peer certificate from
 .Ar ctx .
-.Fn tls_peer_cert_subject
-will only succeed after the handshake is complete.
-.Em (Server and client)
 .It
 .Fn tls_peer_cert_issuer
 returns a string
 corresponding to the issuer of the peer certificate from
 .Ar ctx .
-.Fn tls_peer_cert_issuer
-will only succeed after the handshake is complete.
-.Em (Server and client)
 .It
 .Fn tls_peer_cert_hash
 returns a string
@@ -463,34 +508,15 @@ printf "SHA256:${h}\\n"
 returns the time corresponding to the start of the validity period of
 the peer certificate from
 .Ar ctx .
-.Fn tls_peer_cert_notbefore
-will only succeed after the handshake is complete.
-.Em (Server and client)
 .It
 .Fn tls_peer_cert_notafter
 returns the time corresponding to the end of the validity period of
 the peer certificate from
 .Ar ctx .
-.Fn tls_peer_cert_notafter
-will only succeed after the handshake is complete.
-.Em (Server and client)
-.It
-.Fn tls_conn_version
-returns a string
-corresponding to a TLS version negotiated with the peer
-connected to
-.Ar ctx .
-.Fn tls_conn_version
-will only succeed after the handshake is complete.
-.It
-.Fn tls_conn_cipher
-returns a string
-corresponding to the cipher suite negotiated with the peer
-connected to
-.Ar ctx .
-.Fn tls_conn_cipher
-will only succeed after the handshake is complete.
-.Em (Server and client)
+.El
+.Pp
+The following are TLS related utility functions:
+.Bl -bullet -offset four
 .It
 .Fn tls_load_file
 loads a certificate or key from disk into memory to be loaded with
@@ -501,10 +527,9 @@ or
 A private key will be decrypted if the optional
 .Ar password
 argument is specified.
-.Em (Client and server)
 .El
 .Pp
-The following functions create, prepare, and free a connection context.
+The following functions create, prepare, and free a connection context:
 .Bl -bullet -offset four
 .It
 .Fn tls_client
@@ -522,7 +547,7 @@ frees a TLS context after use.
 .El
 .Pp
 The following functions initiate a connection and perform input and output
-operations.
+operations:
 .Bl -bullet -offset four
 .It
 .Fn tls_connect

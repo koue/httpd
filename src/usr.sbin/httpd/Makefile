@@ -1,4 +1,4 @@
-#	$OpenBSD: Makefile,v 1.28 2015/06/23 15:23:14 reyk Exp $
+#	$OpenBSD: Makefile,v 1.29 2016/09/28 12:02:17 reyk Exp $
 
 LOCALBASE?=	/usr/local
 PROG=		httpd
@@ -9,15 +9,13 @@ SRCS+=		server.c server_http.c server_file.c server_fcgi.c
 .PATH: ${.CURDIR}/../../lib/libc/gen
 SRCS+=	vis.c
 
-.PATH: ${.CURDIR}/../../lib/libssl/src/crypto/asn1
-SRCS+=	a_time_tm.c
-
 .PATH:	${.CURDIR}/../../lib/libc/crypt
 SRCS+=	bcrypt.c \
 	cryptutil.c
 
 .PATH:	${.CURDIR}/../../lib/libtls
 SRCS+=	tls.c \
+	tls_bio_cb.c \
 	tls_client.c \
 	tls_config.c \
 	tls_conninfo.c \
@@ -54,7 +52,7 @@ CFLAGS+=	-Wall -I${.CURDIR}
 CFLAGS+=	-Wstrict-prototypes -Wmissing-prototypes
 CFLAGS+=	-Wmissing-declarations
 CFLAGS+=	-Wshadow -Wpointer-arith
-CFLAGS+=	-Wsign-compare
+CFLAGS+=	-Wsign-compare -Wcast-qual
 CFLAGS+=	-I${.CURDIR}/../../../libevent \
 		-I${.CURDIR}/../../lib/libutil \
 		-I${.CURDIR}/../../lib/libtls \
