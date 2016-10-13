@@ -423,18 +423,11 @@ proc_open(struct privsep *ps, int src, int dst)
 			if (pb->pp_pipes[dst][j] != -1)
 				continue;
 
-#ifdef __FreeBSD__
-#  if __FreeBSD_version < 1000000
+#if  (defined(__FreeBSD_version) && (__FreeBSD_version < 1000000))
 			if (socketpair(AF_UNIX,
 			    SOCK_STREAM | SOCK_CLOEXEC,
 			    PF_UNSPEC, fds) == -1)
 				fatal(__func__);
-#  else
-			if (socketpair(AF_UNIX,
-			    SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC,
-			    PF_UNSPEC, fds) == -1)
-				fatal(__func__);
-#  endif
 #else
 			if (socketpair(AF_UNIX,
 			    SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC,
