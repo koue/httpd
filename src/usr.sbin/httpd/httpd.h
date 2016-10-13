@@ -644,10 +644,8 @@ void		*get_data(uint8_t *, size_t);
 int		 sockaddr_cmp(struct sockaddr *, struct sockaddr *, int);
 struct in6_addr *prefixlen2mask6(uint8_t, uint32_t *);
 uint32_t	 prefixlen2mask(uint8_t);
-#ifdef __OpenBSD__
 int		 accept_reserve(int, struct sockaddr *, socklen_t *, int,
 		    volatile int *);
-#endif
 struct kv	*kv_add(struct kvtree *, char *, char *);
 int		 kv_set(struct kv *, char *, ...)
 		    __attribute__((__format__ (printf, 2, 3)));
