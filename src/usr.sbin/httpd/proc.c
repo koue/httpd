@@ -426,7 +426,7 @@ proc_open(struct privsep *ps, int src, int dst)
 
 #if  (defined(__FreeBSD_version) && (__FreeBSD_version < 1000000))
 			if (socketpair(AF_UNIX,
-			    SOCK_STREAM | SOCK_CLOEXEC,
+			    SOCK_STREAM,
 			    PF_UNSPEC, fds) == -1)
 				fatal(__func__);
 #else
