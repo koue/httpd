@@ -21,6 +21,7 @@
 #include <sys/queue.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
+#include <sys/param.h>
 
 #include <fcntl.h>
 #include <stdio.h>

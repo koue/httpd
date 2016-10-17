@@ -23,6 +23,7 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <sys/tree.h>
+#include <sys/param.h>
 
 #include <netinet/in.h>
 #include <netinet/tcp.h>
