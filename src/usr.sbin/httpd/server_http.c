@@ -1,7 +1,7 @@
-/*	$OpenBSD: server_http.c,v 1.110 2016/08/26 10:46:39 rzalamena Exp $	*/
+/*	$OpenBSD: server_http.c,v 1.113 2017/02/02 22:19:59 reyk Exp $	*/
 
 /*
- * Copyright (c) 2006 - 2015 Reyk Floeter <reyk@openbsd.org>
+ * Copyright (c) 2006 - 2017 Reyk Floeter <reyk@openbsd.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -216,7 +216,7 @@ server_read_http(struct bufferevent *bev, void *arg)
 		goto done;
 	}
 
-	while (!clt->clt_done && (line =
+	while (!clt->clt_headersdone && (line =
 	    evbuffer_readln(src, NULL, EVBUFFER_EOL_CRLF_STRICT)) != NULL) {
 		linelen = strlen(line);
 
@@ -225,7 +225,7 @@ server_read_http(struct bufferevent *bev, void *arg)
 		 * libevent already stripped the \r\n for us.
 		 */
 		if (!linelen) {
-			clt->clt_done = 1;
+			clt->clt_headersdone = 1;
 			free(line);
 			break;
 		}
@@ -360,7 +360,7 @@ server_read_http(struct bufferevent *bev, void *arg)
 
 		free(line);
 	}
-	if (clt->clt_done) {
+	if (clt->clt_headersdone) {
 		if (desc->http_method == HTTP_METHOD_NONE) {
 			server_abort_http(clt, 406, "no method");
 			return;
@@ -610,6 +610,101 @@ server_read_httpchunks(struct bufferevent *bev, void *arg)
 }
 
 void
+server_read_httprange(struct bufferevent *bev, void *arg)
+{
+	struct client		*clt = arg;
+	struct evbuffer		*src = EVBUFFER_INPUT(bev);
+	size_t			 size;
+	struct media_type	*media;
+	struct range_data	*r = &clt->clt_ranges;
+	struct range		*range;
+
+	getmonotime(&clt->clt_tv_last);
+
+	if (r->range_toread > 0) {
+		size = EVBUFFER_LENGTH(src);
+		if (!size)
+			return;
+
+		/* Read chunk data */
+		if ((off_t)size > r->range_toread) {
+			size = r->range_toread;
+			if (server_bufferevent_write_chunk(clt, src, size)
+			    == -1)
+				goto fail;
+			r->range_toread = 0;
+		} else {
+			if (server_bufferevent_write_buffer(clt, src) == -1)
+				goto fail;
+			r->range_toread -= size;
+		}
+		if (r->range_toread < 1)
+			r->range_toread = TOREAD_HTTP_RANGE;
+		DPRINTF("%s: done, size %lu, to read %lld", __func__,
+		    size, r->range_toread);
+	}
+
+	switch (r->range_toread) {
+	case TOREAD_HTTP_RANGE:
+		if (r->range_index >= r->range_count) {
+			if (r->range_count > 1) {
+				/* Add end marker */
+				if (server_bufferevent_printf(clt,
+				    "\r\n--%llu--\r\n",
+				    clt->clt_boundary) == -1)
+					goto fail;
+			}
+			r->range_toread = TOREAD_HTTP_NONE;
+			break;
+		}
+
+		range = &r->range[r->range_index];
+
+		if (r->range_count > 1) {
+			media = r->range_media;
+			if (server_bufferevent_printf(clt,
+			    "\r\n--%llu\r\n"
+			    "Content-Type: %s/%s\r\n"
+			    "Content-Range: bytes %lld-%lld/%zu\r\n\r\n",
+			    clt->clt_boundary,
+			    media->media_type, media->media_subtype,
+			    range->start, range->end, r->range_total) == -1)
+				goto fail;
+		}
+		r->range_toread = range->end - range->start + 1;
+
+		if (lseek(clt->clt_fd, range->start, SEEK_SET) == -1)
+			goto fail;
+
+		/* Throw away bytes that are already in the input buffer */
+		evbuffer_drain(src, EVBUFFER_LENGTH(src));
+
+		/* Increment for the next part */
+		r->range_index++;
+		break;
+	case TOREAD_HTTP_NONE:
+	case 0:
+		break;
+	}
+
+	if (clt->clt_done)
+		goto done;
+
+	if (EVBUFFER_LENGTH(EVBUFFER_OUTPUT(clt->clt_bev)) > (size_t)
+	    SERVER_MAX_PREFETCH * clt->clt_sndbufsiz) {
+		bufferevent_disable(clt->clt_srvbev, EV_READ);
+		clt->clt_srvbev_throttled = 1;
+	}
+
+	return;
+ done:
+	(*bev->errorcb)(bev, EVBUFFER_READ, bev->cbarg);
+	return;
+ fail:
+	server_close(clt, strerror(errno));
+}
+
+void
 server_reset_http(struct client *clt)
 {
 	struct server		*srv = clt->clt_srv;
@@ -619,8 +714,9 @@ server_reset_http(struct client *clt)
 	server_httpdesc_free(clt->clt_descreq);
 	server_httpdesc_free(clt->clt_descresp);
 	clt->clt_headerlen = 0;
-	clt->clt_line = 0;
+	clt->clt_headersdone = 0;
 	clt->clt_done = 0;
+	clt->clt_line = 0;
 	clt->clt_chunk = 0;
 	free(clt->clt_remote_user);
 	clt->clt_remote_user = NULL;
@@ -1088,6 +1184,10 @@ server_response(struct httpd *httpd, struct client *clt)
 	}
 
 	if (clt->clt_persist >= srv_conf->maxrequests)
+		clt->clt_persist = 0;
+
+	/* pipelining should end after the first "idempotent" method */
+	if (clt->clt_pipelining && clt->clt_toread > 0)
 		clt->clt_persist = 0;
 
 	/*

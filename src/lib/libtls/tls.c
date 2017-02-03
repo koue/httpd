@@ -1,4 +1,4 @@
-/* $OpenBSD: tls.c,v 1.49 2016/09/04 12:26:43 bcook Exp $ */
+/* $OpenBSD: tls.c,v 1.59 2017/01/26 12:56:37 jsing Exp $ */
 /*
  * Copyright (c) 2014 Joel Sing <jsing@openbsd.org>
  *
@@ -61,15 +61,25 @@ tls_error(struct tls *ctx)
 	return ctx->error.msg;
 }
 
+void
+tls_error_clear(struct tls_error *error)
+{
+	free(error->msg);
+	error->msg = NULL;
+	error->num = 0;
+	error->tls = 0;
+}
+
 static int
 tls_error_vset(struct tls_error *error, int errnum, const char *fmt, va_list ap)
 {
 	char *errmsg = NULL;
 	int rv = -1;
 
-	free(error->msg);
-	error->msg = NULL;
+	tls_error_clear(error);
+
 	error->num = errnum;
+	error->tls = 1;
 
 	if (vasprintf(&errmsg, fmt, ap) == -1) {
 		errmsg = NULL;
@@ -169,6 +179,23 @@ tls_set_errorx(struct tls *ctx, const char *fmt, ...)
 {
 	va_list ap;
 	int rv;
+
+	va_start(ap, fmt);
+	rv = tls_error_vset(&ctx->error, -1, fmt, ap);
+	va_end(ap);
+
+	return (rv);
+}
+
+int
+tls_set_ssl_errorx(struct tls *ctx, const char *fmt, ...)
+{
+	va_list ap;
+	int rv;
+
+	/* Only set an error if a more specific one does not already exist. */
+	if (ctx->error.tls != 0)
+		return (0);
 
 	va_start(ap, fmt);
 	rv = tls_error_vset(&ctx->error, -1, fmt, ap);
@@ -332,10 +359,38 @@ tls_configure_ssl(struct tls *ctx, SSL_CTX *ssl_ctx)
 		    X509_V_FLAG_NO_CHECK_TIME);
 	}
 
+	/* Disable any form of session caching by default */
+	SSL_CTX_set_session_cache_mode(ssl_ctx, SSL_SESS_CACHE_OFF);
+	SSL_CTX_set_options(ssl_ctx, SSL_OP_NO_TICKET);
+
 	return (0);
 
  err:
 	return (-1);
+}
+
+static int
+tls_ssl_cert_verify_cb(X509_STORE_CTX *x509_ctx, void *arg)
+{
+	struct tls *ctx = arg;
+	int x509_err;
+
+	if (ctx->config->verify_cert == 0)
+		return (1);
+
+	if ((X509_verify_cert(x509_ctx)) < 0) {
+		tls_set_errorx(ctx, "X509 verify cert failed");
+		return (0);
+	}
+
+	x509_err = X509_STORE_CTX_get_error(x509_ctx);
+	if (x509_err == X509_V_OK)
+		return (1);
+
+	tls_set_errorx(ctx, "certificate verification failed: %s",
+	    X509_verify_cert_error_string(x509_err));
+
+	return (0);
 }
 
 int
@@ -344,8 +399,16 @@ tls_configure_ssl_verify(struct tls *ctx, SSL_CTX *ssl_ctx, int verify)
 	size_t ca_len = ctx->config->ca_len;
 	char *ca_mem = ctx->config->ca_mem;
 	char *ca_free = NULL;
+	int rv = -1;
 
 	SSL_CTX_set_verify(ssl_ctx, verify, NULL);
+	SSL_CTX_set_cert_verify_callback(ssl_ctx, tls_ssl_cert_verify_cb, ctx);
+
+	if (ctx->config->verify_depth >= 0)
+		SSL_CTX_set_verify_depth(ssl_ctx, ctx->config->verify_depth);
+
+	if (ctx->config->verify_cert == 0)
+		goto done;
 
 	/* If no CA has been specified, attempt to load the default. */
 	if (ctx->config->ca_mem == NULL && ctx->config->ca_path == NULL) {
@@ -369,17 +432,14 @@ tls_configure_ssl_verify(struct tls *ctx, SSL_CTX *ssl_ctx, int verify)
 		tls_set_errorx(ctx, "ssl verify locations failure");
 		goto err;
 	}
-	if (ctx->config->verify_depth >= 0)
-		SSL_CTX_set_verify_depth(ssl_ctx, ctx->config->verify_depth);
 
-	free(ca_free);
-
-	return (0);
+ done:
+	rv = 0;
 
  err:
 	free(ca_free);
 
-	return (-1);
+	return (rv);
 }
 
 void
@@ -418,6 +478,9 @@ tls_reset(struct tls *ctx)
 
 	tls_conninfo_free(ctx->conninfo);
 	ctx->conninfo = NULL;
+
+	tls_ocsp_free(ctx->ocsp);
+	ctx->ocsp = NULL;
 
 	for (sni = ctx->sni_ctx; sni != NULL; sni = nsni) {
 		nsni = sni->next;
@@ -461,21 +524,21 @@ tls_ssl_error(struct tls *ctx, SSL *ssl_conn, int ssl_ret, const char *prefix)
 		} else if (ssl_ret == -1) {
 			errstr = strerror(errno);
 		}
-		tls_set_errorx(ctx, "%s failed: %s", prefix, errstr);
+		tls_set_ssl_errorx(ctx, "%s failed: %s", prefix, errstr);
 		return (-1);
 
 	case SSL_ERROR_SSL:
 		if ((err = ERR_peek_error()) != 0) {
 			errstr = ERR_error_string(err, NULL);
 		}
-		tls_set_errorx(ctx, "%s failed: %s", prefix, errstr);
+		tls_set_ssl_errorx(ctx, "%s failed: %s", prefix, errstr);
 		return (-1);
 
 	case SSL_ERROR_WANT_CONNECT:
 	case SSL_ERROR_WANT_ACCEPT:
 	case SSL_ERROR_WANT_X509_LOOKUP:
 	default:
-		tls_set_errorx(ctx, "%s failed (%i)", prefix, ssl_err);
+		tls_set_ssl_errorx(ctx, "%s failed (%i)", prefix, ssl_err);
 		return (-1);
 	}
 }
@@ -484,6 +547,8 @@ int
 tls_handshake(struct tls *ctx)
 {
 	int rv = -1;
+
+	tls_error_clear(&ctx->error);
 
 	if ((ctx->flags & (TLS_CLIENT | TLS_SERVER_CONN)) == 0) {
 		tls_set_errorx(ctx, "invalid operation for context");
@@ -496,9 +561,11 @@ tls_handshake(struct tls *ctx)
 		rv = tls_handshake_server(ctx);
 
 	if (rv == 0) {
-		ctx->ssl_peer_cert =  SSL_get_peer_certificate(ctx->ssl_conn);
+		ctx->ssl_peer_cert = SSL_get_peer_certificate(ctx->ssl_conn);
 		if (tls_conninfo_populate(ctx) == -1)
 		    rv = -1;
+		if (ctx->ocsp == NULL)
+			ctx->ocsp = tls_ocsp_setup_from_peer(ctx);
 	}
  out:
 	/* Prevent callers from performing incorrect error handling */
@@ -511,6 +578,8 @@ tls_read(struct tls *ctx, void *buf, size_t buflen)
 {
 	ssize_t rv = -1;
 	int ssl_ret;
+
+	tls_error_clear(&ctx->error);
 
 	if ((ctx->state & TLS_HANDSHAKE_COMPLETE) == 0) {
 		if ((rv = tls_handshake(ctx)) != 0)
@@ -541,6 +610,8 @@ tls_write(struct tls *ctx, const void *buf, size_t buflen)
 	ssize_t rv = -1;
 	int ssl_ret;
 
+	tls_error_clear(&ctx->error);
+
 	if ((ctx->state & TLS_HANDSHAKE_COMPLETE) == 0) {
 		if ((rv = tls_handshake(ctx)) != 0)
 			goto out;
@@ -556,7 +627,7 @@ tls_write(struct tls *ctx, const void *buf, size_t buflen)
 		rv = (ssize_t)ssl_ret;
 		goto out;
 	}
-	rv =  (ssize_t)tls_ssl_error(ctx, ctx->ssl_conn, ssl_ret, "write");
+	rv = (ssize_t)tls_ssl_error(ctx, ctx->ssl_conn, ssl_ret, "write");
 
  out:
 	/* Prevent callers from performing incorrect error handling */
@@ -570,13 +641,15 @@ tls_close(struct tls *ctx)
 	int ssl_ret;
 	int rv = 0;
 
+	tls_error_clear(&ctx->error);
+
 	if ((ctx->flags & (TLS_CLIENT | TLS_SERVER_CONN)) == 0) {
 		tls_set_errorx(ctx, "invalid operation for context");
 		rv = -1;
 		goto out;
 	}
 
-	if (ctx->ssl_conn != NULL) {
+	if (ctx->state & TLS_SSL_NEEDS_SHUTDOWN) {
 		ERR_clear_error();
 		ssl_ret = SSL_shutdown(ctx->ssl_conn);
 		if (ssl_ret < 0) {
@@ -585,6 +658,7 @@ tls_close(struct tls *ctx)
 			if (rv == TLS_WANT_POLLIN || rv == TLS_WANT_POLLOUT)
 				goto out;
 		}
+		ctx->state &= ~TLS_SSL_NEEDS_SHUTDOWN;
 	}
 
 	if (ctx->socket != -1) {

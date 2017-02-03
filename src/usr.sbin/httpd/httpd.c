@@ -1,4 +1,4 @@
-/*	$OpenBSD: httpd.c,v 1.62 2016/09/28 12:01:04 reyk Exp $	*/
+/*	$OpenBSD: httpd.c,v 1.64 2017/01/23 04:25:05 deraadt Exp $	*/
 
 /*
  * Copyright (c) 2014 Reyk Floeter <reyk@openbsd.org>
@@ -191,7 +191,7 @@ main(int argc, char *argv[])
 	ps->ps_csock.cs_name = NULL;
 
 	log_init(debug, LOG_DAEMON);
-	log_verbose(verbose);
+	log_setverbose(verbose);
 
 	if (env->sc_opts & HTTPD_OPT_NOACTION)
 		ps->ps_noaction = 1;
@@ -222,8 +222,7 @@ main(int argc, char *argv[])
 	if (ps->ps_noaction == 0)
 		log_info("startup");
 
-	if (pledge("stdio rpath wpath cpath inet dns ioctl sendfd",
-	    NULL) == -1)
+	if (pledge("stdio rpath wpath cpath inet dns sendfd", NULL) == -1)
 		fatal("pledge");
 
 	event_init();

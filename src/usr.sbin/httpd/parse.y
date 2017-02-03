@@ -1,4 +1,4 @@
-/*	$OpenBSD: parse.y,v 1.82 2016/09/03 14:44:21 reyk Exp $	*/
+/*	$OpenBSD: parse.y,v 1.88 2017/01/27 07:03:27 tom Exp $	*/
 
 /*
  * Copyright (c) 2007 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -131,9 +131,9 @@ typedef struct {
 
 %token	ACCESS ALIAS AUTO BACKLOG BODY BUFFER CERTIFICATE CHROOT CIPHERS COMMON
 %token	COMBINED CONNECTION DHE DIRECTORY ECDHE ERR FCGI INDEX IP KEY LISTEN
-%token	LOCATION LOG LOGDIR MATCH MAXIMUM NO NODELAY ON PORT PREFORK PROTOCOLS
-%token	REQUEST REQUESTS ROOT SACK SERVER SOCKET STRIP STYLE SYSLOG TCP TIMEOUT
-%token	TLS TYPE TYPES HSTS MAXAGE SUBDOMAINS DEFAULT PRELOAD
+%token	LOCATION LOG LOGDIR MATCH MAXIMUM NO NODELAY OCSP ON PORT PREFORK
+%token	PROTOCOLS REQUESTS ROOT SACK SERVER SOCKET STRIP STYLE SYSLOG TCP TIMEOUT
+%token	TLS TYPE TYPES HSTS MAXAGE SUBDOMAINS DEFAULT PRELOAD REQUEST
 %token	ERROR INCLUDE AUTHENTICATE WITH BLOCK DROP RETURN PASS
 %token	<v.string>	STRING
 %token  <v.number>	NUMBER
@@ -337,6 +337,14 @@ server		: SERVER optmatch STRING	{
 			if (server_tls_load_keypair(srv) == -1) {
 				yyerror("server \"%s\": failed to load "
 				    "public/private keys", srv->srv_conf.name);
+				serverconfig_free(srv_conf);
+				free(srv);
+				YYERROR;
+			}
+
+			if (server_tls_load_ocsp(srv) == -1) {
+				yyerror("server \"%s\": failed to load "
+				    "ocsp staple", srv->srv_conf.name);
 				serverconfig_free(srv_conf);
 				free(srv);
 				YYERROR;
@@ -703,6 +711,13 @@ tlsopts		: CERTIFICATE STRING		{
 		| KEY STRING			{
 			free(srv_conf->tls_key_file);
 			if ((srv_conf->tls_key_file = strdup($2)) == NULL)
+				fatal("out of memory");
+			free($2);
+		}
+		| OCSP STRING			{
+			free(srv_conf->tls_ocsp_staple_file);
+			if ((srv_conf->tls_ocsp_staple_file = strdup($2))
+			    == NULL)
 				fatal("out of memory");
 			free($2);
 		}
@@ -1206,6 +1221,7 @@ lookup(char *s)
 		{ "max-age",		MAXAGE },
 		{ "no",			NO },
 		{ "nodelay",		NODELAY },
+		{ "ocsp",		OCSP },
 		{ "on",			ON },
 		{ "pass",		PASS },
 		{ "port",		PORT },
@@ -1582,8 +1598,7 @@ parse_config(const char *filename, struct httpd *x_conf)
 	endprotoent();
 
 	/* Free macros */
-	for (sym = TAILQ_FIRST(&symhead); sym != NULL; sym = next) {
-		next = TAILQ_NEXT(sym, entry);
+	TAILQ_FOREACH_SAFE(sym, &symhead, entry, next) {
 		if (!sym->persist) {
 			free(sym->nam);
 			free(sym->val);
@@ -1673,9 +1688,10 @@ symset(const char *nam, const char *val, int persist)
 {
 	struct sym	*sym;
 
-	for (sym = TAILQ_FIRST(&symhead); sym && strcmp(nam, sym->nam);
-	    sym = TAILQ_NEXT(sym, entry))
-		;	/* nothing */
+	TAILQ_FOREACH(sym, &symhead, entry) {
+		if (strcmp(nam, sym->nam) == 0)
+			break;
+	}
 
 	if (sym != NULL) {
 		if (sym->persist == 1)
@@ -1734,11 +1750,12 @@ symget(const char *nam)
 {
 	struct sym	*sym;
 
-	TAILQ_FOREACH(sym, &symhead, entry)
+	TAILQ_FOREACH(sym, &symhead, entry) {
 		if (strcmp(nam, sym->nam) == 0) {
 			sym->used = 1;
 			return (sym->val);
 		}
+	}
 	return (NULL);
 }
 
@@ -2007,10 +2024,11 @@ server_inherit(struct server *src, struct server_config *alias,
 	if ((dst->srv_conf.tls_key_file =
 	    strdup(src->srv_conf.tls_key_file)) == NULL)
 		fatal("out of memory");
-	dst->srv_conf.tls_cert = NULL;
-	dst->srv_conf.tls_key = NULL;
-	dst->srv_conf.tls_cert_len = 0;
-	dst->srv_conf.tls_key_len = 0;
+	if (src->srv_conf.tls_ocsp_staple_file != NULL) {
+		if ((dst->srv_conf.tls_ocsp_staple_file =
+		    strdup(src->srv_conf.tls_ocsp_staple_file)) == NULL)
+			fatal("out of memory");
+	}
 
 	if (src->srv_conf.return_uri != NULL &&
 	    (dst->srv_conf.return_uri =
@@ -2044,6 +2062,14 @@ server_inherit(struct server *src, struct server_config *alias,
 
 	if (server_tls_load_keypair(dst) == -1) {
 		yyerror("failed to load public/private keys "
+		    "for server %s", dst->srv_conf.name);
+		serverconfig_free(&dst->srv_conf);
+		free(dst);
+		return (NULL);
+	}
+
+	if (server_tls_load_ocsp(dst) == -1) {
+		yyerror("failed to load ocsp staple "
 		    "for server %s", dst->srv_conf.name);
 		serverconfig_free(&dst->srv_conf);
 		free(dst);

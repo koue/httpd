@@ -1,4 +1,4 @@
-/* $OpenBSD: tls_client.c,v 1.36 2016/09/04 13:20:56 jsing Exp $ */
+/* $OpenBSD: tls_client.c,v 1.40 2017/01/26 12:56:37 jsing Exp $ */
 /*
  * Copyright (c) 2014 Joel Sing <jsing@openbsd.org>
  *
@@ -195,10 +195,13 @@ tls_connect_common(struct tls *ctx, const char *servername)
 		}
 	}
 
-	if (ctx->config->verify_cert &&
-	    (tls_configure_ssl_verify(ctx, ctx->ssl_ctx,
-	     SSL_VERIFY_PEER) == -1))
+	if (tls_configure_ssl_verify(ctx, ctx->ssl_ctx, SSL_VERIFY_PEER) == -1)
 		goto err;
+
+	if (SSL_CTX_set_tlsext_status_cb(ctx->ssl_ctx, tls_ocsp_verify_cb) != 1) {
+		tls_set_errorx(ctx, "ssl OCSP verification setup failure");
+		goto err;
+	}
 
 	if ((ctx->ssl_conn = SSL_new(ctx->ssl_ctx)) == NULL) {
 		tls_set_errorx(ctx, "ssl connection failure");
@@ -207,6 +210,11 @@ tls_connect_common(struct tls *ctx, const char *servername)
 
 	if (SSL_set_app_data(ctx->ssl_conn, ctx) != 1) {
 		tls_set_errorx(ctx, "ssl application data failure");
+		goto err;
+	}
+
+	if (SSL_set_tlsext_status_type(ctx->ssl_conn, TLSEXT_STATUSTYPE_ocsp) != 1) {
+		tls_set_errorx(ctx, "ssl OCSP extension setup failure");
 		goto err;
 	}
 
@@ -268,10 +276,8 @@ tls_connect_cbs(struct tls *ctx, tls_read_cb read_cb,
 	if (tls_connect_common(ctx, servername) != 0)
 		goto err;
 
-	if (tls_set_cbs(ctx, read_cb, write_cb, cb_arg) != 0) {
-		tls_set_errorx(ctx, "callback registration failure");
+	if (tls_set_cbs(ctx, read_cb, write_cb, cb_arg) != 0)
 		goto err;
-	}
 
 	rv = 0;
 
@@ -290,6 +296,8 @@ tls_handshake_client(struct tls *ctx)
 		tls_set_errorx(ctx, "not a client context");
 		goto err;
 	}
+
+	ctx->state |= TLS_SSL_NEEDS_SHUTDOWN;
 
 	ERR_clear_error();
 	if ((ssl_ret = SSL_connect(ctx->ssl_conn)) != 1) {

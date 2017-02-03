@@ -1,4 +1,4 @@
-/*	$OpenBSD: server_fcgi.c,v 1.71 2016/09/01 11:13:18 florian Exp $	*/
+/*	$OpenBSD: server_fcgi.c,v 1.74 2017/01/21 11:32:04 guenther Exp $	*/
 
 /*
  * Copyright (c) 2014 Florian Obser <florian@openbsd.org>
@@ -120,7 +120,6 @@ server_fcgi(struct httpd *env, struct client *clt)
 			goto fail;
 	} else {
 		struct sockaddr_un	 sun;
-		size_t			 len;
 
 		if ((fd = socket(AF_UNIX,
 		    SOCK_STREAM | SOCK_NONBLOCK, 0)) == -1)
@@ -128,13 +127,11 @@ server_fcgi(struct httpd *env, struct client *clt)
 
 		memset(&sun, 0, sizeof(sun));
 		sun.sun_family = AF_UNIX;
-		len = strlcpy(sun.sun_path,
-		    srv_conf->socket, sizeof(sun.sun_path));
-		if (len >= sizeof(sun.sun_path)) {
-			errstr = "socket path too long";
+		if (strlcpy(sun.sun_path, srv_conf->socket,
+		    sizeof(sun.sun_path)) >= sizeof(sun.sun_path)) {
+			errstr = "socket path to long";
 			goto fail;
 		}
-		sun.sun_len = len;
 
 		if (connect(fd, (struct sockaddr *)&sun, sizeof(sun)) == -1)
 			goto fail;
@@ -760,7 +757,7 @@ server_fcgi_getheaders(struct client *clt)
 {
 	struct http_descriptor	*resp = clt->clt_descresp;
 	struct evbuffer		*evb = clt->clt_srvevb;
-	int			 code;
+	int			 code, ret;
 	char			*line, *key, *value;
 	const char		*errstr;
 
@@ -769,12 +766,9 @@ server_fcgi_getheaders(struct client *clt)
 
 		if ((value = strchr(key, ':')) == NULL)
 			break;
-		if (*value == ':') {
-			*value++ = '\0';
-			value += strspn(value, " \t");
-		} else {
-			*value++ = '\0';
-		}
+
+		*value++ = '\0';
+		value += strspn(value, " \t");
 
 		DPRINTF("%s: %s: %s", __func__, key, value);
 
@@ -791,5 +785,8 @@ server_fcgi_getheaders(struct client *clt)
 		free(line);
 	}
 
-	return (line != NULL && *line == '\0');
+	ret = (line != NULL && *line == '\0');
+
+	free(line);
+	return ret;
 }
