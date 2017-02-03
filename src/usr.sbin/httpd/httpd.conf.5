@@ -1,4 +1,4 @@
-.\"	$OpenBSD: httpd.conf.5,v 1.73 2016/05/09 19:36:54 tj Exp $
+.\"	$OpenBSD: httpd.conf.5,v 1.78 2017/01/24 13:28:47 jmc Exp $
 .\"
 .\" Copyright (c) 2014, 2015 Reyk Floeter <reyk@openbsd.org>
 .\"
@@ -14,7 +14,7 @@
 .\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 .\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 .\"
-.Dd $Mdocdate: May 9 2016 $
+.Dd $Mdocdate: January 24 2017 $
 .Dt HTTPD.CONF 5
 .Os
 .Sh NAME
@@ -358,6 +358,11 @@ Specify server configuration rules for a specific location.
 The
 .Ar path
 argument will be matched against the request path with shell globbing rules.
+In case of multiple location statements in the same context, the
+first matching location statement will be put into effect, while all
+later ones will be ignored.
+Therefore it is advisable to match for more specific paths first
+and for generic ones later on.
 A location section may include most of the server configuration rules
 except
 .Ic alias ,
@@ -533,6 +538,16 @@ root directory of
 .Nm httpd .
 The default is
 .Pa /etc/ssl/private/server.key .
+.It Ic ocsp Ar file
+Specify an OCSP response to be stapled during TLS handshakes
+with this server.
+The
+.Ar file
+should contain a DER-format OCSP response retrieved from an
+OCSP server for the
+.Ar certificate
+in use.
+The default is to not use OCSP stapling.
 .It Ic protocols Ar string
 Specify the TLS protocols to enable for this server.
 If not specified, the value
@@ -659,6 +674,7 @@ server "www.example.com" {
 .Xr htpasswd 1 ,
 .Xr patterns 7 ,
 .Xr httpd 8 ,
+.Xr ocspcheck 8 ,
 .Xr slowcgi 8
 .Sh AUTHORS
 .An -nosplit

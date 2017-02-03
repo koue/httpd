@@ -1,4 +1,4 @@
-/*	$OpenBSD: control.c,v 1.11 2016/09/01 10:59:38 reyk Exp $	*/
+/*	$OpenBSD: control.c,v 1.13 2017/01/09 14:49:22 reyk Exp $	*/
 
 /*
  * Copyright (c) 2003, 2004 Henning Brauer <henning@openbsd.org>
@@ -191,9 +191,10 @@ control_connbyfd(int fd)
 {
 	struct ctl_conn	*c;
 
-	for (c = TAILQ_FIRST(&ctl_conns); c != NULL && c->iev.ibuf.fd != fd;
-	    c = TAILQ_NEXT(c, entry))
-		;	/* nothing */
+	TAILQ_FOREACH(c, &ctl_conns, entry) {
+		if (c->iev.ibuf.fd == fd)
+			break;
+	}
 
 	return (c);
 }
@@ -299,7 +300,7 @@ control_dispatch_imsg(int fd, short event, void *arg)
 
 			memcpy(imsg.data, &verbose, sizeof(verbose));
 			control_imsg_forward(env->sc_ps, &imsg);
-			log_verbose(verbose);
+			log_setverbose(verbose);
 			break;
 		default:
 			log_debug("%s: error handling imsg %d",

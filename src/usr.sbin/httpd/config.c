@@ -1,4 +1,4 @@
-/*	$OpenBSD: config.c,v 1.48 2016/09/01 16:07:55 reyk Exp $	*/
+/*	$OpenBSD: config.c,v 1.50 2016/11/06 10:49:38 beck Exp $	*/
 
 /*
  * Copyright (c) 2011 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -210,6 +210,14 @@ config_setserver(struct httpd *env, struct server *srv)
 					    __func__, srv->srv_conf.name);
 					return (-1);
 				}
+
+				/* Prevent fd exhaustion in the parent. */
+				if (proc_flush_imsg(ps, id, n) == -1) {
+					log_warn("%s: failed to flush "
+					    "IMSG_CFG_SERVER imsg for `%s'",
+					    __func__, srv->srv_conf.name);
+					return (-1);
+				}
 			}
 
 			/* Configure TLS if necessary. */
@@ -223,6 +231,12 @@ config_setserver(struct httpd *env, struct server *srv)
 				return (-1);
 			}
 		}
+	}
+
+	/* Close server socket early to prevent fd exhaustion in the parent. */
+	if (srv->srv_s != -1) {
+		close(srv->srv_s);
+		srv->srv_s = -1;
 	}
 
 	return (0);
@@ -278,6 +292,28 @@ config_settls(struct httpd *env, struct server *srv)
 		iov[c++].iov_len = sizeof(tls);
 		iov[c].iov_base = srv_conf->tls_key;
 		iov[c++].iov_len = srv_conf->tls_key_len;
+
+		if (proc_composev(ps, PROC_SERVER, IMSG_CFG_TLS, iov, c) != 0) {
+			log_warn("%s: failed to compose IMSG_CFG_TLS imsg for "
+			    "`%s'", __func__, srv_conf->name);
+			return (-1);
+		}
+	}
+
+	if (srv_conf->tls_ocsp_staple_len != 0) {
+		DPRINTF("%s: sending ocsp staple \"%s[%u]\" to %s fd %d", __func__,
+		    srv_conf->name, srv_conf->id, ps->ps_title[PROC_SERVER],
+		    srv->srv_s);
+
+		memset(&tls, 0, sizeof(tls));
+		tls.id = srv_conf->id;
+		tls.tls_ocsp_staple_len = srv_conf->tls_ocsp_staple_len;
+
+		c = 0;
+		iov[c].iov_base = &tls;
+		iov[c++].iov_len = sizeof(tls);
+		iov[c].iov_base = srv_conf->tls_ocsp_staple;
+		iov[c++].iov_len = srv_conf->tls_ocsp_staple_len;
 
 		if (proc_composev(ps, PROC_SERVER, IMSG_CFG_TLS, iov, c) != 0) {
 			log_warn("%s: failed to compose IMSG_CFG_TLS imsg for "
@@ -569,7 +605,8 @@ config_gettls(struct httpd *env, struct imsg *imsg)
 	s = sizeof(tls_conf);
 
 	if ((IMSG_DATA_SIZE(imsg) - s) <
-	    (tls_conf.tls_cert_len + tls_conf.tls_key_len)) {
+	    (tls_conf.tls_cert_len + tls_conf.tls_key_len +
+	    tls_conf.tls_ocsp_staple_len)) {
 		log_debug("%s: invalid message length", __func__);
 		goto fail;
 	}
@@ -596,6 +633,13 @@ config_gettls(struct httpd *env, struct imsg *imsg)
 		    tls_conf.tls_key_len)) == NULL)
 			goto fail;
 		s += tls_conf.tls_key_len;
+	}
+	if (tls_conf.tls_ocsp_staple_len != 0) {
+		srv_conf->tls_ocsp_staple_len = tls_conf.tls_ocsp_staple_len;
+		if ((srv_conf->tls_ocsp_staple = get_data(p + s,
+		    tls_conf.tls_ocsp_staple_len)) == NULL)
+			goto fail;
+		s += tls_conf.tls_ocsp_staple_len;
 	}
 
 	return (0);

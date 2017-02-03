@@ -1,4 +1,4 @@
-/* $OpenBSD: tls_conninfo.c,v 1.11 2016/08/22 17:12:35 jsing Exp $ */
+/* $OpenBSD: tls_conninfo.c,v 1.13 2017/01/09 15:31:20 jsing Exp $ */
 /*
  * Copyright (c) 2015 Joel Sing <jsing@openbsd.org>
  * Copyright (c) 2015 Bob Beck <beck@openbsd.org>
@@ -140,9 +140,9 @@ tls_get_peer_cert_times(struct tls *ctx, time_t *notbefore,
 		goto err;
 	if ((after = X509_get_notAfter(ctx->ssl_peer_cert)) == NULL)
 		goto err;
-	if (asn1_time_parse(before->data, before->length, &before_tm, 0) == -1)
+	if (ASN1_time_parse(before->data, before->length, &before_tm, 0) == -1)
 		goto err;
-	if (asn1_time_parse(after->data, after->length, &after_tm, 0) == -1)
+	if (ASN1_time_parse(after->data, after->length, &after_tm, 0) == -1)
 		goto err;
 	if ((*notbefore = timegm(&before_tm)) == -1)
 		goto err;
@@ -252,6 +252,8 @@ tls_conninfo_free(struct tls_conninfo *conninfo)
 	conninfo->alpn = NULL;
 	free(conninfo->cipher);
 	conninfo->cipher = NULL;
+	free(conninfo->servername);
+	conninfo->servername = NULL;
 	free(conninfo->version);
 	conninfo->version = NULL;
 
