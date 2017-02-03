@@ -21,6 +21,7 @@
 #include <sys/uio.h>
 
 #include <limits.h>
+#define _WITH_DPRINTF
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

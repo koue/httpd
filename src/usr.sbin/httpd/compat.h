@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 Nikola Kolev
+ * Copyright (c) 2016-2017 Nikola Kolev
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -31,6 +31,8 @@
 #ifndef COMPAT_H
 #define COMPAT_H
 
+#include <sys/types.h>
+
 void
 *reallocarray(void *, size_t, size_t);
 void
@@ -51,5 +53,9 @@ int
 stravis(char **outp, const char *src, int flag);
 int
 timingsafe_bcmp(const void *b1, const void *b2, size_t n);
+int
+ASN1_time_parse(const char *bytes, size_t len, struct tm *tm, int mode);
+char *
+bcrypt_gensalt(u_int8_t log_rounds);
 
 #endif

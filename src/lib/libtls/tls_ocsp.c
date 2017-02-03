@@ -30,6 +30,10 @@
 #define MAXAGE_SEC (14*24*60*60)
 #define JITTER_SEC (60)
 
+#ifndef __OpenBSD__
+#include "compat.h"
+#endif
+
 /*
  * State for request.
  */

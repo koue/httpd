@@ -30,6 +30,7 @@
 #include <unistd.h>
 #include <limits.h>
 #include <fnmatch.h>
+#define _WITH_GETLINE
 #include <stdio.h>
 #include <time.h>
 #include <resolv.h>

@@ -31,6 +31,10 @@
 #define GENTIME_LENGTH 15
 #define UTCTIME_LENGTH 13
 
+#ifndef __OpenBSD__
+#include "compat.h"
+#endif
+
 #ifdef __OpenBSD__
 int
 ASN1_time_tm_cmp(struct tm *tm1, struct tm *tm2) {
