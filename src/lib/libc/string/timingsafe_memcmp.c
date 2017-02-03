@@ -18,6 +18,10 @@
 #include <limits.h>
 #include <string.h>
 
+#ifndef __OpenBSD__
+#include "compat.h"
+#endif
+
 int
 timingsafe_memcmp(const void *b1, const void *b2, size_t len)
 {
@@ -44,4 +48,6 @@ timingsafe_memcmp(const void *b1, const void *b2, size_t len)
 
         return (res);
 }
+#ifdef __OpenBSD__
 DEF_WEAK(timingsafe_memcmp);
+#endif

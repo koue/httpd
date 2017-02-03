@@ -26,6 +26,10 @@
 #include <tls.h>
 #include "tls_internal.h"
 
+#ifndef __OpenBSD__
+#include "compat.h"
+#endif
+
 struct tls *
 tls_server(void)
 {

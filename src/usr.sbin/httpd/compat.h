@@ -54,6 +54,8 @@ stravis(char **outp, const char *src, int flag);
 int
 timingsafe_bcmp(const void *b1, const void *b2, size_t n);
 int
+timingsafe_memcmp(const void *b1, const void *b2, size_t len);
+int
 ASN1_time_parse(const char *bytes, size_t len, struct tm *tm, int mode);
 char *
 bcrypt_gensalt(u_int8_t log_rounds);
