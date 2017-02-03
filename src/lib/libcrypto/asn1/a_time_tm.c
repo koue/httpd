@@ -23,12 +23,15 @@
 #include <openssl/asn1t.h>
 #include <openssl/err.h>
 
+#ifdef __OpenBSD__
 #include "o_time.h"
+#endif
 
 #define RFC5280 0
 #define GENTIME_LENGTH 15
 #define UTCTIME_LENGTH 13
 
+#ifdef __OpenBSD__
 int
 ASN1_time_tm_cmp(struct tm *tm1, struct tm *tm2) {
 	if (tm1->tm_year < tm2->tm_year)
@@ -112,6 +115,7 @@ rfc5280_string_from_tm(struct tm *tm)
 
 	return (ret);
 }
+#endif
 
 /*
  * Parse an RFC 5280 format ASN.1 time string.
@@ -207,6 +211,8 @@ ASN1_time_parse(const char *bytes, size_t len, struct tm *tm, int mode)
 
 	return (type);
 }
+
+#ifdef __OpenBSD__
 
 /*
  * ASN1_TIME generic functions.
@@ -443,3 +449,4 @@ ASN1_GENERALIZEDTIME_adj(ASN1_GENERALIZEDTIME *s, time_t t, int offset_day,
 	return (ASN1_TIME_adj_internal(s, t, offset_day, offset_sec,
 	    V_ASN1_GENERALIZEDTIME));
 }
+#endif

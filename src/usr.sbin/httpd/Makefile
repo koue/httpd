@@ -22,12 +22,16 @@ SRCS+=	tls.c \
 	tls_peer.c \
 	tls_server.c \
 	tls_util.c \
-	tls_verify.c
+	tls_verify.c \
+	tls_ocsp.c
 
 
 .PATH:	${.CURDIR}/../../lib/libutil
 SRCS+=	imsg-buffer.c \
 	imsg.c
+
+.PATH:	${.CURDIR}/../../lib/libcrypto/asn1
+SRCS+=	a_time_tm.c
 
 .PATH:  ${.CURDIR}/../../../libevent
 SRCS+=  buffer.c \
@@ -56,7 +60,6 @@ CFLAGS+=	-Wsign-compare -Wcast-qual
 CFLAGS+=	-I${.CURDIR}/../../../libevent \
 		-I${.CURDIR}/../../lib/libutil \
 		-I${.CURDIR}/../../lib/libtls \
-		-I${.CURDIR}/../../lib/libssl/src/crypto \
 		-I${.CURDIR}/../../include \
 		-L ${LOCALBASE}/lib \
 		-I ${LOCALBASE}/include

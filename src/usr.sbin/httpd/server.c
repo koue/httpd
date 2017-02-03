@@ -47,6 +47,7 @@
 
 #ifndef __OpenBSD__
 #include "compat.h"
+#define IPV6_MINHOPCOUNT	65	/* int; minimum recv hop limit */
 #endif
 
 #define MINIMUM(a, b)	(((a) < (b)) ? (a) : (b))

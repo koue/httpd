@@ -24,7 +24,9 @@
 
 #include <openssl/ssl.h>
 
+#ifdef __OpenBSD__
 __BEGIN_HIDDEN_DECLS
+#endif
 
 #define _PATH_SSL_CA_FILE "/etc/ssl/cert.pem"
 
@@ -233,6 +235,8 @@ int tls_ocsp_stapling_cb(SSL *ssl, void *arg);
 void tls_ocsp_free(struct tls_ocsp *ctx);
 struct tls_ocsp *tls_ocsp_setup_from_peer(struct tls *ctx);
 
+#ifdef __OpenBSD__
 __END_HIDDEN_DECLS
+#endif
 
 #endif /* HEADER_TLS_INTERNAL_H */

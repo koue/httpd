@@ -237,7 +237,9 @@ tls_configure_server_ssl(struct tls *ctx, SSL_CTX **ssl_ctx,
 		goto err;
 	}
 
+#ifdef __OpenBSD__
 	SSL_CTX_set_options(*ssl_ctx, SSL_OP_NO_CLIENT_RENEGOTIATION);
+#endif
 
 	if (SSL_CTX_set_tlsext_servername_callback(*ssl_ctx,
 	    tls_servername_cb) != 1) {
