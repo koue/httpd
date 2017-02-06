@@ -122,13 +122,8 @@ server_fcgi(struct httpd *env, struct client *clt)
 	} else {
 		struct sockaddr_un	 sun;
 
-#if  (defined(__FreeBSD_version) && (__FreeBSD_version < 1000000))
-		if ((fd = socket(AF_UNIX,
-		    SOCK_STREAM, 0)) == -1)
-#else
 		if ((fd = socket(AF_UNIX,
 		    SOCK_STREAM | SOCK_NONBLOCK, 0)) == -1)
-#endif
 			goto fail;
 
 		memset(&sun, 0, sizeof(sun));

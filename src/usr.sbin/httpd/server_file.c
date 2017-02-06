@@ -240,11 +240,7 @@ server_file_request(struct httpd *env, struct client *clt, char *path,
 
 	media = media_find_config(env, srv_conf, path);
 	ret = server_response_http(clt, 200, media, st->st_size,
-#if  (defined(__FreeBSD_version) && (__FreeBSD_version < 900011))
-	    MINIMUM(time(NULL), st->st_mtimespec.tv_sec));
-#else
 	    MINIMUM(time(NULL), st->st_mtim.tv_sec));
-#endif
 	switch (ret) {
 	case -1:
 		goto fail;
@@ -460,11 +456,7 @@ server_file_index(struct httpd *env, struct client *clt, struct stat *st)
 		goto abort;
 
 	/* Save last modification time */
-#if  (defined(__FreeBSD_version) && (__FreeBSD_version < 900011))
-	dir_mtime = MINIMUM(time(NULL), st->st_mtimespec.tv_sec);
-#else
 	dir_mtime = MINIMUM(time(NULL), st->st_mtim.tv_sec);
-#endif
 
 	if ((evb = evbuffer_new()) == NULL)
 		goto abort;

@@ -934,11 +934,7 @@ accept_reserve(int sockfd, struct sockaddr *addr, socklen_t *addrlen,
 		return (-1);
 	}
 
-#if  (defined(__FreeBSD_version) && (__FreeBSD_version < 1000000))
-	if ((ret = accept(sockfd, addr, addrlen)) > -1) {
-#else
 	if ((ret = accept4(sockfd, addr, addrlen, SOCK_NONBLOCK)) > -1) {
-#endif
 		(*counter)++;
 		DPRINTF("%s: inflight incremented, now %d",__func__, *counter);
 	}

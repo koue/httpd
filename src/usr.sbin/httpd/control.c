@@ -51,11 +51,7 @@ control_init(struct privsep *ps, struct control_sock *cs)
 	if (cs->cs_name == NULL)
 		return (0);
 
-#if  (defined(__FreeBSD_version) && (__FreeBSD_version < 1000000))
-	if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
-#else
 	if ((fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0)) == -1) {
-#endif
 		log_warn("%s: socket", __func__);
 		return (-1);
 	}
@@ -147,13 +143,8 @@ control_accept(int listenfd, short event, void *arg)
 		return;
 
 	len = sizeof(sun);
-#if  (defined(__FreeBSD_version) && (__FreeBSD_version < 1000000))
-	if ((connfd = accept(listenfd,
-	    (struct sockaddr *)&sun, &len)) == -1) {
-#else
 	if ((connfd = accept4(listenfd,
 	    (struct sockaddr *)&sun, &len, SOCK_NONBLOCK)) == -1) {
-#endif
 		/*
 		 * Pause accept if we are out of file descriptors, or
 		 * libevent will haunt us here too.
