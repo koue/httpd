@@ -9,9 +9,6 @@ SRCS+=	bcrypt.c \
 	blowfish.c \
 	cryptutil.c
 
-.PATH:	${.CURDIR}/../../lib/libc/string
-SRCS+=	timingsafe_bcmp.c
-
 LDADD=		-lcrypto
 
 DPADD=		${LIBCRYPTO}
@@ -21,8 +18,8 @@ CFLAGS+=	-Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations
 CFLAGS+=	-Wshadow -Wpointer-arith -Wcast-qual -Wsign-compare
 CFLAGS+=	-I${.CURDIR}/../../usr.sbin/httpd \
 		-I${.CURDIR}/../../include \
-		-I ${LOCALBASE}/include \
-		-L ${LOCALBASE}/lib
+		-I ${LOCALBASE}/include
 CFLAGS+=	-D__dead=''
+LDFLAGS+=	-L ${LOCALBASE}/lib
 
 .include <bsd.prog.mk>
