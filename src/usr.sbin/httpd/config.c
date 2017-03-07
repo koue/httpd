@@ -212,19 +212,12 @@ config_setserver(struct httpd *env, struct server *srv)
 				}
 
 				/* Prevent fd exhaustion in the parent. */
-#ifdef __OpenBSD__
-				/*
-				 * Breaks FreeBSD version
-				 * If using multiple 'listen on' option
-				 * lot of unknown sockets will be created
-				 */
 				if (proc_flush_imsg(ps, id, n) == -1) {
 					log_warn("%s: failed to flush "
 					    "IMSG_CFG_SERVER imsg for `%s'",
 					    __func__, srv->srv_conf.name);
 					return (-1);
 				}
-#endif
 			}
 
 			/* Configure TLS if necessary. */
@@ -240,7 +233,6 @@ config_setserver(struct httpd *env, struct server *srv)
 		}
 	}
 
-#ifdef __OpenBSD__
 	/*
 	 * Closing server socket early prevents of correct parsing of the httpd
 	 * configuration file in FreeBSD.
@@ -252,8 +244,6 @@ config_setserver(struct httpd *env, struct server *srv)
 		close(srv->srv_s);
 		srv->srv_s = -1;
 	}
-#endif
-
 	return (0);
 }
 
