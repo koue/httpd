@@ -1,0 +1,5 @@
+*.o
+*.gz
+httpd
+parse.c
+parse.h
