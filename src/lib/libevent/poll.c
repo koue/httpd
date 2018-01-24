@@ -1,4 +1,4 @@
-/*	$OpenBSD: poll.c,v 1.2 2002/06/25 15:50:15 mickey Exp $	*/
+/*	$OpenBSD: poll.c,v 1.22 2016/09/03 11:31:17 nayden Exp $	*/
 
 /*
  * Copyright 2000-2003 Niels Provos <provos@citi.umich.edu>
@@ -26,17 +26,11 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
 
 #include <sys/types.h>
-#ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
-#else
-#include <sys/_libevent_time.h>
-#endif
 #include <sys/queue.h>
+
 #include <poll.h>
 #include <signal.h>
 #include <stdio.h>
@@ -87,7 +81,7 @@ poll_init(struct event_base *base)
 	struct pollop *pollop;
 
 	/* Disable poll when this environment variable is set */
-	if (evutil_getenv("EVENT_NOPOLL"))
+	if (!issetugid() && getenv("EVENT_NOPOLL"))
 		return (NULL);
 
 	if (!(pollop = calloc(1, sizeof(struct pollop))))
@@ -148,7 +142,7 @@ poll_dispatch(struct event_base *base, void *arg, struct timeval *tv)
 
 	if (res == -1) {
 		if (errno != EINTR) {
-                        event_warn("poll");
+			event_warn("poll");
 			return (-1);
 		}
 
@@ -163,7 +157,7 @@ poll_dispatch(struct event_base *base, void *arg, struct timeval *tv)
 	if (res == 0 || nfds == 0)
 		return (0);
 
-	i = random() % nfds;
+	i = arc4random_uniform(nfds);
 	for (j = 0; j < nfds; j++) {
 		struct event *r_ev = NULL, *w_ev = NULL;
 		int what;
@@ -226,16 +220,16 @@ poll_add(void *arg, struct event *ev)
 			tmp_event_count = pop->event_count * 2;
 
 		/* We need more file descriptors */
-		tmp_event_set = realloc(pop->event_set,
-				 tmp_event_count * sizeof(struct pollfd));
+		tmp_event_set = reallocarray(pop->event_set,
+		    tmp_event_count, sizeof(struct pollfd));
 		if (tmp_event_set == NULL) {
 			event_warn("realloc");
 			return (-1);
 		}
 		pop->event_set = tmp_event_set;
 
-		tmp_event_r_back = realloc(pop->event_r_back,
-			    tmp_event_count * sizeof(struct event *));
+		tmp_event_r_back = reallocarray(pop->event_r_back,
+		    tmp_event_count, sizeof(struct event *));
 		if (tmp_event_r_back == NULL) {
 			/* event_set overallocated; that's okay. */
 			event_warn("realloc");
@@ -243,8 +237,8 @@ poll_add(void *arg, struct event *ev)
 		}
 		pop->event_r_back = tmp_event_r_back;
 
-		tmp_event_w_back = realloc(pop->event_w_back,
-			    tmp_event_count * sizeof(struct event *));
+		tmp_event_w_back = reallocarray(pop->event_w_back,
+		    tmp_event_count, sizeof(struct event *));
 		if (tmp_event_w_back == NULL) {
 			/* event_set and event_r_back overallocated; that's
 			 * okay. */
@@ -264,8 +258,8 @@ poll_add(void *arg, struct event *ev)
 			new_count = pop->fd_count * 2;
 		while (new_count <= ev->ev_fd)
 			new_count *= 2;
-		tmp_idxplus1_by_fd =
-			realloc(pop->idxplus1_by_fd, new_count * sizeof(int));
+		tmp_idxplus1_by_fd = reallocarray(pop->idxplus1_by_fd,
+		    new_count, sizeof(int));
 		if (tmp_idxplus1_by_fd == NULL) {
 			event_warn("realloc");
 			return (-1);
@@ -344,7 +338,7 @@ poll_del(void *arg, struct event *ev)
 
 	--pop->nfds;
 	if (i != pop->nfds) {
-		/* 
+		/*
 		 * Shift the last pollfd down into the now-unoccupied
 		 * position.
 		 */
@@ -365,14 +359,10 @@ poll_dealloc(struct event_base *base, void *arg)
 	struct pollop *pop = arg;
 
 	evsignal_dealloc(base);
-	if (pop->event_set)
-		free(pop->event_set);
-	if (pop->event_r_back)
-		free(pop->event_r_back);
-	if (pop->event_w_back)
-		free(pop->event_w_back);
-	if (pop->idxplus1_by_fd)
-		free(pop->idxplus1_by_fd);
+	free(pop->event_set);
+	free(pop->event_r_back);
+	free(pop->event_w_back);
+	free(pop->idxplus1_by_fd);
 
 	memset(pop, 0, sizeof(struct pollop));
 	free(pop);

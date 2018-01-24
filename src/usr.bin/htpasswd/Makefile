@@ -1,8 +1,7 @@
-#	$OpenBSD: Makefile,v 1.1 2014/03/17 12:49:13 florian Exp $
+#	$OpenBSD: Makefile,v 1.4 2017/07/09 21:23:19 espie Exp $
 LOCALBASE?=	/usr/local
+
 PROG=		htpasswd
-SRCS=		htpasswd.c
-MAN=		htpasswd.1
 
 .PATH:	${.CURDIR}/../../lib/libc/crypt
 SRCS+=	bcrypt.c \
@@ -13,7 +12,7 @@ LDADD=		-lcrypto
 
 DPADD=		${LIBCRYPTO}
 
-CFLAGS+=	-g -W -Wall
+CFLAGS+=	-W -Wall
 CFLAGS+=	-Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations
 CFLAGS+=	-Wshadow -Wpointer-arith -Wcast-qual -Wsign-compare
 CFLAGS+=	-I${.CURDIR}/../../usr.sbin/httpd \

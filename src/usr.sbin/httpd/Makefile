@@ -1,4 +1,4 @@
-#	$OpenBSD: Makefile,v 1.29 2016/09/28 12:02:17 reyk Exp $
+#	$OpenBSD: Makefile,v 1.30 2017/07/03 22:21:47 espie Exp $
 
 LOCALBASE?=	/usr/local
 PROG=		httpd
@@ -49,5 +49,6 @@ CFLAGS+=	-D__dead='' \
 		-DHAVE_CONFIG_H
 LDFLAGS+=	-L ${LOCALBASE}/lib
 CLEANFILES+=	y.tab.h
+YFLAGS=
 
 .include <bsd.prog.mk>

@@ -1,4 +1,4 @@
-/*	$OpenBSD: select.c,v 1.2 2002/06/25 15:50:15 mickey Exp $	*/
+/*	$OpenBSD: select.c,v 1.25 2016/09/03 11:31:17 nayden Exp $	*/
 
 /*
  * Copyright 2000-2002 Niels Provos <provos@citi.umich.edu>
@@ -26,20 +26,12 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
 
 #include <sys/types.h>
-#ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
-#else
-#include <sys/_libevent_time.h>
-#endif
-#ifdef HAVE_SYS_SELECT_H
 #include <sys/select.h>
-#endif
 #include <sys/queue.h>
+
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -51,25 +43,13 @@
 #endif
 
 #include "event.h"
-#include "evutil.h"
 #include "event-internal.h"
 #include "evsignal.h"
 #include "log.h"
 
-#ifndef howmany
-#define        howmany(x, y)   (((x)+((y)-1))/(y))
-#endif
-
-#ifndef _EVENT_HAVE_FD_MASK
-/* This type is mandatory, but Android doesn't define it. */
-#undef NFDBITS
-#define NFDBITS (sizeof(long)*8)
-typedef unsigned long fd_mask;
-#endif
-
 struct selectop {
 	int event_fds;		/* Highest fd in fd set */
-	int event_fdsz;
+	size_t event_fdsz;
 	fd_set *event_readset_in;
 	fd_set *event_writeset_in;
 	fd_set *event_readset_out;
@@ -94,7 +74,7 @@ const struct eventop selectops = {
 	0
 };
 
-static int select_resize(struct selectop *sop, int fdsz);
+static int select_resize(struct selectop *sop, size_t fdsz);
 
 static void *
 select_init(struct event_base *base)
@@ -102,7 +82,7 @@ select_init(struct event_base *base)
 	struct selectop *sop;
 
 	/* Disable select when this environment variable is set */
-	if (evutil_getenv("EVENT_NOSELECT"))
+	if (!issetugid() && getenv("EVENT_NOSELECT"))
 		return (NULL);
 
 	if (!(sop = calloc(1, sizeof(struct selectop))))
@@ -175,7 +155,7 @@ select_dispatch(struct event_base *base, void *arg, struct timeval *tv)
 	event_debug(("%s: select reports %d", __func__, res));
 
 	check_selectop(sop);
-	i = random() % (sop->event_fds+1);
+	i = arc4random_uniform(sop->event_fds + 1);
 	for (j = 0; j <= sop->event_fds; ++j) {
 		struct event *r_ev = NULL, *w_ev = NULL;
 		if (++i >= sop->event_fds+1)
@@ -204,9 +184,9 @@ select_dispatch(struct event_base *base, void *arg, struct timeval *tv)
 
 
 static int
-select_resize(struct selectop *sop, int fdsz)
+select_resize(struct selectop *sop, size_t fdsz)
 {
-	int n_events, n_events_old;
+	size_t n_events, n_events_old;
 
 	fd_set *readset_in = NULL;
 	fd_set *writeset_in = NULL;
@@ -233,12 +213,12 @@ select_resize(struct selectop *sop, int fdsz)
 	if ((writeset_out = realloc(sop->event_writeset_out, fdsz)) == NULL)
 		goto error;
 	sop->event_writeset_out = writeset_out;
-	if ((r_by_fd = realloc(sop->event_r_by_fd,
-		 n_events*sizeof(struct event*))) == NULL)
+	if ((r_by_fd = reallocarray(sop->event_r_by_fd, n_events,
+	    sizeof(struct event *))) == NULL)
 		goto error;
 	sop->event_r_by_fd = r_by_fd;
-	if ((w_by_fd = realloc(sop->event_w_by_fd,
-		 n_events * sizeof(struct event*))) == NULL)
+	if ((w_by_fd = reallocarray(sop->event_w_by_fd, n_events,
+	    sizeof(struct event *))) == NULL)
 		goto error;
 	sop->event_w_by_fd = w_by_fd;
 
@@ -276,7 +256,7 @@ select_add(void *arg, struct event *ev)
 	 * of the fd_sets for select(2)
 	 */
 	if (sop->event_fds < ev->ev_fd) {
-		int fdsz = sop->event_fdsz;
+		size_t fdsz = sop->event_fdsz;
 
 		if (fdsz < sizeof(fd_mask))
 			fdsz = sizeof(fd_mask);
@@ -346,18 +326,12 @@ select_dealloc(struct event_base *base, void *arg)
 	struct selectop *sop = arg;
 
 	evsignal_dealloc(base);
-	if (sop->event_readset_in)
-		free(sop->event_readset_in);
-	if (sop->event_writeset_in)
-		free(sop->event_writeset_in);
-	if (sop->event_readset_out)
-		free(sop->event_readset_out);
-	if (sop->event_writeset_out)
-		free(sop->event_writeset_out);
-	if (sop->event_r_by_fd)
-		free(sop->event_r_by_fd);
-	if (sop->event_w_by_fd)
-		free(sop->event_w_by_fd);
+	free(sop->event_readset_in);
+	free(sop->event_writeset_in);
+	free(sop->event_readset_out);
+	free(sop->event_writeset_out);
+	free(sop->event_r_by_fd);
+	free(sop->event_w_by_fd);
 
 	memset(sop, 0, sizeof(struct selectop));
 	free(sop);

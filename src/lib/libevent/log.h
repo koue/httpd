@@ -1,5 +1,7 @@
+/*	$OpenBSD: log.h,v 1.6 2010/04/21 20:02:40 nicm Exp $	*/
+
 /*
- * Copyright 2000-2002 Niels Provos <provos@citi.umich.edu>
+ * Copyright (c) 2000-2004 Niels Provos <provos@citi.umich.edu>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -24,29 +26,28 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef _EVSIGNAL_H_
-#define _EVSIGNAL_H_
+#ifndef _LOG_H_
+#define _LOG_H_
 
-typedef void (*ev_sighandler_t)(int);
-
-struct evsignal_info {
-	struct event ev_signal;
-	int ev_signal_pair[2];
-	int ev_signal_added;
-	volatile sig_atomic_t evsignal_caught;
-	struct event_list evsigevents[NSIG];
-	sig_atomic_t evsigcaught[NSIG];
-#ifdef HAVE_SIGACTION
-	struct sigaction **sh_old;
+#ifdef __GNUC__
+#define EV_CHECK_FMT(a,b) __attribute__((format(printf, a, b)))
 #else
-	ev_sighandler_t **sh_old;
+#define EV_CHECK_FMT(a,b)
 #endif
-	int sh_old_max;
-};
-int evsignal_init(struct event_base *);
-void evsignal_process(struct event_base *);
-int evsignal_add(struct event *);
-int evsignal_del(struct event *);
-void evsignal_dealloc(struct event_base *);
 
-#endif /* _EVSIGNAL_H_ */
+void event_err(int eval, const char *fmt, ...) EV_CHECK_FMT(2,3);
+void event_warn(const char *fmt, ...) EV_CHECK_FMT(1,2);
+void event_errx(int eval, const char *fmt, ...) EV_CHECK_FMT(2,3);
+void event_warnx(const char *fmt, ...) EV_CHECK_FMT(1,2);
+void event_msgx(const char *fmt, ...) EV_CHECK_FMT(1,2);
+void _event_debugx(const char *fmt, ...) EV_CHECK_FMT(1,2);
+
+#ifdef USE_DEBUG
+#define event_debug(x) _event_debugx x
+#else
+#define event_debug(x) do {;} while (0)
+#endif
+
+#undef EV_CHECK_FMT
+
+#endif

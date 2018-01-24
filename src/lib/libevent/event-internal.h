@@ -1,3 +1,5 @@
+/*	$OpenBSD: event-internal.h,v 1.8 2014/10/15 22:34:44 bluhm Exp $	*/
+
 /*
  * Copyright (c) 2000-2004 Niels Provos <provos@citi.umich.edu>
  * All rights reserved.
@@ -24,28 +26,60 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef _LOG_H_
-#define _LOG_H_
+#ifndef _EVENT_INTERNAL_H_
+#define _EVENT_INTERNAL_H_
 
-#ifdef __GNUC__
-#define EV_CHECK_FMT(a,b) __attribute__((format(printf, a, b)))
-#else
-#define EV_CHECK_FMT(a,b)
+#ifdef __cplusplus
+extern "C" {
 #endif
 
-void event_err(int eval, const char *fmt, ...) EV_CHECK_FMT(2,3);
-void event_warn(const char *fmt, ...) EV_CHECK_FMT(1,2);
-void event_errx(int eval, const char *fmt, ...) EV_CHECK_FMT(2,3);
-void event_warnx(const char *fmt, ...) EV_CHECK_FMT(1,2);
-void event_msgx(const char *fmt, ...) EV_CHECK_FMT(1,2);
-void _event_debugx(const char *fmt, ...) EV_CHECK_FMT(1,2);
+#include "min_heap.h"
+#include "evsignal.h"
 
-#ifdef USE_DEBUG
-#define event_debug(x) _event_debugx x
-#else
-#define event_debug(x) do {;} while (0)
+struct eventop {
+	const char *name;
+	void *(*init)(struct event_base *);
+	int (*add)(void *, struct event *);
+	int (*del)(void *, struct event *);
+	int (*dispatch)(struct event_base *, void *, struct timeval *);
+	void (*dealloc)(struct event_base *, void *);
+	/* set if we need to reinitialize the event base */
+	int need_reinit;
+};
+
+struct event_base {
+	const struct eventop *evsel;
+	void *evbase;
+	int event_count;		/* counts number of total events */
+	int event_count_active;	/* counts number of active events */
+
+	int event_gotterm;		/* Set to terminate loop */
+	int event_break;		/* Set to terminate loop immediately */
+
+	/* active event management */
+	struct event_list **activequeues;
+	int nactivequeues;
+
+	/* signal handling info */
+	struct evsignal_info sig;
+
+	struct event_list eventqueue;
+	struct timeval event_tv;
+
+	struct min_heap timeheap;
+
+	struct timeval tv_cache;
+};
+
+int _evsignal_set_handler(struct event_base *base, int evsignal,
+			  void (*fn)(int));
+int _evsignal_restore_handler(struct event_base *base, int evsignal);
+
+/* defined in evutil.c */
+const char *evutil_getenv(const char *varname);
+
+#ifdef __cplusplus
+}
 #endif
 
-#undef EV_CHECK_FMT
-
-#endif
+#endif /* _EVENT_INTERNAL_H_ */
