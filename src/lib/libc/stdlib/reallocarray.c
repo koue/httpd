@@ -1,6 +1,6 @@
-/*	$OpenBSD: timingsafe_bcmp.c,v 1.3 2015/08/31 02:53:57 guenther Exp $	*/
+/*	$OpenBSD: reallocarray.c,v 1.3 2015/09/13 08:31:47 guenther Exp $	*/
 /*
- * Copyright (c) 2010 Damien Miller.  All rights reserved.
+ * Copyright (c) 2008 Otto Moerbeek <otto@drijf.net>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,16 +15,25 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <string.h>
+#include <sys/types.h>
+#include <errno.h>
+#include <stdint.h>
+#include <stdlib.h>
 
-int
-timingsafe_bcmp(const void *b1, const void *b2, size_t n)
+/*
+ * This is sqrt(SIZE_MAX+1), as s1*s2 <= SIZE_MAX
+ * if both s1 < MUL_NO_OVERFLOW and s2 < MUL_NO_OVERFLOW
+ */
+#define MUL_NO_OVERFLOW	((size_t)1 << (sizeof(size_t) * 4))
+
+void *
+reallocarray(void *optr, size_t nmemb, size_t size)
 {
-	const unsigned char *p1 = b1, *p2 = b2;
-	int ret = 0;
-
-	for (; n > 0; n--)
-		ret |= *p1++ ^ *p2++;
-	return (ret != 0);
+	if ((nmemb >= MUL_NO_OVERFLOW || size >= MUL_NO_OVERFLOW) &&
+	    nmemb > 0 && SIZE_MAX / nmemb < size) {
+		errno = ENOMEM;
+		return NULL;
+	}
+	return realloc(optr, size * nmemb);
 }
-DEF_WEAK(timingsafe_bcmp);
+DEF_WEAK(reallocarray);

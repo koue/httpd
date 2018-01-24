@@ -1,4 +1,4 @@
-/*	$OpenBSD: imsg.c,v 1.13 2015/12/09 11:54:12 tb Exp $	*/
+/*	$OpenBSD: imsg.c,v 1.16 2017/12/14 09:27:44 kettenis Exp $	*/
 
 /*
  * Copyright (c) 2003, 2004 Henning Brauer <henning@openbsd.org>
@@ -30,7 +30,7 @@
 
 int	 imsg_fd_overhead = 0;
 
-int	 imsg_get_fd(struct imsgbuf *);
+static int	 imsg_get_fd(struct imsgbuf *);
 
 void
 imsg_init(struct imsgbuf *ibuf, int fd)
@@ -163,8 +163,8 @@ imsg_get(struct imsgbuf *ibuf, struct imsg *imsg)
 }
 
 int
-imsg_compose(struct imsgbuf *ibuf, u_int32_t type, u_int32_t peerid,
-    pid_t pid, int fd, const void *data, u_int16_t datalen)
+imsg_compose(struct imsgbuf *ibuf, uint32_t type, uint32_t peerid, pid_t pid,
+    int fd, const void *data, uint16_t datalen)
 {
 	struct ibuf	*wbuf;
 
@@ -182,8 +182,8 @@ imsg_compose(struct imsgbuf *ibuf, u_int32_t type, u_int32_t peerid,
 }
 
 int
-imsg_composev(struct imsgbuf *ibuf, u_int32_t type, u_int32_t peerid,
-    pid_t pid, int fd, const struct iovec *iov, int iovcnt)
+imsg_composev(struct imsgbuf *ibuf, uint32_t type, uint32_t peerid, pid_t pid,
+    int fd, const struct iovec *iov, int iovcnt)
 {
 	struct ibuf	*wbuf;
 	int		 i, datalen = 0;
@@ -207,8 +207,8 @@ imsg_composev(struct imsgbuf *ibuf, u_int32_t type, u_int32_t peerid,
 
 /* ARGSUSED */
 struct ibuf *
-imsg_create(struct imsgbuf *ibuf, u_int32_t type, u_int32_t peerid,
-    pid_t pid, u_int16_t datalen)
+imsg_create(struct imsgbuf *ibuf, uint32_t type, uint32_t peerid, pid_t pid,
+    uint16_t datalen)
 {
 	struct ibuf	*wbuf;
 	struct imsg_hdr	 hdr;
@@ -234,7 +234,7 @@ imsg_create(struct imsgbuf *ibuf, u_int32_t type, u_int32_t peerid,
 }
 
 int
-imsg_add(struct ibuf *msg, const void *data, u_int16_t datalen)
+imsg_add(struct ibuf *msg, const void *data, uint16_t datalen)
 {
 	if (datalen)
 		if (ibuf_add(msg, data, datalen) == -1) {
@@ -255,7 +255,7 @@ imsg_close(struct imsgbuf *ibuf, struct ibuf *msg)
 	if (msg->fd != -1)
 		hdr->flags |= IMSGF_HASFD;
 
-	hdr->len = (u_int16_t)msg->wpos;
+	hdr->len = (uint16_t)msg->wpos;
 
 	ibuf_close(&ibuf->w, msg);
 }
@@ -263,10 +263,10 @@ imsg_close(struct imsgbuf *ibuf, struct ibuf *msg)
 void
 imsg_free(struct imsg *imsg)
 {
-	free(imsg->data);
+	freezero(imsg->data, imsg->hdr.len - IMSG_HEADER_SIZE);
 }
 
-int
+static int
 imsg_get_fd(struct imsgbuf *ibuf)
 {
 	int		 fd;

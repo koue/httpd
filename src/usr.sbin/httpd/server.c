@@ -1,4 +1,4 @@
-/*	$OpenBSD: server.c,v 1.106 2017/02/02 22:19:59 reyk Exp $	*/
+/*	$OpenBSD: server.c,v 1.113 2017/11/29 16:55:08 beck Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -58,6 +58,7 @@ int		 server_socket(struct sockaddr_storage *, in_port_t,
 		    struct server_config *, int, int);
 int		 server_socket_listen(struct sockaddr_storage *, in_port_t,
 		    struct server_config *);
+struct server	*server_byid(uint32_t);
 
 int		 server_tls_init(struct server *);
 void		 server_tls_readcb(int, short, void *);
@@ -135,11 +136,13 @@ server_tls_cmp(struct server *s1, struct server *s2, int match_keypair)
 
 	if (sc1->tls_protocols != sc2->tls_protocols)
 		return (-1);
+	if (sc1->tls_ticket_lifetime != sc2->tls_ticket_lifetime)
+		return (-1);
 	if (strcmp(sc1->tls_ciphers, sc2->tls_ciphers) != 0)
 		return (-1);
 	if (strcmp(sc1->tls_dhe_params, sc2->tls_dhe_params) != 0)
 		return (-1);
-	if (strcmp(sc1->tls_ecdhe_curve, sc2->tls_ecdhe_curve) != 0)
+	if (strcmp(sc1->tls_ecdhe_curves, sc2->tls_ecdhe_curves) != 0)
 		return (-1);
 
 	if (match_keypair) {
@@ -185,8 +188,18 @@ server_tls_load_ocsp(struct server *srv)
 
 	if ((srv->srv_conf.tls_ocsp_staple = tls_load_file(
 	    srv->srv_conf.tls_ocsp_staple_file,
-	    &srv->srv_conf.tls_ocsp_staple_len, NULL)) == NULL)
+	    &srv->srv_conf.tls_ocsp_staple_len, NULL)) == NULL) {
+		log_warnx("%s: Failed to load ocsp staple from %s", __func__,
+		    srv->srv_conf.tls_ocsp_staple_file);
 		return (-1);
+	}
+
+	if (srv->srv_conf.tls_ocsp_staple_len == 0) {
+		log_warnx("%s: ignoring 0 length ocsp staple from %s", __func__,
+		    srv->srv_conf.tls_ocsp_staple_file);
+		return (0);
+	}
+
 	log_debug("%s: using ocsp staple from %s", __func__,
 	    srv->srv_conf.tls_ocsp_staple_file);
 
@@ -234,9 +247,9 @@ server_tls_init(struct server *srv)
 		    __func__, tls_config_error(srv->srv_tls_config));
 		return (-1);
 	}
-	if (tls_config_set_ecdhecurve(srv->srv_tls_config,
-	    srv->srv_conf.tls_ecdhe_curve) != 0) {
-		log_warnx("%s: failed to set tls ecdhe curve: %s",
+	if (tls_config_set_ecdhecurves(srv->srv_tls_config,
+	    srv->srv_conf.tls_ecdhe_curves) != 0) {
+		log_warnx("%s: failed to set tls ecdhe curves: %s",
 		    __func__, tls_config_error(srv->srv_tls_config));
 		return (-1);
 	}
@@ -266,6 +279,31 @@ server_tls_init(struct server *srv)
 		}
 	}
 
+	/* set common session ID among all processes */
+	if (tls_config_set_session_id(srv->srv_tls_config,
+	    httpd_env->sc_tls_sid, sizeof(httpd_env->sc_tls_sid)) == -1) {
+		log_warnx("%s: could not set the TLS session ID: %s",
+		    __func__, tls_config_error(srv->srv_tls_config));
+		return (-1);
+	}
+
+	/* ticket support */
+	if (srv->srv_conf.tls_ticket_lifetime) {
+		if (tls_config_set_session_lifetime(srv->srv_tls_config,
+		    srv->srv_conf.tls_ticket_lifetime) == -1) {
+			log_warnx("%s: could not set the TLS session lifetime: "
+			    "%s", __func__,
+			    tls_config_error(srv->srv_tls_config));
+			return (-1);
+		}
+		tls_config_add_ticket_key(srv->srv_tls_config,
+		    srv->srv_conf.tls_ticket_key.tt_keyrev,
+		    srv->srv_conf.tls_ticket_key.tt_key,
+		    sizeof(srv->srv_conf.tls_ticket_key.tt_key));
+		explicit_bzero(&srv->srv_conf.tls_ticket_key,
+		    sizeof(srv->srv_conf.tls_ticket_key));
+	}
+
 	if (tls_configure(srv->srv_tls_ctx, srv->srv_tls_config) != 0) {
 		log_warnx("%s: failed to configure tls - %s", __func__,
 		    tls_error(srv->srv_tls_ctx));
@@ -274,16 +312,24 @@ server_tls_init(struct server *srv)
 
 	/* We're now done with the public/private key... */
 	tls_config_clear_keys(srv->srv_tls_config);
-	explicit_bzero(srv->srv_conf.tls_cert, srv->srv_conf.tls_cert_len);
-	explicit_bzero(srv->srv_conf.tls_key, srv->srv_conf.tls_key_len);
-	free(srv->srv_conf.tls_cert);
-	free(srv->srv_conf.tls_key);
+	freezero(srv->srv_conf.tls_cert, srv->srv_conf.tls_cert_len);
+	freezero(srv->srv_conf.tls_key, srv->srv_conf.tls_key_len);
 	srv->srv_conf.tls_cert = NULL;
 	srv->srv_conf.tls_key = NULL;
 	srv->srv_conf.tls_cert_len = 0;
 	srv->srv_conf.tls_key_len = 0;
 
 	return (0);
+}
+
+void
+server_generate_ticket_key(struct server_config *srv_conf)
+{
+	struct server_tls_ticket *key = &srv_conf->tls_ticket_key;
+
+	key->tt_id = srv_conf->id;
+	key->tt_keyrev = arc4random();
+	arc4random_buf(key->tt_key, sizeof(key->tt_key));
 }
 
 void
@@ -380,16 +426,8 @@ serverconfig_free(struct server_config *srv_conf)
 	free(srv_conf->tls_key_file);
 	free(srv_conf->tls_ocsp_staple_file);
 	free(srv_conf->tls_ocsp_staple);
-
-	if (srv_conf->tls_cert != NULL) {
-		explicit_bzero(srv_conf->tls_cert, srv_conf->tls_cert_len);
-		free(srv_conf->tls_cert);
-	}
-
-	if (srv_conf->tls_key != NULL) {
-		explicit_bzero(srv_conf->tls_key, srv_conf->tls_key_len);
-		free(srv_conf->tls_key);
-	}
+	freezero(srv_conf->tls_cert, srv_conf->tls_cert_len);
+	freezero(srv_conf->tls_key, srv_conf->tls_key_len);
 }
 
 void
@@ -435,6 +473,18 @@ serverconfig_byid(uint32_t id)
 		}
 	}
 
+	return (NULL);
+}
+
+struct server *
+server_byid(uint32_t id)
+{
+	struct server	*srv;
+
+	TAILQ_FOREACH(srv, httpd_env->sc_servers, srv_entry) {
+		if (srv->srv_conf.id == id)
+			return (srv);
+	}
 	return (NULL);
 }
 
@@ -818,7 +868,7 @@ server_input(struct client *clt)
 	bufferevent_setwatermark(clt->clt_bev, EV_READ, 0, FCGI_CONTENT_SIZE);
 
 	bufferevent_settimeout(clt->clt_bev,
-	    srv_conf->timeout.tv_sec, srv_conf->timeout.tv_sec);
+	    srv_conf->requesttimeout.tv_sec, srv_conf->requesttimeout.tv_sec);
 	bufferevent_enable(clt->clt_bev, EV_READ|EV_WRITE);
 }
 
@@ -902,7 +952,7 @@ server_error(struct bufferevent *bev, short error, void *arg)
 	struct evbuffer		*dst;
 
 	if (error & EVBUFFER_TIMEOUT) {
-		server_close(clt, "buffer event timeout");
+		server_abort_http(clt, 408, "timeout");
 		return;
 	}
 	if (error & EVBUFFER_ERROR) {
@@ -1226,6 +1276,9 @@ server_close(struct client *clt, const char *msg)
 int
 server_dispatch_parent(int fd, struct privsep_proc *p, struct imsg *imsg)
 {
+	struct server			*srv;
+	struct server_tls_ticket	 key;
+
 	switch (imsg->hdr.type) {
 	case IMSG_CFG_MEDIA:
 		config_getmedia(httpd_env, imsg);
@@ -1237,7 +1290,7 @@ server_dispatch_parent(int fd, struct privsep_proc *p, struct imsg *imsg)
 		config_getserver(httpd_env, imsg);
 		break;
 	case IMSG_CFG_TLS:
-		config_gettls(httpd_env, imsg);
+		config_getserver_tls(httpd_env, imsg);
 		break;
 	case IMSG_CFG_DONE:
 		config_getcfg(httpd_env, imsg);
@@ -1247,6 +1300,16 @@ server_dispatch_parent(int fd, struct privsep_proc *p, struct imsg *imsg)
 		break;
 	case IMSG_CTL_RESET:
 		config_getreset(httpd_env, imsg);
+		break;
+	case IMSG_TLSTICKET_REKEY:
+		IMSG_SIZE_CHECK(imsg, (&key));
+		memcpy(&key, imsg->data, sizeof(key));
+		/* apply to the right server */
+		srv = server_byid(key.tt_id);
+		if (srv) {
+			tls_config_add_ticket_key(srv->srv_tls_config,
+			    key.tt_keyrev, key.tt_key, sizeof(key.tt_key));
+		}
 		break;
 	default:
 		return (-1);

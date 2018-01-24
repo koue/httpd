@@ -1,9 +1,8 @@
-#	$OpenBSD: Makefile,v 1.1 2014/03/17 12:49:13 florian Exp $
-PROG=		htpasswd
-SRCS=		htpasswd.c
-MAN=		htpasswd.1
+#	$OpenBSD: Makefile,v 1.4 2017/07/09 21:23:19 espie Exp $
 
-CFLAGS+=	-g -W -Wall -Werror
+PROG=		htpasswd
+
+CFLAGS+=	-W -Wall
 CFLAGS+=	-Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations
 CFLAGS+=	-Wshadow -Wpointer-arith -Wcast-qual -Wsign-compare
 

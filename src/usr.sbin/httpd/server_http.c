@@ -1,4 +1,4 @@
-/*	$OpenBSD: server_http.c,v 1.113 2017/02/02 22:19:59 reyk Exp $	*/
+/*	$OpenBSD: server_http.c,v 1.118 2017/12/14 21:19:47 benno Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2017 Reyk Floeter <reyk@openbsd.org>
@@ -216,9 +216,27 @@ server_read_http(struct bufferevent *bev, void *arg)
 		goto done;
 	}
 
-	while (!clt->clt_headersdone && (line =
-	    evbuffer_readln(src, NULL, EVBUFFER_EOL_CRLF_STRICT)) != NULL) {
-		linelen = strlen(line);
+	while (!clt->clt_headersdone) {
+		if (!clt->clt_line) {
+			/* Peek into the buffer to see if it looks like HTTP */
+			key = EVBUFFER_DATA(src);
+			if (!isalpha(*key)) {
+				server_abort_http(clt, 400,
+				    "invalid request line");
+				goto abort;
+			}
+		}
+
+		if ((line = evbuffer_readln(src,
+		    &linelen, EVBUFFER_EOL_CRLF_STRICT)) == NULL) {
+			/* No newline found after too many bytes */
+			if (size > SERVER_MAXHEADERLENGTH) {
+				server_abort_http(clt, 413,
+				    "request line too long");
+				goto abort;
+			}
+			break;
+		}
 
 		/*
 		 * An empty line indicates the end of the request.
@@ -372,7 +390,6 @@ server_read_http(struct bufferevent *bev, void *arg)
 			clt->clt_toread = TOREAD_UNLIMITED;
 			bev->readcb = server_read;
 			break;
-		case HTTP_METHOD_DELETE:
 		case HTTP_METHOD_GET:
 		case HTTP_METHOD_HEAD:
 		/* WebDAV methods */
@@ -380,6 +397,7 @@ server_read_http(struct bufferevent *bev, void *arg)
 		case HTTP_METHOD_MOVE:
 			clt->clt_toread = 0;
 			break;
+		case HTTP_METHOD_DELETE:
 		case HTTP_METHOD_OPTIONS:
 		case HTTP_METHOD_POST:
 		case HTTP_METHOD_PUT:
@@ -857,6 +875,8 @@ server_abort_http(struct client *clt, unsigned int code, const char *msg)
 	case 301:
 	case 302:
 	case 303:
+	case 307:
+	case 308:
 		if (msg == NULL)
 			break;
 		memset(buf, 0, sizeof(buf));
@@ -869,6 +889,8 @@ server_abort_http(struct client *clt, unsigned int code, const char *msg)
 		msg = buf;
 		break;
 	case 401:
+		if (msg == NULL)
+			break;
 		if (stravis(&escapedmsg, msg, VIS_DQ) == -1) {
 			code = 500;
 			extraheader = NULL;
@@ -880,6 +902,8 @@ server_abort_http(struct client *clt, unsigned int code, const char *msg)
 		}
 		break;
 	case 416:
+		if (msg == NULL)
+			break;
 		if (asprintf(&extraheader,
 		    "Content-Range: %s\r\n", msg) == -1) {
 			code = 500;
@@ -1049,6 +1073,14 @@ server_expand_http(struct client *clt, const char *val, char *buf,
 		}
 		if (ret != 0)
 			return (NULL);
+	}
+	if (strstr(val, "$HTTP_HOST") != NULL) {
+		if (desc->http_host == NULL)
+			return (NULL);
+		if ((str = url_encode(desc->http_host)) == NULL)
+			return (NULL);
+		expand_string(buf, len, "$HTTP_HOST", str);
+		free(str);
 	}
 	if (strstr(val, "$REMOTE_") != NULL) {
 		if (strstr(val, "$REMOTE_ADDR") != NULL) {
