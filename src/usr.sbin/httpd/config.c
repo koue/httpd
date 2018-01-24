@@ -234,12 +234,6 @@ config_setserver(struct httpd *env, struct server *srv)
 		}
 	}
 
-	/*
-	 * Closing server socket early prevents of correct parsing of the httpd
-	 * configuration file in FreeBSD.
-	 * TODO: find better solution to prevent fd exhaustion in the parent
-	 */
-
 	/* Close server socket early to prevent fd exhaustion in the parent. */
 	if (srv->srv_s != -1) {
 		close(srv->srv_s);

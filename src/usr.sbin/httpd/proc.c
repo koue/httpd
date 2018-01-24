@@ -791,6 +791,23 @@ int
 proc_composev(struct privsep *ps, enum privsep_procid id,
     uint16_t type, const struct iovec *iov, int iovcnt)
 {
+#ifndef __OpenBSD__
+	/*
+	   Note: Nikola Kolev <koue@chaosophia.net>
+
+	   Delay 'send location' events by second otherwise httpd may fail
+	   to start if the child process has no listening socket yet.
+	   I've tried with event_priority_set() but if there are not enough
+	   'send server' events in the queue (low number of forked processes)
+	   then httpd may fail to start too.
+
+	   Info:
+	   https://lists.freebsd.org/pipermail/freebsd-net/2017-March/047317.html
+	*/
+	if (type == IMSG_CFG_SERVER) {
+		sleep(1);
+	}
+#endif
 	return (proc_composev_imsg(ps, id, -1, type, -1, -1, iov, iovcnt));
 }
 
