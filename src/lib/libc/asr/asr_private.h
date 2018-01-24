@@ -291,7 +291,9 @@ enum asr_state {
 
 #define MAXPACKETSZ	4096
 
+#ifdef __OpenBSD__
 __BEGIN_HIDDEN_DECLS
+#endif
 
 /* asr_utils.c */
 void _asr_pack_init(struct asr_pack *, char *, size_t);
@@ -361,4 +363,6 @@ extern FILE *_asr_debug;
 		_asr_statestr((s)));		\
 	(a)->as_state = (s); } while (0)
 
+#ifdef __OpenBSD__
 __END_HIDDEN_DECLS
+#endif

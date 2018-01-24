@@ -320,7 +320,11 @@ kq_add(void *arg, struct event *ev)
 		kev.ident = ev->ev_fd;
 		kev.filter = EVFILT_READ;
 		/* Make it behave like select() and poll() */
+#ifdef __OpenBSD__
 		kev.fflags = NOTE_EOF;
+#else
+		kev.fflags = NOTE_FILE_POLL;
+#endif
 		kev.flags = EV_ADD;
 		if (!(ev->ev_events & EV_PERSIST))
 			kev.flags |= EV_ONESHOT;

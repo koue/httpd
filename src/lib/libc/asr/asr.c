@@ -36,17 +36,22 @@
 
 #include "asr_private.h"
 
+#ifdef __OpenBSD__
 #include "thread_private.h"
+#endif
 
 #define DEFAULT_CONF		"lookup file\n"
 #define DEFAULT_LOOKUP		"lookup bind file"
 
 #define RELOAD_DELAY		15 /* seconds */
 
+#ifdef __OpenBSD__
 static void asr_check_reload(struct asr *);
 static struct asr_ctx *asr_ctx_create(void);
 static void asr_ctx_ref(struct asr_ctx *);
+#endif /* __OpenBSD__ */
 static void asr_ctx_free(struct asr_ctx *);
+#ifdef __OpenBSD__
 static int asr_ctx_add_searchdomain(struct asr_ctx *, const char *);
 static int asr_ctx_from_file(struct asr_ctx *, const char *);
 static int asr_ctx_from_string(struct asr_ctx *, const char *);
@@ -123,6 +128,7 @@ _asr_resolver_done(void *arg)
 	_asr_ctx_unref(asr->a_ctx);
 	free(asr);
 }
+#endif /* __OpenBSD__ */
 
 /*
  * Cancel an async query.
@@ -160,6 +166,7 @@ asr_run(struct asr_query *as, struct asr_result *ar)
 
 	return (r);
 }
+#ifdef __OpenBSD__
 DEF_WEAK(asr_run);
 
 /*
@@ -228,6 +235,7 @@ _asr_async_new(struct asr_ctx *ac, int type)
 
 	return (as);
 }
+#endif /* __OpenBSD__ */
 
 /*
  * Free an async query and unref the associated context.
@@ -293,6 +301,7 @@ _asr_async_free(struct asr_query *as)
 	free(as);
 }
 
+#ifdef __OpenBSD__
 /*
  * Get a context from the given resolver. This takes a new reference to
  * the returned context, which *must* be explicitely dropped when done
@@ -327,6 +336,7 @@ asr_ctx_ref(struct asr_ctx *ac)
 	DPRINT("asr: asr_ctx_ref(ctx=%p) refcount=%i\n", ac, ac->ac_refcount);
 	ac->ac_refcount += 1;
 }
+#endif /* __OpenBSD__ */
 
 /*
  * Drop a reference to an async context, freeing it if the reference
@@ -360,6 +370,7 @@ asr_ctx_free(struct asr_ctx *ac)
 	free(ac);
 }
 
+#ifdef __OpenBSD__
 /*
  * Reload the configuration file if it has changed on disk.
  */
@@ -845,3 +856,4 @@ _asr_iter_db(struct asr_query *as)
 
 	return (0);
 }
+#endif /* __OpenBSD__ */

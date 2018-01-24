@@ -36,6 +36,8 @@
 void
 *reallocarray(void *, size_t, size_t);
 void
+*recallocarray(void *, size_t, size_t, size_t);
+void
 explicit_bzero(void *buf, size_t len);
 int
 bcrypt_checkpass(const char *pass, const char *goodhash);

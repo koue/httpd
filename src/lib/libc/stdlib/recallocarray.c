@@ -78,4 +78,6 @@ recallocarray(void *ptr, size_t oldnmemb, size_t newnmemb, size_t size)
 
 	return newptr;
 }
+#ifdef __OpenBSD__
 DEF_WEAK(recallocarray);
+#endif

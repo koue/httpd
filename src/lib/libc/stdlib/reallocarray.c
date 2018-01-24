@@ -36,4 +36,6 @@ reallocarray(void *optr, size_t nmemb, size_t size)
 	}
 	return realloc(optr, size * nmemb);
 }
+#ifdef __OpenBSD__
 DEF_WEAK(reallocarray);
+#endif

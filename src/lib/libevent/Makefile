@@ -5,6 +5,7 @@
 LIB=	event
 SRCS=	buffer.c evbuffer.c event.c event_tagging.c evutil.c kqueue.c \
 	log.c poll.c select.c signal.c
+
 HDRS=	event.h evutil.h
 MAN=	event.3 evbuffer_new.3
 

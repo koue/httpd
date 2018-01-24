@@ -6,6 +6,13 @@ SRCS=		parse.y
 SRCS+=		config.c control.c httpd.c log.c logger.c proc.c getdtablecount.c
 SRCS+=		server.c server_http.c server_file.c server_fcgi.c
 
+.PATH: ${.CURDIR}/../../lib/libc/stdlib
+SRCS+=	reallocarray.c \
+	recallocarray.c
+
+.PATH: ${.CURDIR}/../../lib/libc/asr
+SRCS+=	asr.c
+
 .PATH: ${.CURDIR}/../../lib/libc/gen
 SRCS+=	vis.c
 
@@ -17,7 +24,7 @@ SRCS+=	bcrypt.c \
 SRCS+=	imsg-buffer.c \
 	imsg.c
 
-.PATH:  ${.CURDIR}/../../../libevent
+.PATH:  ${.CURDIR}/../../lib/libevent
 SRCS+=  buffer.c \
         evbuffer.c \
         event.c \
@@ -41,7 +48,7 @@ CFLAGS+=	-Wstrict-prototypes -Wmissing-prototypes
 CFLAGS+=	-Wmissing-declarations
 CFLAGS+=	-Wshadow -Wpointer-arith
 CFLAGS+=	-Wsign-compare -Wcast-qual
-CFLAGS+=	-I${.CURDIR}/../../../libevent \
+CFLAGS+=	-I${.CURDIR}/../../lib/libevent \
 		-I${.CURDIR}/../../lib/libutil \
 		-I${.CURDIR}/../../include \
 		-I ${LOCALBASE}/include

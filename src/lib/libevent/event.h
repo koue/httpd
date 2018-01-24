@@ -29,6 +29,10 @@
 #ifndef _EVENT_H_
 #define _EVENT_H_
 
+#ifndef __OpenBSD__
+#include "compat.h"
+#endif
+
 /** @mainpage
 
   @section intro Introduction
