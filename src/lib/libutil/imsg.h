@@ -21,6 +21,10 @@
 #ifndef _IMSG_H_
 #define _IMSG_H_
 
+#ifndef __OpenBSD__
+#include "compat.h"
+#endif
+
 #define IBUF_READ_SIZE		65535
 #define IMSG_HEADER_SIZE	sizeof(struct imsg_hdr)
 #define MAX_IMSGSIZE		16384
