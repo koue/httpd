@@ -2,6 +2,7 @@
 LOCALBASE?=	/usr/local
 
 PROG=		htpasswd
+SRCS=		htpasswd.c
 
 .PATH:	${.CURDIR}/../../lib/libc/crypt
 SRCS+=	bcrypt.c \
