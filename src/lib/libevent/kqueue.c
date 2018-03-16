@@ -50,6 +50,9 @@
 
 #define NEVENT		64
 
+/* FreeBSD 10 does not have NOTE_FILE_POLL defined */
+#define NOTE_FILE_POLL	0x0002	/* behave like poll() */
+
 struct kqop {
 	struct kevent *changes;
 	int nchanges;
