@@ -21,6 +21,9 @@ use warnings;
 use Socket;
 use Socket6;
 
+use Cwd;
+use lib cwd;
+
 use Client;
 use Httpd;
 require 'funcs.pl';

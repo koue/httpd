@@ -8,17 +8,17 @@
 # Check wether all required perl packages are installed.  If some
 # are missing print a warning and skip the tests, but do not fail.
 
-PERL_REQUIRE !=	perl -Mstrict -Mwarnings -e ' \
+#PERL_REQUIRE !=	perl -Mstrict -Mwarnings -e ' \
     eval { require IO::Socket::INET6 } or print $@; \
     eval { require Socket6 } or print $@; \
     eval { require IO::Socket::SSL } or print $@; \
 '
-.if ! empty (PERL_REQUIRE)
-regress:
-	@echo "${PERL_REQUIRE}"
-	@echo install these perl packages for additional tests
-	@echo SKIPPED
-.endif
+#.if ! empty (PERL_REQUIRE)
+#regress:
+#	@echo "${PERL_REQUIRE}"
+#	@echo install these perl packages for additional tests
+#	@echo SKIPPED
+#.endif
 
 # Automatically generate regress targets from test cases in directory.
 
@@ -50,7 +50,8 @@ PERLPATH =	${.CURDIR}/
 .for a in ${ARGS}
 run-regress-$a: $a ${HTDOCS_MD5}
 	@echo '\n======== $@ ========'
-	time SUDO=${SUDO} KTRACE=${KTRACE} HTTPD=${HTTPD} perl ${PERLINC} ${PERLPATH}httpd.pl ${.OBJDIR} ${PERLPATH}$a
+#	time SUDO=${SUDO} KTRACE=${KTRACE} HTTPD=${HTTPD} perl ${PERLINC} ${PERLPATH}httpd.pl ${.OBJDIR} ${PERLPATH}$a
+	time perl ${PERLINC} ${PERLPATH}httpd.pl ${.OBJDIR} ${PERLPATH}$a
 .endfor
 
 # populate htdocs

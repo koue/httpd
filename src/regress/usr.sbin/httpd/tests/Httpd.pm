@@ -86,7 +86,7 @@ sub child {
 	my $self = shift;
 	my @sudo = $ENV{SUDO} ? $ENV{SUDO} : ();
 	my @ktrace = $ENV{KTRACE} ? ($ENV{KTRACE}, "-i") : ();
-	my $httpd = $ENV{HTTPD} ? $ENV{HTTPD} : "httpd";
+	my $httpd = $ENV{HTTPD} ? $ENV{HTTPD} : "../../../../usr.sbin/httpd/httpd";
 	my @cmd = (@sudo, @ktrace, $httpd, "-dvv", "-f", $self->{conffile});
 	print STDERR "execute: @cmd\n";
 	exec @cmd;
