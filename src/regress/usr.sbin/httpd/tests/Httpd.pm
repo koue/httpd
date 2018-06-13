@@ -54,7 +54,9 @@ sub new {
 	my $listenaddr = $self->{listenaddr};
 	my $listenport = $self->{listenport};
 
-	print $fh "prefork 1\n";  # only crashes of first child are observed
+	#print $fh "prefork 1\n";  # only crashes of first child are observed
+	print $fh "prefork 4\n";  # on FreeBSD socket problems were observed
+				  # if multiple forks
 	print $fh "chroot \"".$args{docroot}."\"\n";
 	print $fh "logdir \"".$args{chroot}."\"\n";
 
