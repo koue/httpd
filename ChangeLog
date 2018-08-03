@@ -1,0 +1,4768 @@
+2018-07-26 14:50  rob
+
+	* lib/libevent/: evbuffer_new.3, event.3: Mention some missing
+	  libevent macros.
+
+	  ok jmc@, benno@, "yes" deraadt@
+
+2018-07-11 09:39  krw
+
+	* usr.sbin/httpd/parse.y: Do for most running out of memory err()
+	  what was done for most running out of memory log_warn(). i.e.
+	  ("%s", __func__) instead of manual function names and redundant
+	  verbiage about which wrapper detected the out of memory
+	  condition.
+
+	  ok henning@
+
+2018-07-09 14:05  krw
+
+	* usr.sbin/httpd/parse.y: No need to mention which memory
+	  allocation entry point failed (malloc, calloc or strdup), we just
+	  need to log that we ran out of memory in a particular function.
+
+	  Recommended by florian@ and deraadt@
+
+	  ok benno@ henning@ tb@
+
+2018-06-20 18:43  reyk
+
+	* usr.sbin/httpd/: config.c, httpd.conf.5, httpd.h, parse.y,
+	  server_http.c: Add support for simple one-off internal rewrites.
+
+	  For example:
+
+		  location match "/page/(%d+)/.*" {
+			  request rewrite
+	  "/static/index.php?id=%1&$QUERY_STRING"
+		  }
+
+	  Requested by many.
+
+	  Ok benno@
+
+2018-06-18 08:04  jmc
+
+	* usr.sbin/httpd/httpd.conf.5: remove the SECTIONS header, since a
+	  one line DESCRIPTION is a bit silly; use a more general text for
+	  the sections, and avoid the catchup issue that was trying to
+	  document how many there were;
+
+	  ok benno rob
+
+2018-06-15 19:17  reyk
+
+	* usr.sbin/httpd/httpd.conf.5: Something went wrong - the strip
+	  option was documented twice.
+
+	  Found by Mischa Peters, thanks
+
+2018-06-15 14:36  reyk
+
+	* usr.sbin/httpd/: server_file.c, server_http.c: Fix 304 Not
+	  Modified response: don't send a body, use the correct MIME type.
+
+	  Reported by Hidvegi Gabor  gaborca  websivision  hu
+
+	  Fix found by anton@
+
+	  OK anton@
+
+2018-06-13 18:52  jmc
+
+	* usr.sbin/httpd/httpd.conf.5: one too many .El;
+
+2018-06-13 17:08  reyk
+
+	* etc/examples/httpd.conf, usr.sbin/httpd/httpd.conf.5,
+	  usr.sbin/httpd/parse.y: Rename httpd.conf "root strip" option to
+	  "request strip".
+
+	  "root strip" was semantically incorrect and did cause some
+	  confusion as it never stripped the root but the client's request
+	  path.
+
+	  Discussed with many.	Heads up: this is a grammar change that
+	  also affects acme-client(1) configurations (see current.html).
+
+	  OK claudio@
+
+2018-06-11 14:12  reyk
+
+	* usr.sbin/httpd/: httpd.conf.5, server_http.c: The http_query is
+	  already url_encoded; don't encode it twice.
+
+	  This fixes a bug in the macros and log file handler that
+	  double-encoded the query.  This does not change FCGI as it was
+	  already handling the query correctly.
+
+	  Additional verification of the QUERY_STRING should be implemented
+	  as well.
+
+	  OK claudio@
+
+2018-06-11 12:04  denis
+
+	* usr.sbin/httpd/parse.y: Sorry, forgot a whitespace.
+
+	  Spotted by benno@
+
+2018-06-11 12:01  denis
+
+	* usr.sbin/httpd/parse.y: Fix an off-by-one line count when using
+	  include statements.
+
+	  Thanks to otto@ for the initial diff.
+
+	  OK benno@
+
+2018-05-23 21:11  bluhm
+
+	* usr.sbin/httpd/parse.y: Set the port.op value when parsing the
+	  httpd.conf port value.  Otherwise the default port for http or
+	  https may used depending on uninitialized memory.  Fixes regress
+	  on i386.  OK reyk@
+
+2018-05-23 21:02  reyk
+
+	* usr.sbin/httpd/httpd.conf.5: Forgot to revert another "port 80"
+
+	  Pointed out by jmc@
+
+2018-05-19 15:57  jsing
+
+	* regress/usr.sbin/httpd/tests/: Client.pm, Httpd.pm, Makefile,
+	  args-tls-verify.pl: Add regress for httpd client certificate
+	  authentication.
+
+	  From Jack Burton <jack at saosce dot com dot au> - thanks!
+
+2018-05-19 15:56  jsing
+
+	* usr.sbin/httpd/: config.c, httpd.conf.5, httpd.h, parse.y,
+	  server.c, server_fcgi.c: Add support for client certificate
+	  authentication to httpd.
+
+	  From Jack Burton <jack at saosce dot com dot au> - thanks!
+
+	  Also tested by Jan Klemkow <j.klemkow at wemelug dot de>.
+
+	  ok beck@ reyk@
+
+2018-05-18 17:20  reyk
+
+	* usr.sbin/httpd/parse.y: Move LISTEN ON {} code into a function
+	  listen_on().
+
+	  No functional change, but it makes it easier to deal with the
+	  grammar.
+
+2018-05-18 17:04  reyk
+
+	* usr.sbin/httpd/httpd.conf.5: Revert manpage description as well
+
+2018-05-18 16:24  reyk
+
+	* usr.sbin/httpd/: httpd.conf.5, parse.y: Revert previous: it
+	  introduced a shift/reduce conflict in the grammar.
+
+2018-05-18 16:07  reyk
+
+	* usr.sbin/httpd/: httpd.conf.5, parse.y: Allow to omit the listen
+	  port configuration. Default to port 80, tls port 443.
+
+	  OK florian@ jmc@
+
+2018-04-28 17:16  schwarze
+
+	* lib/libc/asr/: asr.c, asr_private.h: To allow us to get rid of
+	  /etc/networks, make getnetby*(3) wrappers around
+	  gethostby*_async(3).	If you had anything of importance in
+	  /etc/networks, specify it in /etc/hosts instead.  Feedback and OK
+	  eric@, OK deraadt@
+
+2018-04-26 16:12  krw
+
+	* usr.sbin/httpd/parse.y: Plug leak in error case of the common
+	  'varset' implementations.
+
+	  ok benno@
+
+2018-04-18 11:37  benno
+
+	* usr.sbin/httpd/server_http.c: Merge usr.sbin/httpd/server_http.c
+	  revision 1.119 to 6.3-stable:
+
+	      revision 1.119
+	      date: 2018/04/06 13:02:07;  author: florian;  state: Exp;
+	  lines: +2 -1;  commitid: fU72v0$
+
+	      After processing of a range request httpd would never close
+	  the
+	      connection and eventually stop answering queries because of
+	  file
+	      descriptor starvation.
+
+	      Problem reported by, minimal testcase provided and testing by
+	  trondd
+	      _AT_ kagu-tsuchi.com, thanks!
+
+	      Testing Nick Holland and millert
+
+	      OK deraadt
+
+	  ok florian@
+
+2018-04-18 11:36  benno
+
+	* usr.sbin/httpd/server_http.c: Merge usr.sbin/httpd/server_http.c
+	  revision 1.119 to 6.2-stable:
+
+	      revision 1.119
+	      date: 2018/04/06 13:02:07;  author: florian;  state: Exp;
+	  lines: +2 -1;  commitid: fU72v0$
+
+	      After processing of a range request httpd would never close
+	  the
+	      connection and eventually stop answering queries because of
+	  file
+	      descriptor starvation.
+
+	      Problem reported by, minimal testcase provided and testing by
+	  trondd
+	      _AT_ kagu-tsuchi.com, thanks!
+
+	      Testing Nick Holland and millert
+
+	      OK deraadt
+
+	  ok florian@
+
+2018-04-11 17:51  florian
+
+	* etc/examples/httpd.conf: "listen on * port 80" means all v4 and
+	  v6 addresses these days.  OK benno
+
+2018-04-11 17:50  florian
+
+	* usr.sbin/httpd/: httpd.conf.5, httpd.h, parse.y: Make httpd
+	  listen on all IPv4 and IPv6 addresses for "listen on * port 80".
+	  While here accept up to 16 addresses from DNS or interface
+	  groups.
+
+	  requested by & "lovely" deraadt@ OK kn@
+
+2018-04-06 15:02  florian
+
+	* usr.sbin/httpd/server_http.c: After processing of a range request
+	  httpd would never close the connection and eventually stop
+	  answering queries because of file descriptor starvation.
+
+	  Problem reported by, minimal testcase provided and testing by
+	  trondd _AT_ kagu-tsuchi.com, thanks!
+
+	  Testing Nick Holland and millert
+
+	  OK deraadt
+
+2018-03-23 12:36  florian
+
+	* etc/examples/httpd.conf: Provide an example httpd.conf that's
+	  actually useful.  With & OK deraadt input sthen looks better to
+	  beck OK benno
+
+2018-03-13 13:25  jca
+
+	* lib/libc/asr/asr.c: Fix comments
+
+	  ok eric@ a while ago
+
+2018-02-07 04:28  florian
+
+	* usr.sbin/httpd/: httpd.h, logger.c: NAME_MAX is the length of the
+	  thing between / / in a path *without* the terminating NUL.  Do
+	  not use it for a "small string" or a "probably short path".
+	  Replace it with new defines or PATH_MAX.  It also makes the life
+	  easier for people auditing the tree for real usage of NAME_MAX.
+	  OK deraadt, benno
+
+2018-02-06 14:00  eric
+
+	* lib/libc/asr/asr.c: make sure that all error paths are correctly
+	  handled in asr_run_sync() and that the result is always properly
+	  set when the functions returns.  fix issues spotted by claudio@.
+
+	  ok claudio@
+
+2018-01-15 21:38  bluhm
+
+	* share/mk/bsd.regress.mk: We have no deprecated regress variables
+	  in our tree.	Remove the compatibility layer.
+
+2018-01-04 21:38  jmc
+
+	* usr.sbin/httpd/httpd.conf.5: from paul de weerd: provide a more
+	  helpful Xr to ocspcheck, and note that the path to "file" is not
+	  relative to the chroot;
+
+2017-12-21 22:03  jmc
+
+	* usr.sbin/httpd/httpd.conf.5: typo;
+
+2017-12-14 22:19  benno
+
+	* usr.sbin/httpd/server_http.c: set Location header for 307 and 308
+	  status codes ok sthen@ phessler@
+
+2017-12-14 10:27  kettenis
+
+	* lib/libutil/: imsg-buffer.c, imsg.c: Make a few internal symbols
+	  static and add a Symbols.map version script to control which
+	  symbols are exported from the shared library.
+
+	  ok guenther@, deraadt@, jca@
+
+2017-11-29 17:55  beck
+
+	* usr.sbin/httpd/: httpd.conf.5, server.c: Don't do OCSP stapling
+	  only if the staple file is 0 length.
+
+	  This allows something external (like ocspcheck) to disable the
+	  stapling deliberatly if it can not retreive a valid staple by
+	  truncating the staple file to indicate "do not provide a staple",
+	  while the file not existin will still be treated as a
+	  configuration error ok claudio@ florian@, and prompted by @jsing
+
+2017-11-28 10:40  jmc
+
+	* usr.sbin/httpd/httpd.conf.5: tweak previous;
+
+2017-11-28 02:21  beck
+
+	* usr.sbin/httpd/: httpd.conf.5, server.c: Disable oscp stapling on
+	  invalid staple, rather than failing to start.  ok claudio@
+	  florian@
+
+2017-11-11 00:29  naddy
+
+	* regress/usr.sbin/httpd/tests/Makefile: replace last instances of
+	  /dev/arandom with /dev/urandom
+
+2017-08-28 08:00  florian
+
+	* usr.sbin/httpd/parse.y: 65535 is a valid port to listen on.
+	  Off-by-one pointed out by and diff from Kris Katterjohn
+	  katterjohn AT gmail, thanks! chris@ pointed out that more than
+	  httpd(8) is effected.  OK gilles@
+
+2017-08-11 22:30  jmc
+
+	* usr.sbin/httpd/httpd.conf.5: punctuation;
+
+2017-08-11 20:48  jsing
+
+	* usr.sbin/httpd/: httpd.conf.5, httpd.h, parse.y, server.c:
+	  Convert httpd to tls_config_set_ecdhecurves(), allowing a list of
+	  curves to be specified, rather than a single curve.
+
+	  ok beck@
+
+2017-08-01 16:57  schwarze
+
+	* lib/libevent/evbuffer_new.3: add missing and correct misspelled
+	  names, most in NAME sections; found with
+	  regress/usr.bin/mandoc/db/dbm_dump; OK jmc@
+
+2017-07-31 10:02  ians
+
+	* usr.sbin/httpd/server_fcgi.c: Don't set HTTP date header if
+	  already set.
+
+	  Thanks Nick Owens
+
+	  OK florian@
+
+2017-07-19 19:36  jsing
+
+	* usr.sbin/httpd/: config.c, httpd.h, server.c: Rework the way that
+	  TLS configuration is sent/received via imsgs, so that are no
+	  longer limited by the 16KB maximum size of a single imsg.
+	  Configuration data that is larger than a single message is now
+	  chunked and sent via multiple imsgs.
+
+	  Prompted by a diff from Jack Burton <jack at saosce dot com dot
+	  au>.
+
+	  ok reyk@
+
+2017-07-14 15:31  bluhm
+
+	* regress/usr.sbin/httpd/tests/: LICENSE, Makefile,
+	  args-get-1048576.pl, args-get-1073741824.pl, args-get-512.pl,
+	  args-get-range-512.pl, args-get-range-multipart.pl,
+	  args-get-slash.pl, args-tls-get-range-512.pl,
+	  args-tls-get-range-multipart.pl, funcs.pl: Do not mix Perl read()
+	  with sysread().  Data could get stuck in the buffered IO and test
+	  run-regress-args-get-1073741824.pl would fail on slow hardware.
+	  Introduce a common function read_part() that uses Perl read().
+	  Limit debug output to one line per 1% of data.  Remove unused
+	  function http_server().  Fix whitespace.  Cleanup Makefile.
+
+2017-07-10 23:37  tedu
+
+	* lib/libevent/kqueue.c: if there are no changes for kevent, pass
+	  in NULL instead.  this has no effect except to make ktrace output
+	  prettier.  ok bluhm mpi
+
+2017-07-09 23:23  espie
+
+	* usr.bin/htpasswd/Makefile: remove redundant variable declarations
+	  in Makefiles, since those are the default.
+
+	  okay millert@
+
+2017-07-07 18:30  schwarze
+
+	* usr.bin/htpasswd/htpasswd.1: clarify which httpd we are talking
+	  about; from Raf Czlonka <rczlonka at gmail dot com>
+
+2017-07-04 00:21  espie
+
+	* usr.sbin/httpd/Makefile: no need to generate y.tab.h if nothing
+	  uses it, set YFLAGS to nothing instead of CLEANFILES += y.tab.h
+
+	  okay millert@
+
+2017-06-29 03:25  dlg
+
+	* lib/libevent/event.3: take const off the timeval argument in the
+	  pending functions.
+
+	  event_pending, evtimer_pending, and signal_pending all write to
+	  the timeval because that's how they tell the caller when the
+	  event is meant to fire.
+
+	  ok deraadt@ millert@ jmc@ schwarze@
+
+2017-06-10 15:31  schwarze
+
+	* usr.sbin/httpd/patterns.7: Fix broken escaping: "\." is almost
+	  never what you want; found with mandoc -Tlint.  While here, make
+	  macro usage more consistent.
+
+2017-06-07 11:11  awolk
+
+	* usr.bin/htpasswd/htpasswd.c: htpasswd: use crypt_newhash instead
+	  of the bcrypt API
+
+	  man bcrypt states:	  These functions are deprecated in favor
+	  of crypt_checkpass(3) and	 crypt_newhash(3).
+
+	  hence with this change we move htpasswd to the new API, while
+	  here also change the rounds from a hardcoded 8 to automatic
+	  selection based on system performance.
+
+	  OK florian@
+
+2017-05-28 12:37  benno
+
+	* usr.sbin/httpd/: config.c, httpd.c, httpd.h, proc.c: use __func__
+	  in log messages.  From Hiltjo Posthuma hiltjo -AT codemadness
+	  -DOT- org, thanks! ok florian, claudio
+
+2017-05-15 12:40  jsg
+
+	* usr.sbin/httpd/server_http.c: Avoid a crash servicing requests
+	  when a server is configured with "block return 401".	Problem
+	  reported by Jurjen Oskam.  ok florian@
+
+2017-04-17 23:58  deraadt
+
+	* usr.sbin/httpd/server.c: some freezero() calls
+
+2017-04-16 12:19  jsg
+
+	* usr.bin/htpasswd/Makefile: remove -g from CFLAGS at florian's
+	  request
+
+2017-04-16 12:16  jsg
+
+	* usr.bin/htpasswd/Makefile: Different compilers and versions of
+	  compilers have different warnings.  Remove -Werror to give code a
+	  greater chance of building.
+
+	  ok deraadt@ florian@
+
+2017-04-16 10:50  ajacoutot
+
+	* etc/examples/httpd.conf: Remove /etc/ssl/acme/. We don't need it
+	  now that we have a default acme-conf(5) that direclty uses
+	  /etc/ssl/{,private} by default. Adapt the httpd.conf example
+	  accordingly.
+
+	  ok florian@ benno@ millert@
+
+2017-04-11 11:57  reyk
+
+	* lib/libutil/: imsg-buffer.c, imsg.c: Use freezero(3) for the imsg
+	  framework in imsg_free(3) and ibuf_free(3).
+
+	  In our privsep model, imsg is often used to transport sensitive
+	  information between processes.  But a process might free an imsg,
+	  and reuse the memory for a different thing.  iked uses some
+	  explicit_bzero() to clean imsg-buffer but doing it in the library
+	  with the freezero() is less error-prone and also benefits other
+	  daemons.
+
+	  OK deraadt@ jsing@ claudio@
+
+2017-04-09 11:13  florian
+
+	* usr.sbin/httpd/httpd.conf.5: image/svg+xml is a default inbuilt
+	  media type.  Pointed out by Anton Lindqvist (anton.lindqvist AT
+	  gmail), thanks!
+
+2017-04-04 22:16  claudio
+
+	* usr.sbin/httpd/httpd.c: Do not purge the CONFIG_SERVERS config in
+	  the parent. The ticket code uses the servers config for its
+	  rekeying handling. Without this no rekeying happens and httpd
+	  stops working. Learned the hard way by me and beck@ OK reyk@
+
+2017-03-25 18:25  claudio
+
+	* usr.sbin/httpd/: config.c, httpd.c, httpd.conf.5, httpd.h,
+	  parse.y, server.c: Implement TLS ticket support in httpd. Off by
+	  default. Use	    tls ticket lifetime default to turn it on with
+	  a 2h ticket lifetime.  Rekeying happens after a quarter of that
+	  time.  OK reky@ and bob@
+
+2017-03-24 10:34  nicm
+
+	* lib/libutil/: imsg.c, imsg.h: Use C99 types (uint32_t) instead of
+	  BSD (u_int32_t) - the former are more portable. Add stdint.h to
+	  the headers in imsg_init(3).
+
+	  No objections from millert@.
+
+2017-03-21 13:06  bluhm
+
+	* usr.sbin/httpd/log.c: From a syslog perspective it does not make
+	  sense to log fatal and warn with the same severity.  Switch
+	  log_warn() to LOG_ERR and keep fatal() at LOG_CRIT.  OK reyk@
+	  florian@
+
+2017-03-18 02:48  deraadt
+
+	* lib/libevent/buffer.c: Use recallocarray() to avoid leaving
+	  detritus in memory when resizing the string buffer.  ok jsing
+	  millert
+
+2017-03-17 15:51  deraadt
+
+	* lib/libutil/imsg-buffer.c: Grow buffers using recallocarray, to
+	  avoid the potential dribble that the standard realloc*()
+	  functions can leave behind.  imsg buffers are sometimes used in
+	  protocol stacks which require some secrecy, and layering
+	  violations would be needed to resolve this issue otherwise.
+	  Discussed with many.
+
+2017-03-16 11:18  florian
+
+	* usr.sbin/httpd/: httpd.conf.5, server_http.c: Expand $HTTP_HOST
+	  in redirects.  From Rivo Nurges Rivo.Nurges AT smit.ee, thanks!
+	  OK reyk
+
+2017-03-10 22:06  reyk
+
+	* usr.sbin/httpd/server_http.c: Sync from relayd: DELETE can have a
+	  body.
+
+	  Fix by Rivo Nurges, fixes a problem with Atlassian JIRA
+
+	  OK benno@
+
+2017-03-06 19:44  otto
+
+	* lib/libc/stdlib/recallocarray.c: Introducing recallocarray(3), a
+	  blend of calloc(3) and reallocarray(3) with the added feature
+	  that released memory is cleared. Much input from various
+	  developers. ok deraadt@ tom@
+
+2017-02-27 12:38  jca
+
+	* lib/libc/asr/asr_private.h: Add support for RES_USE_DNSSEC
+
+	  RES_USE_DNSSEC is implemented by setting the DNSSEC DO bit in
+	  outgoing queries.  The resolver is then supposed to set the AD
+	  bit in the reply if it managed to validate the answer through
+	  DNSSEC.  Useful when the application doesn't implement validation
+	  internally.  This scheme assumes that the validating resolver is
+	  trusted and that the communication channel between the validating
+	  resolver and and the client is secure.
+
+	  ok eric@ gilles@
+
+2017-02-27 12:31  jca
+
+	* lib/libc/asr/asr_private.h: Recognize and allow bits AD and CD in
+	  DNS replies.
+
+	  Needed for RES_USE_DNSSEC support.
+
+	  ok eric@ gilles@
+
+2017-02-27 11:44  jca
+
+	* lib/libc/asr/: asr.c, asr_private.h: Put a common flags field in
+	  the query struct, rather than in some elements of the union.
+
+	  This field is for internal asr flags.  The flags in "struct
+	  rrset" and "struct ni" are different kinds of flags.
+
+	  ok eric@
+
+2017-02-23 18:04  eric
+
+	* lib/libc/asr/: asr.c, asr_private.h: Put a common subq pointer in
+	  the query struct, rather than one in each element of the union.
+
+	  ok gilles@ millert@ krw@
+
+2017-02-18 20:23  jca
+
+	* lib/libc/asr/: asr.c, asr_private.h: Add EDNS0 support.
+
+	  EDNS allows for various DNS extensions, among which UDP DNS
+	  packets size bigger than 512 bytes.  The default is still to not
+	  advertize anything.
+
+	  ok eric@
+
+2017-02-17 23:24  eric
+
+	* lib/libc/asr/asr_private.h: use common errnos instead of random
+	  strings as error indicators in pack/unpack contexts.
+
+	  ok krw@ deraadt@
+
+2017-02-07 13:27  reyk
+
+	* usr.sbin/httpd/: httpd.conf.5, httpd.h, parse.y, server.c:
+	  /tmp/cvsspEkok
+
+2017-02-07 13:22  reyk
+
+	* usr.sbin/httpd/server_http.c: Improve parsing of the HTTP request
+	  line
+
+	  Make sure that the beginning of a new request starts with an
+	  alphabetic character.  This is a quick way to detect non-ASCII
+	  requests (eg. TLS on port 80).  The full validation of the
+	  request method is done once the input line is read.
+
+	  Make sure that non-terminated lines do not exceed the
+	  SERVER_MAXHEADERLENGTH which is 8k.  As the current read
+	  watermark is set to 64k, this means that the limit check is
+	  triggered after max.	64k of input, depending on the TCP read
+	  buffer.
+
+	  OK benno@ jsing@
+
+2017-02-03 09:23  guenther
+
+	* usr.sbin/httpd/httpd.h: Stop assuming that in_{addr,port}_t are
+	  typedefed in <sys/types.h> and instead pull in <netinet/in.h> or
+	  <arpa/inet.h> when those are needed.
+
+	  ok florian@ beck@ millert@
+
+2017-02-02 23:19  reyk
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_file.c, server_http.c:
+	  Fix support for HTTP pipelining by handling all requests in the
+	  buffer.
+
+	  Tested & OK jung@
+
+2017-02-02 12:18  tb
+
+	* regress/usr.sbin/httpd/tests/README: sudo -> SUDO and some other
+	  minor tweaks
+
+2017-02-01 11:44  reyk
+
+	* regress/usr.sbin/httpd/tests/README: SUDO is doas
+
+2017-02-01 11:26  reyk
+
+	* regress/usr.sbin/httpd/tests/: args-get-range-512.pl,
+	  args-get-range-multipart.pl, args-tls-get-range-512.pl,
+	  args-tls-get-range-multipart.pl, funcs.pl: Add Range and
+	  multipart tests.
+
+2017-01-31 22:07  benno
+
+	* usr.sbin/httpd/: server_file.c: A bug in the processing of range
+	  headers in httpd can lead to memory exhaustion and possibly crash
+	  httpd.
+
+	  This patch disables range header processing.
+
+	  The problem is fixed in future versions of httpd (OpenBSD 6.1) by
+	  changing the way the file size is determined.
+
+	  found by Pierre Kim (pierre.kim.sec at gmail.com), thanks.  fix
+	  by sunil@
+
+	  ok reyk@ sunil@ and beck@ danj@ tb@ and tj@ on the errata.
+
+2017-01-31 21:08  beck
+
+	* usr.sbin/httpd/server.c: remove extra call setting OCSP staple
+	  now that it is done above using keypair_ocsp..  ok reyk@
+
+2017-01-31 18:25  beck
+
+	* usr.sbin/httpd/server.c: Correct mistake I made when converting
+	  this to new funciton
+
+2017-01-31 17:18  beck
+
+	* usr.sbin/httpd/server.c: Add tls_config_[add|set]keypair_ocsp
+	  functions so that ocsp staples may be added associated to a
+	  keypair used for SNI, and are usable for more than just the
+	  "main" certificate. Modify httpd to use this.  Bump libtls minor.
+
+	  ok jsing@
+
+2017-01-31 15:39  reyk
+
+	* usr.sbin/httpd/: httpd.h, server_file.c, server_http.c:
+	  Reimplement httpd's support for byte ranges.
+
+	  The previous implementation loaded all the output into a single
+	  output buffer and used its size to determine the Content-Length
+	  of the body.
+
+	  The new implementation calculates the body length first and
+	  writes the individual ranges in an async way using the
+	  bufferevent mechanism.
+
+	  This prevents httpd from using too much memory and applies the
+	  watermark and throttling mechanisms to range requests.
+
+	  Problem reported by Pierre Kim (pierre.kim.sec at gmail.com)
+
+	  OK benno@ sunil@
+
+2017-01-31 13:21  reyk
+
+	* usr.sbin/httpd/: httpd.h, server_http.c: The variable clt_done is
+	  used in too many places.
+
+	  Introduce a new variable clt_headersdone in the async HTTP
+	  parser.
+
+	  OK sunil@ benno@
+
+2017-01-31 13:20  reyk
+
+	* usr.sbin/httpd/server.c: Do not set EVBUFFER_EOF on read/write
+	  errors and handle EOF correctly.
+
+	  Either libevent or the TLS callback can trigger an EOF when the
+	  connection is closed.
+
+	  OK sunil@ jung@ benno@
+
+2017-01-30 22:18  reyk
+
+	* regress/usr.sbin/httpd/tests/: Httpd.pm, Makefile: Fix TLS tests.
+	  Keys and log files are now in obj, not in obj/htdocs
+
+2017-01-30 19:25  reyk
+
+	* regress/usr.sbin/httpd/tests/Makefile: Adjust CLEANFILES for new
+	  httpd root
+
+2017-01-30 19:19  reyk
+
+	* regress/usr.sbin/httpd/tests/Makefile: unbreak httpd regress
+	  tests after wobj change
+
+	  Previously, the tests used the obj dir as the httpd chroot/root.
+	  But the www user cannot access any files since we switched obj to
+	  0750.  The fix is to create another 0755 subdirectory obj/htdocs
+	  as the root.
+
+2017-01-30 10:54  reyk
+
+	* usr.sbin/httpd/server_file.c: Fix error path of range requests,
+	  found while reviewing byte range support.
+
+	  OK jsg@
+
+2017-01-27 08:03  tom
+
+	* usr.sbin/httpd/parse.y: More s/OSCP/OCSP/ typos
+
+	  ok jmc@
+
+2017-01-24 14:28  jmc
+
+	* usr.sbin/httpd/httpd.conf.5: sort SEE ALSO;
+
+2017-01-24 13:37  beck
+
+	* usr.sbin/httpd/httpd.conf.5: add ocspcheck to see also
+
+2017-01-23 05:25  deraadt
+
+	* usr.sbin/httpd/httpd.c: Split pledge "ioctl" into "tape" and
+	  "bpf", and allow SIOCGIFGROUP only upon "inet".  Adjust the 4
+	  programs that care about this.
+
+2017-01-21 12:32  guenther
+
+	* usr.sbin/httpd/server_fcgi.c: The POSIX APIs that that sockaddrs
+	  all ignore the s*_len field in the incoming socket, so userspace
+	  doesn't need to set it unless it has its own reasons for tracking
+	  the size along with the sockaddr.
+
+	  ok phessler@ deraadt@ florian@
+
+2017-01-17 23:10  krw
+
+	* usr.sbin/httpd/proc.c: Nuke some whitespace that keeps poking me
+	  in the eye as I try to steal code.
+
+2017-01-09 15:49  reyk
+
+	* usr.sbin/httpd/: control.c, httpd.c, httpd.h, log.c, proc.c,
+	  server.c: Stop accessing verbose and debug variables from log.c
+	  directly.
+
+	  This replaces log_verbose() and "extern int verbose" with the two
+	  functions log_setverbose() and log_getverbose().
+
+	  Pointed out by benno@ OK krw@ eric@ gilles@ (OK gilles@ for the
+	  snmpd bits as well)
+
+2017-01-09 15:04  krw
+
+	* usr.sbin/httpd/control.c: Replace hand-rolled for(;;) traversal
+	  of ctl_conns TAILQ with TAILQ_FOREACH().
+
+	  No intentional functional change.
+
+	  ok reyk@
+
+2017-01-08 21:31  reyk
+
+	* usr.sbin/httpd/log.c: Sync log.c with the latest version from
+	  vmd/log.c that preserves errno so it is safe calling log_* after
+	  an error without loosing the it.
+
+2017-01-05 14:53  krw
+
+	* usr.sbin/httpd/parse.y: Replace hand-rolled for(;;) emptying of
+	  'symhead' TAILQ with more modern TAILQ_FOREACH_SAFE().
+
+	  No intentional functional change.
+
+	  ok millert@ bluhm@ gilles@
+
+2017-01-05 13:42  krw
+
+	* usr.sbin/httpd/parse.y: Replace symset()'s hand-rolled for(;;)
+	  traversal of 'symhead' TAILQ with more modern TAILQ_FOREACH().
+	  This what symget() was already doing.
+
+	  Add paranoia '{}' around body of symget()'s TAILQ_FOREACH().
+
+	  No intentional functional change.
+
+	  ok bluhm@ otto@
+
+2016-12-18 02:34  krw
+
+	* lib/libc/asr/asr_private.h: Remove prototype for static function
+	  _asr_resolver. Eliminates gcc whining about undefined static in
+	  all the .c files that include asr_private.h. _asr_resolver() is
+	  defined and used in asr.c only.
+
+	  ok kettenis@
+
+2016-11-17 15:58  jsing
+
+	* usr.sbin/httpd/server.c: Check the return value of
+	  tls_config_set_protocols(), now that it returns an int.
+
+2016-11-17 15:52  jsing
+
+	* usr.sbin/httpd/: httpd.h, parse.y, server.c: Move OCSP loading
+	  into a separate function - it is not part of the keypair and this
+	  way we can give a separate specific error message.
+
+	  ok beck@ reyk@
+
+2016-11-14 11:28  schwarze
+
+	* usr.sbin/httpd/httpd.conf.5: specify ordering and precedence of
+	  location { } sections; patch from grunk@; feedback and OK jmc@;
+	  OK florian@
+
+2016-11-10 14:21  jca
+
+	* usr.sbin/httpd/server.c: Fix tcp ip ttl / minttl on IPv6 sockets.
+
+	  ok florian@
+
+2016-11-06 17:05  beck
+
+	* usr.sbin/httpd/server.c: conditionalize ocsp load properly ok
+	  jsing@
+
+2016-11-06 16:50  beck
+
+	* usr.sbin/httpd/parse.y: since ocsp stapling is optional, make
+	  sure we guard if we do not have it.  ok jsing@
+
+2016-11-06 12:27  jmc
+
+	* usr.sbin/httpd/httpd.conf.5: tweak previous;
+
+2016-11-06 11:49  beck
+
+	* usr.sbin/httpd/: config.c, httpd.conf.5, httpd.h, parse.y,
+	  server.c: Add OCSP stapling support to httpd ok jsing@ bcook@
+
+2016-10-12 13:57  reyk
+
+	* usr.sbin/httpd/log.c: copy updated log.c from vmd: for
+	  correctness, save errno when doing additional actions before
+	  printing it.	OK rzalamena@
+
+2016-10-12 12:57  reyk
+
+	* usr.sbin/httpd/: config.c, httpd.h, proc.c: Prevent fd exhaustion
+	  in the parent when loading the listening server sockets by
+	  sending the fd one-by-one.  This allows to start httpd with max
+	  32 server instances and many server sockets without changing the
+	  default rlimits in any way.
+
+	  OK rzalamena@
+
+2016-10-10 23:53  rzalamena
+
+	* usr.sbin/httpd/proc.c: Modify httpd(8)'s proc.c to use less file
+	  descriptors during the daemon start up. To achieve this
+	  proc_init() initiates only the necessary pipes between child and
+	  parent, allocate and distribute fds in proc_connect().
+
+	  In case of configuration checks ('-n') we do nothing in
+	  proc_init() and proc_connect().
+
+	  ok reyk@
+
+2016-10-10 18:31  rzalamena
+
+	* usr.sbin/httpd/proc.c: Fix msgbuf_write() usage idiom and modify
+	  the treatment for socket close to exit gracefully instead of
+	  fatal()ing.
+
+	  ok reyk@
+
+2016-10-10 13:13  rzalamena
+
+	* usr.sbin/httpd/proc.c: Add more context to fatal*() messages so
+	  it makes easier to debug proc.c internals.
+
+	  ok phessler@
+
+2016-10-07 09:37  patrick
+
+	* usr.sbin/httpd/server_fcgi.c: The strchr() call either returns a
+	  NULL pointer, on which the code will break out of the loop, or a
+	  pointer to ':'.  Thus the extra check for ':' is unnecessary and
+	  can be removed.
+
+	  ok jung@
+
+2016-10-07 09:33  patrick
+
+	* usr.sbin/httpd/server_fcgi.c: Empty lines cause
+	  server_fcgi_getheaders() to immediately return.  Unfortunately in
+	  that case the line was not freed.  This lead to a memleak on each
+	  request.  Thus, save the return value prior to returning, free
+	  the line and return the saved value.
+
+	  ok jung@
+
+2016-10-05 19:13  rzalamena
+
+	* usr.sbin/httpd/proc.c: Check if oldd == newd before dup2(), if
+	  that is the case we need to remove the CLOEXEC flag ourselves.
+
+	  ok bluhm@, deraadt@
+
+2016-10-05 19:09  reyk
+
+	* usr.sbin/httpd/proc.c: Call setsid() to create a new session for
+	  the executed processes.
+
+	  From deraadt@ OK rzalamena@
+
+2016-10-05 18:58  reyk
+
+	* usr.sbin/httpd/: httpd.h, proc.c: sync proc.c with vmd: add p_pw
+	  to specify a non-standard user for a process.
+
+	  OK rzalamena@
+
+2016-09-28 14:02  reyk
+
+	* usr.sbin/httpd/Makefile: Add -Wcast-qual after syncing proc.c fix
+
+2016-09-28 14:01  reyk
+
+	* usr.sbin/httpd/: httpd.c, httpd.h, proc.c: sync proc.c from
+	  switchd, includes minor cast qual fix and removal of p_env.
+
+2016-09-23 22:02  bluhm
+
+	* regress/usr.sbin/httpd/tests/Makefile: Remove leftovers from
+	  relayd tests.
+
+2016-09-17 22:05  tj
+
+	* etc/examples/httpd.conf: pathnames for cert and key files need to
+	  be quoted.
+
+	  reported by brynet
+
+2016-09-17 17:04  tj
+
+	* etc/examples/httpd.conf: add example certificate and key files
+	  generated with acme-client.
+
+	  ok florian
+
+2016-09-15 22:57  jmc
+
+	* usr.sbin/httpd/httpd.8: add some Xr for acme-client(1);
+
+2016-09-03 16:44  reyk
+
+	* usr.sbin/httpd/: httpd.h, parse.y, proc.c: Replace
+	  [RELAY|SERVER]_MAXPROC with the new PROC_MAX_INSTANCES variable
+	  and limit it from 128 to 32 instances (the old value).  While
+	  here, move a few PROC_ defines around.
+
+	  OK rzalamena@
+
+2016-09-03 13:31  nayden
+
+	* lib/libevent/: buffer.c, kqueue.c, poll.c, select.c: Remove NULL
+	  pointer checks before calls to free().  OK bluhm@ nicm@
+
+2016-09-03 12:02  reyk
+
+	* usr.sbin/httpd/proc.c: Use DPRINTF instead of #ifdef DEBUG +
+	  log_debug().
+
+	  Pointed out by benno@
+
+2016-09-02 23:30  bluhm
+
+	* regress/usr.sbin/httpd/tests/Makefile: Print SKIPPED if a regress
+	  test cannot be executed for some reason.  This allows to identify
+	  such tests by looking at their output.
+
+2016-09-02 13:25  reyk
+
+	* usr.sbin/httpd/: httpd.c, httpd.h, proc.c: proc.c tweaks: Rename
+	  proc_listento() to proc_accept() as it is the receiving side of
+	  proc_connect().  Move some code from main into proc_init(), the
+	  function is now called by parent and children, not just the
+	  parent and it is less copy + paste for other daemons.
+
+	  OK florian@
+
+2016-09-01 18:07  reyk
+
+	* usr.sbin/httpd/config.c: The fork+exec diff broke "what?!", the
+	  ps_what field determines the configuration that has to be
+	  initialized in each process and was inherited from the parent
+	  instead of setting it everywhere.  I'm surprised that it worked.
+
+	  OK florian
+
+2016-09-01 16:50  reyk
+
+	* usr.sbin/httpd/proc.c: Don't print "lost child" if the child
+	  process exited okay.	This is the old behaviour and unbreaks the
+	  regress tests.
+
+2016-09-01 16:44  reyk
+
+	* regress/usr.sbin/httpd/tests/args-get-slash.pl: Fix regress test,
+	  server returns 400 instead of 500 now
+
+2016-09-01 13:13  florian
+
+	* usr.sbin/httpd/: httpd.h, server_fcgi.c: struct client starts to
+	  become the kitchen sink. Move fastcgi data to its own struct.
+	  Requested by and OK reyk@
+
+2016-09-01 12:59  reyk
+
+	* usr.sbin/httpd/: control.c, httpd.h, logger.c, proc.c,
+	  server_fcgi.c: spacing
+
+2016-09-01 12:57  reyk
+
+	* usr.sbin/httpd/proc.c: Adjust log message, use process title now
+	  that it works again
+
+2016-09-01 11:47  rzalamena
+
+	* usr.sbin/httpd/: httpd.c, httpd.h, proc.c: Teach httpd/proc.c how
+	  to fork+exec.
+
+	  This commit implemented the basic functions to proc.c to make it
+	  not rely on global variables, malloc()ed memory and CLOEXEC
+	  pipes.
+
+	  Fix child proc titles from reyk@ ok reyk@, florian@
+
+2016-08-30 16:31  rzalamena
+
+	* usr.sbin/httpd/: httpd.h, logger.c, proc.c, server.c: Kill
+	  (remove) the ps_pid from privsep struct since it is not being
+	  used anymore. Also fix the process initialization prototypes.
+
+	  ok reyk@
+
+2016-08-30 15:46  rzalamena
+
+	* usr.sbin/httpd/: httpd.c, proc.c: Terminate daemon using the
+	  socket status instead of watching SIGCHLD or kill()ing child
+	  process.
+
+	  "Looks good to me" millert@ ok benno@
+
+2016-08-30 15:37  rzalamena
+
+	* usr.sbin/httpd/httpd.h: Remove duplicated prototypes from header.
+
+	  "Looks good to me" natano@
+
+2016-08-30 12:54  florian
+
+	* usr.sbin/httpd/: httpd.h, server_fcgi.c: Do not assume that the
+	  full http response header is in the first fastcgi stdout record.
+	  Keep processing stdout records until we found the header / body
+	  separator and only then generate the header response.  Problem
+	  reported by many.
+
+	  OK jung@
+
+2016-08-27 13:13  rzalamena
+
+	* usr.sbin/httpd/: control.c, httpd.h, logger.c, proc.c, server.c:
+	  Kill p_instance from proc.c and remove static proc_id unused
+	  variables.
+
+	  To keep the debug functionality intact and correct we'll use the
+	  pid field in the imsg header to pass the instance number.
+	  Remember to always pass 'ps_instance + 1' otherwise libutil will
+	  fill imsg header pid field with the imsgbuf pid (which is the
+	  current process pid).
+
+	  ok reyk@
+
+2016-08-26 14:24  rzalamena
+
+	* usr.sbin/httpd/: httpd.c, httpd.h, proc.c: Kill the ps_ninstances
+	  from proc.c.
+
+	  We got the same information in ps_instances[proc] (more accurate)
+	  and we avoid allocating unnecessary memory for pipe storage.
+
+	  ok reyk@
+
+2016-08-26 12:46  rzalamena
+
+	* usr.sbin/httpd/: httpd.h, logger.c, server.c, server_http.c:
+	  Replace the static env variables with a single global variable.
+
+	  ok reyk@
+
+2016-08-26 10:25  guenther
+
+	* lib/libc/crypt/bcrypt.c: Pull in <time.h> for clock_gettime()
+
+	  ok deraadt@
+
+2016-08-22 17:02  jsing
+
+	* usr.sbin/httpd/: httpd.h, parse.y, server.c: Enable SNI support
+	  in httpd(8).
+
+	  ok reyk@
+
+2016-08-20 21:08  jca
+
+	* lib/libc/asr/asr_private.h: Declare all _asr_* debug functions as
+	  hidden.
+
+	  Reported by & similar diff by guenther@ some time ago, ok eric@
+
+2016-08-16 20:41  tedu
+
+	* usr.sbin/httpd/: httpd.c, httpd.h, logger.c, server.c: stop
+	  including sys/param.h for nitems. define locally as needed.  ok
+	  natano reyk
+
+2016-08-16 19:10  reyk
+
+	* usr.sbin/httpd/server.c: Turn "TLS handshake failed -" log
+	  message into a debug message - it happens way too often and does
+	  not provide much information.
+
+	  OK jung@
+
+2016-08-16 10:36  reyk
+
+	* usr.sbin/httpd/server.c: Rename server_handshake_tls() to
+	  server_tls_handshake() to align with the other server_tls_*
+	  functions (and I like the prefix notation better).  No functional
+	  change.
+
+2016-08-15 18:12  jsing
+
+	* usr.sbin/httpd/: httpd.h, parse.y, server.c: Move server_match()
+	  from parse.y to server.c; use env instead of conf, which is
+	  actually the same thing (cluebat from reyk@).
+
+2016-08-15 16:14  jsing
+
+	* usr.sbin/httpd/: config.c, server.c: Use lowercase 'tls' in debug
+	  and log messages for consistency.
+
+	  Requested by reyk@
+
+2016-08-15 15:48  jsing
+
+	* usr.sbin/httpd/: httpd.h, parse.y, server.c: Make httpd stricter
+	  with respect to TLS configuration - in particular, do not allow
+	  TLS and non-TLS to be configured on the same port, do not allow
+	  TLS options to be specified without a TLS listener and ensure
+	  that the TLS options are the same when a server is specified on
+	  the same address/port.  Currently, these configurations are
+	  permitted but do not work as intended.
+
+	  Also factor out and reuse the server matching code, which was
+	  previously duplicated.
+
+	  ok reyk@
+
+2016-08-01 23:15  benno
+
+	* usr.sbin/httpd/http.h: sync http.h with relayd ok reyk@
+
+2016-07-27 13:02  reyk
+
+	* usr.sbin/httpd/server_http.c: According to RFC 7231 4.3.7,
+	  OPTIONS may have body. "Although this specification does not
+	  define any use for such a payload, future extensions to HTTP
+	  might use the OPTIONS body to make more detailed queries about
+	  the target resource." The future has arrived.
+
+	  Found and tested by Michael Lechtermann OK benno@
+
+2016-07-17 13:21  stefan
+
+	* lib/libevent/event.3: Talk about event API instead of libevent
+
+	  Avoids inconsistent capitalization of libevent at start of
+	  sentence suggested by and ok jmc@, ok bluhm@
+
+2016-07-13 18:35  jsing
+
+	* usr.sbin/httpd/httpd.h: Adjust existing tls_config_set_cipher()
+	  callers for TLS cipher group changes - map the previous
+	  configuration to the equivalent in the new groups. This will be
+	  revisited post release.
+
+	  Discussed with beck@
+
+2016-06-26 23:04  tedu
+
+	* lib/libc/crypt/bcrypt.c: increase the minimum for auto rounds to
+	  6. that was the previous low bound for login.conf, and we don't
+	  want to go lower.
+
+2016-06-21 23:35  benno
+
+	* usr.sbin/httpd/parse.y: do not allow whitespace in macro names,
+	  i.e. "this is" = "a variable".  change this in all config parsers
+	  in our tree that support macros.  problem reported by sven
+	  falempin.
+
+	  feedback from henning@, stsp@, deraadt@ ok florian@ mikeb@
+
+2016-06-18 17:25  reyk
+
+	* lib/libc/asr/asr.c: Remove duplicated line.
+
+	  OK eric@
+
+2016-06-10 20:32  jmc
+
+	* usr.sbin/httpd/httpd.8: grammar fix; from nick permyakov
+
+2016-06-10 14:09  florian
+
+	* usr.sbin/httpd/httpd.c: & expands to the maximum amount of needed
+	  space; fix comment.  Pointed out by Frank Schoep, thanks!
+
+2016-05-31 17:28  jsing
+
+	* usr.sbin/httpd/config.c: Unbreak compilation with -DDEBUG.
+
+	  From Fabian Raetz <fabian dot raetz at gmail dot com>
+
+2016-05-27 13:25  sthen
+
+	* lib/libc/asr/asr.c: typo fixes; Anthony Coulter
+
+2016-05-27 13:24  krw
+
+	* usr.sbin/httpd/server_http.c: Return "400 Bad Request" instead of
+	  "500 Server Internal Error" for requests lacking
+	  "HTTP/<version>".
+
+	  This makes it more obvious that httpd(8) does not attempt to
+	  support HTTP v0.9 (circa 1991), when "GET <url>\r\n" was valid.
+
+	  ok millert@ florian@
+
+2016-05-26 08:59  jmatthew
+
+	* lib/libc/asr/asr.c: Calculate elapsed time in poll() and subtract
+	  that from the remaining time when restarting poll() after
+	  receiving a signal.
+
+	  The ruby runtime send signals to threads periodically, so without
+	  accounting for elapsed time, the timeout would never expire if we
+	  didn't get a response from a nameserver.
+
+	  ok deraadt@ eric@
+
+2016-05-22 21:20  jung
+
+	* usr.sbin/httpd/server_http.c: makes sure the value of the
+	  asprintf buffer is zeroed on error
+
+	  from Hiltjo Posthuma
+
+	  "do." deraadt
+
+2016-05-22 21:19  jung
+
+	* usr.sbin/httpd/httpd.c: fix unbalanced va_start and va_end macros
+
+	  from Hiltjo Posthuma
+
+	  "do." deraadt
+
+2016-05-17 05:12  deraadt
+
+	* usr.sbin/httpd/server_file.c: Repair some file descriptor leaks.
+	  ok beck krw millert
+
+2016-05-09 21:36  tj
+
+	* usr.sbin/httpd/httpd.conf.5: in the http redirect example, also
+	  include the requested url instead of just going to the home page.
+
+	  requested by and ok beck
+
+2016-05-03 21:13  bluhm
+
+	* regress/usr.sbin/httpd/tests/: Proc.pm, funcs.pl, httpd.pl: Fix
+	  some Perl statements perlcritic was bitching about: Variable
+	  declared in conditional statement.
+
+2016-04-29 00:16  schwarze
+
+	* usr.sbin/httpd/httpd.conf.5: Avoid unusual Content-Type: even in
+	  an example; people might get hurt when doing copy & paste.  Patch
+	  from Hiltjo Posthuma <hiltjo at codemadness dot org>.  OK
+	  florian@ jmc@
+
+2016-04-28 19:18  jsing
+
+	* usr.sbin/httpd/server.c: Include the TLS configuration errors in
+	  log messages. Also set the certificate and private key at the
+	  same time.
+
+2016-04-28 16:20  jsing
+
+	* usr.sbin/httpd/: config.c, httpd.h: Simplify TLS configuration
+	  handling. Instead of matching by address/port, match by
+	  configuration ID. This also prevents a memory leak when there are
+	  multiple certificates specified for the same server.
+
+	  ok beck@
+
+2016-04-24 23:06  jmc
+
+	* usr.sbin/httpd/httpd.conf.5: new sentence, new line;
+
+2016-04-24 22:12  chrisz
+
+	* usr.sbin/httpd/httpd.conf.5: Document CGI variables. Work done by
+	  Tim Baumgard <openbsd@bmgrd.com> I clarified DOCUMENT_URI and
+	  SCRIPT_NAME.
+
+	  ok florian@
+
+2016-04-24 22:09  chrisz
+
+	* usr.sbin/httpd/server_fcgi.c: Always pass QUERY_STRING variable.
+	  According to the RFC it is empty when no query string was found.
+	  From Tim Baumgard <openbsd@bmgrd.com>o
+
+	  ok florian@
+
+2016-04-20 14:48  jmc
+
+	* usr.sbin/httpd/httpd.conf.5: from tim baumgard: a location
+	  section may not include hsts; to that, i've added alias and tls
+
+	  no feedback on this diff, so let's hope i'm right/.
+
+2016-04-19 18:22  jsing
+
+	* usr.sbin/httpd/server.c: Use log_warnx() instead of log_warn()
+	  when the failure will not have resulted in errno being set.
+
+	  ok reyk@
+
+2016-03-30 08:38  jmc
+
+	* lib/libevent/Makefile: for some time now mandoc has not required
+	  MLINKS to function correctly - logically complete that now by
+	  removing MLINKS from base;
+
+	  authors need only to ensure there is an entry in NAME for any
+	  function/ util being added. MLINKS will still work, and remain
+	  for perl to ease upgrades;
+
+	  ok nicm (curses) bcook (ssl) ok schwarze, who provided a lot of
+	  feedback and assistance ok tb natano jung
+
+2016-03-20 01:01  krw
+
+	* lib/libevent/evutil.c: Currently we have about a 50/50 split over
+	  fcntl(n, F_GETFL [,0]) idioms.
+
+	  Adopt the more concise fcntl(n, F_GETFL) over fcntl(n, F_GETFL,
+	  0) where it is obvious further investigation will not yield and
+	  even better way.
+
+	  Obviousness evaluation and ok guenther@
+
+2016-03-08 10:33  florian
+
+	* usr.sbin/httpd/: server_file.c, server_http.c: Set content
+	  charset for auto index generated page.  Pointed out and diff by
+	  dhill, thanks! Tweaks and same change for error documents by me.
+
+2016-02-24 21:52  eric
+
+	* lib/libc/asr/asr.c: Avoid a possible double-free if the "search"
+	  keyword is used multiple times.
+
+	  ok jca@ gilles@
+
+2016-02-14 19:20  semarie
+
+	* usr.sbin/httpd/patterns.c: httpd patterns double free
+
+	  issue and diff from Alexander Schrijver alex at flupzor nl
+
+	  ok reyk@
+
+2016-02-11 20:30  tim
+
+	* usr.sbin/httpd/server_http.c: Back out previous; requested by
+	  jung@
+
+2016-02-11 17:14  tim
+
+	* usr.sbin/httpd/server_http.c: Include the server port number in
+	  the common and combined logs. This is useful to distinguish
+	  between http and https requests.
+
+	  OK florian@ reyk@ a while ago
+
+2016-02-02 18:51  sthen
+
+	* usr.sbin/httpd/httpd.c: Remove setproctitle() for the parent
+	  process. Because rc.d(8) uses process titles (including flags) to
+	  distinguish between daemons, this makes it possible to manage
+	  multiple copies of a daemon using the normal infrastructure by
+	  symlinking rc.d scripts to a new name. ok jung@ ajacoutot@, smtpd
+	  ok gilles@
+
+2015-12-29 19:05  benno
+
+	* lib/libutil/imsg-buffer.c: check for NULL in ibuf_free().  ok and
+	  slight improvement, mmcco@ ok semarie@ and encouragement tedu@
+	  krw@
+
+2015-12-25 18:10  tedu
+
+	* lib/libevent/kqueue.c: revert change to call kevent immediately.
+	  tcpbench (at a minimum) relies on the old behavior of changes all
+	  happening after all event handlers run. in particular, it resets
+	  the event for the listening socket *before* calling accept(),
+	  when it is still readable.  kevent then (correctly) says it is
+	  readable on the next go through the loop.  silly, subtle, and
+	  stupid.  problem reported by kettenis
+
+2015-12-16 21:12  tedu
+
+	* lib/libevent/kqueue.c: change the kqueue backend to call kevent()
+	  as events are added instead of deferring until the dispatch loop.
+	  kqueue support for various types of files and filesystems has
+	  been historically incomplete, and kevent handles this condition
+	  by returning an error. the libevent dispatch loop has no way to
+	  recover from this error and fails catastrophically, bringing down
+	  the entire process because one file went bad.  now, instead of
+	  all that happending, event_add will return an error. the
+	  application can choose to handle or ignore this error, but at
+	  least the band will play on.	ok nicm
+
+2015-12-16 17:32  deraadt
+
+	* lib/libc/asr/: asr.c, asr_private.h: Remove support for
+	  HOSTALIASES from the resolver.  This "open and parse any file
+	  indicated by an environment variable" feature inside the resolver
+	  is incompatible with what pledge "dns" is trying to be.  It is a
+	  misguided "feature" added way back in history which almost noone
+	  uses, but everyone has to assume the risk from.  ok eric florian
+	  kettenis
+
+2015-12-12 20:59  mmcc
+
+	* usr.sbin/httpd/patterns.h: Remove a needless inclusion of
+	  sys/cdefs.h. Inspired by reyk's recent commit doing the same.
+
+2015-12-11 19:49  nicm
+
+	* lib/libevent/log.c: Libraries should not print to stderr, ok tedu
+	  beck deraadt
+
+2015-12-09 12:54  tb
+
+	* lib/libutil/imsg.c: Add a cast to silence a compiler warning by
+	  clang on FreeBSD.  From Craig Rodrigues.  ok tedu@
+
+2015-12-07 21:30  mmcc
+
+	* usr.sbin/httpd/server_http.c: No need to check for NULL before
+	  free().
+
+2015-12-07 17:05  reyk
+
+	* usr.sbin/httpd/proc.c: Add imsg "peerid" to debug messages (only
+	  within -DDEBUG).
+
+2015-12-07 13:13  reyk
+
+	* usr.sbin/httpd/log.c: sync with vmd
+
+2015-12-05 14:15  claudio
+
+	* usr.sbin/httpd/: control.c, proc.c: EAGAIN handling for
+	  imsg_read. OK henning@ benno@
+
+2015-12-05 14:06  claudio
+
+	* lib/libutil/imsg.c: Do not loop on EAGAIN in imsg_read(). Better
+	  to return the error to the caller and let him do another poll
+	  loop. This fixes spinning relayd processes seen on busy TLS
+	  relays. OK benno@ henning@
+
+2015-12-03 12:46  reyk
+
+	* usr.sbin/httpd/: httpd.c, server_http.c: Remove unnecessary NULL
+	  checks before free().
+
+	  From Jan Schreiber
+
+2015-12-03 08:01  deraadt
+
+	* usr.sbin/httpd/httpd.c: the grammar can prompt DNS lookups, so
+	  pledge "dns" also.  from Gregor Best, discussed with florian
+
+2015-12-02 16:13  reyk
+
+	* usr.sbin/httpd/: config.c, httpd.c, httpd.h, logger.c, proc.c,
+	  server.c: sync with relayd, use proc_compose()
+
+2015-11-27 02:57  mmcc
+
+	* lib/libutil/imsg.c: Remove three NULL-checks before free().	ok
+	  millert@
+
+2015-11-23 21:56  reyk
+
+	* usr.sbin/httpd/: control.c, httpd.c, httpd.h, proc.c, server.c,
+	  server_fcgi.c: Retire socket_set_blockmode() in favor of the
+	  SOCK_NONBLOCK type flag.  As done in iked and snmpd.
+
+	  OK jung@
+
+2015-11-23 19:04  deraadt
+
+	* lib/libc/asr/: asr.c, asr_private.h: Remove support for "lookup
+	  yp" in /etc/resolv.conf.  This historical wart is incompatible
+	  with pledge, because suddenly a "dns" operation needs "getpw"
+	  access to ypbind/ypserv, etc.  file + dns access is enough for
+	  everyone, sorry if you were using that old SunOS 4.x style
+	  mechanism, but it is now gone.  ok semarie millert florian
+
+2015-11-23 17:43  reyk
+
+	* usr.sbin/httpd/proc.c: Sync proc.c with iked.
+
+2015-11-22 14:27  reyk
+
+	* usr.sbin/httpd/: httpd.c, httpd.h, log.c, parse.y, proc.c: Update
+	  log.c: change fatal() and fatalx() into variadic functions,
+	  include the process name, and replace all calls of fatal*(NULL)
+	  with fatal(__func__) for better debugging.
+
+	  OK benno@
+
+2015-11-21 14:46  reyk
+
+	* usr.sbin/httpd/log.c: Once again, fix the license text.  After
+	  many years, we just cannot get rid of the "LOSS OF MIND" joke.
+	  Haha.  We keep on removing it and it shows up again because it
+	  accidentally gets synced from somewhere else.  bgpd and ospfd
+	  don't have it anymore, but their offsprings still carry it. If
+	  you see it, remove it, and, in the OpenBSD ISC case, use the
+	  original text from /usr/share/misc/license.template.	All authors
+	  agree.
+
+2015-11-21 13:40  reyk
+
+	* usr.sbin/httpd/: httpd.c, httpd.h, log.c: Move local logging
+	  functions into httpd.c, and sync log.c with relayd - both daemons
+	  are now sharing the same file.  No functional changes.
+
+2015-11-19 22:32  mmcc
+
+	* usr.sbin/httpd/httpd.c: Simplify all instances of get_string()
+	  and get_data() using malloc() and strndup().
+
+	  ok millert@
+
+2015-11-11 00:48  jmc
+
+	* lib/libevent/event.3: update NAME section to include all
+	  documented functions, or otherwise change Dt to reflect the name
+	  of an existing function;
+
+	  feedback/ok schwarze
+
+2015-11-05 21:07  florian
+
+	* usr.bin/htpasswd/htpasswd.c: Make our initial pledge stricter
+	  once we figured out in which mode we are running.  In batch mode
+	  we are only reading from stdin and writing to stdout.  If no file
+	  is specified we are reading from stdin, writing to stdout and
+	  need to control the tty for readpassphrase.  OK deraadt@ on an
+	  earlier version some time ago.
+
+2015-11-05 19:00  florian
+
+	* usr.sbin/httpd/: httpd.c, logger.c, server.c: pledge(2) for
+	  httpd.
+
+	  1) The main process listens on sockets and accepts connections.
+	  It creates and opens log files, creates and kills child
+	  processes. On start up and on receiving a HUP signal it parses
+	  the configuration. It passes on file descriptors for logging or
+	  requests to it's children.  2) The logger process writes log
+	  messages to a file descriptor passed in from the main process.
+	  3) The server process reads the request from a file descriptor
+	  passed in from the main process. It reads a file or creates a
+	  directory index to send a response.  Additionally this process
+	  handles fastcgi requests. It connects to AF_UNIX, AF_INET or
+	  AF_INET6 sockets. A re-factoring might make it possible to drop
+	  the additional fastcgi privileges when only static files are
+	  served.
+
+	  with deraadt@ some time ago prodding & OK deraadt@ tweaks and OK
+	  reyk@
+
+2015-10-31 11:10  jung
+
+	* usr.sbin/httpd/httpd.c: revert -r1.42 as it breaks slowcgi and
+	  php-fpm setups as reported by jturner
+
+2015-10-28 22:38  eric
+
+	* lib/libc/asr/: asr.c, asr_private.h: We are always using
+	  _PATH_RESCONF, so no need to remember the path on the resolver.
+
+	  ok millert@ deraadt@
+
+2015-10-28 16:50  mmcc
+
+	* usr.sbin/httpd/httpd.c: Remove a few more NULL-checks before
+	  free.
+
+2015-10-28 16:45  mmcc
+
+	* usr.sbin/httpd/httpd.c: While I'm in here, drop a NULL-check
+	  before free.
+
+2015-10-28 12:52  deraadt
+
+	* lib/libc/asr/asr.c: Remove support for [addr]:port syntax from
+	  the "nameserver" line.  This extension never made it to other
+	  systems.  (pledge is also happy with this.  The idea of DNS @ any
+	  port collides with pledge encouraring differentiation between DNS
+	  and non-DNS sockets) ok phessler jung sthen kettenis
+
+2015-10-26 12:03  jung
+
+	* usr.sbin/httpd/httpd.c: fix PATH_INFO for / requests
+
+	  diff from Denis Fondras
+
+	  ok reyk
+
+2015-10-16 15:37  millert
+
+	* usr.bin/htpasswd/htpasswd.c: Implement real "flock" request and
+	  add it to userland programs that use pledge and file locking.  OK
+	  deraadt@
+
+2015-10-14 10:02  reyk
+
+	* usr.sbin/httpd/httpd.c: Two more char -> unsigned char in ctype
+	  functions.
+
+2015-10-13 10:33  sunil
+
+	* usr.sbin/httpd/server_http.c: Plug a leak.
+
+	  Ok gilles@, reyk@
+
+2015-10-13 09:57  reyk
+
+	* usr.sbin/httpd/: httpd.c, server_http.c: Pass unsigned chars to
+	  ctype functions.
+
+	  From Michael McConville
+
+2015-10-09 03:37  deraadt
+
+	* usr.bin/htpasswd/htpasswd.c: Change all tame callers to
+	  namechange to pledge(2).
+
+2015-10-08 11:40  jsg
+
+	* usr.sbin/httpd/server_fcgi.c: fix an fd leak if socket connection
+	  fails; from Carlin Bingham ok reyk@
+
+2015-10-08 11:32  jsg
+
+	* usr.sbin/httpd/server_fcgi.c: fix a typo; from Carlin Bingham
+
+2015-10-07 15:59  deraadt
+
+	* lib/libc/asr/: asr.c, asr_private.h: getaddrinfo_async()
+	  shouldn't unconditionally intialize the resolver via
+	  _asr_use_resolver().	If the hint specifies for AI_NUMERICHOST,
+	  create a transient lookup context which won't try to open
+	  /etc/reslov.conf ok eric guenther
+
+2015-10-07 08:44  deraadt
+
+	* usr.bin/htpasswd/htpasswd.c: tame "stdio rpath wpath cpath
+	  tmppath tty".  "tty" is the important part here, permitting use
+	  of readpassphrase()
+
+2015-10-04 00:35  deraadt
+
+	* lib/libc/asr/: asr.c, asr_private.h: Initially eric developers
+	  asr as a side-load style library for async DNS.  When it was
+	  integrated as the main resolver, a bunch of strange
+	  initialization code remained.  Start whittling away at this,
+	  piece by piece, to make it more clear.  ok eric
+
+2015-10-03 11:57  eric
+
+	* lib/libc/asr/: asr.c, asr_private.h: missing asr* -> _asr* symbol
+	  rename for building with debug code
+
+	  ok jca@
+
+2015-09-20 16:19  eric
+
+	* lib/libc/asr/asr.c: remove bogus includes of err.h
+
+2015-09-20 14:50  eric
+
+	* lib/libc/asr/asr.c: use _PATH_RESCONF directly
+
+2015-09-14 13:52  guenther
+
+	* lib/libc/asr/asr.c: Wrap <asr.h> so internal calls go direct and
+	  all the symbols are weak
+
+2015-09-13 17:33  guenther
+
+	* lib/libc/crypt/: bcrypt.c, cryptutil.c: Wrap <pwd.h> so that
+	  calls go direct and the symbols are all weak.  Hide
+	  bcrypt_autorounds(), prefixing with an underbar for static
+	  builds.
+
+2015-09-13 14:42  millert
+
+	* lib/libc/crypt/bcrypt.c: The number of rounds is just two digits
+	  in the salt.	We've already verified that they are there via
+	  isdigit() so we can convert from ASCII to an int without using
+	  atoi().  OK guenther@ deraadt@
+
+2015-09-13 13:32  guenther
+
+	* lib/libc/gen/vis.c: Wrap <vis.h> so that calls go direct and the
+	  symbols are all weak
+
+2015-09-13 10:31  guenther
+
+	* lib/libc/stdlib/reallocarray.c: Wrap <stdlib.h> so that calls go
+	  direct and the symbols not in the C standard are all weak.  Apply
+	  __{BEGIN,END}_HIDDEN_DECLS to gdtoa{,imp}.h, hiding the
+	  arch-specific __strtorx, __ULtox_D2A, __strtorQ, __ULtoQ_D2A
+	  symbols.
+
+2015-09-12 16:56  guenther
+
+	* lib/libc/crypt/cryptutil.c: Wrap <unistd.h> so that internal
+	  calls go direct and they're all weak symbols Delete unused 'fd'
+	  argument from internal function oldttyname()
+
+2015-09-11 15:21  jsing
+
+	* usr.sbin/httpd/server.c: Fix server_handshake_tls() - we should
+	  only call server_input() in the case where the handshake has
+	  successfully completed.
+
+	  ok beck@
+
+2015-09-11 11:18  guenther
+
+	* lib/libc/crypt/blowfish.c: Wrap blowfish, sha*, md5, and rmd160
+	  so that internal calls go direct
+
+	  ok deraadt@
+
+2015-09-10 15:53  beck
+
+	* usr.sbin/httpd/server.c: fix return type for tls_read/write
+	  jointly with jsing@
+
+2015-09-10 12:42  beck
+
+	* usr.sbin/httpd/server.c: fix after libtls api changes ok jsing@
+
+2015-09-10 12:15  jsing
+
+	* usr.sbin/httpd/server.c: Update httpd to call tls_handshake()
+	  after tls_accept_socket().
+
+	  ok beck@
+
+2015-09-09 17:49  deraadt
+
+	* lib/libc/asr/: asr.c, asr_private.h: Hide all unnecessary asr /
+	  resolver related API with _ prefixes.  direction & ok guenther
+
+2015-09-07 16:46  reyk
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_http.c: Fix a
+	  regression that was introduced with server.c r1.64: Do NOT free
+	  srv_conf->auth in serverconfig_free() because it was not
+	  allocated in config_getserver() but assigned as a reference by id
+	  from a global list that is maintained independently.	This fixes
+	  a potential double-free.  This fix also makes srv_conf->auth
+	  "const" to emphasize that the read-only auth pointer was not
+	  allocated here.
+
+	  OK jsing@
+
+2015-09-02 15:47  deraadt
+
+	* lib/libc/asr/asr.c: use _PATH_RESCONF
+
+2015-08-21 09:30  reyk
+
+	* usr.sbin/httpd/server_http.c: The WebDAV MOVE method was not
+	  included in the switch statement handling the HTTP methods in
+	  server_http.c which resulted in a 405 method not allowed error
+	  when trying to use it.
+
+	  Fix by jaminh on github
+
+2015-08-21 00:39  deraadt
+
+	* usr.sbin/httpd/parse.y: stdlib.h is in scope; do not cast
+	  malloc/calloc/realloc* ok millert krw
+
+2015-08-20 15:00  reyk
+
+	* usr.sbin/httpd/: config.c, httpd.c, httpd.h, log.c, logger.c,
+	  parse.y, proc.c, server.c, server_fcgi.c, server_http.c: Change
+	  httpd(8) to use C99-style fixed-width integers (uintN_t instead
+	  of u_intN_t) and replace u_int with unsigned int.  Mixing both
+	  variants is a bad style and most contributors seem to prefer this
+	  style; it also helps us to get used to it, portability, and
+	  standardization.
+
+	  Theoretically no binary change, except one in practice: httpd.o
+	  has a different checksum because gcc with -O2 pads/optimizes
+	  "struct privsep" differently when using "unsigned int" instead
+	  "u_int" for the affected members.  "u_int" is just a typedef of
+	  "unsigned int", -O0 doesn't build the difference and clang with
+	  -O2 doesn't do it either - it is just another curiosity from
+	  gcc-land.
+
+	  OK semarie@
+
+2015-08-19 23:26  reyk
+
+	* usr.sbin/httpd/parse.y: spacing
+
+2015-08-18 10:26  reyk
+
+	* usr.sbin/httpd/patterns.c: str_match() checked the return value
+	  of str_find_aux() incorrectly: it might return a negative number;
+	  the return value of match_error() which returns (-1). This was
+	  technically a bug, and it exists in 5.8, but there is no impact
+	  because the error is correctly catched with the returned non-NULL
+	  error string.
+
+	  Found by Leandro Pereira
+
+2015-08-03 13:45  florian
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_fcgi.c, server_file.c:
+	  Fix rev 1.70 of server.c by only re-enabling the bufferevent if
+	  we previously disabled it because we were reading to fast (from
+	  disk).  Problem noted and tracked down to that commit by weerd@
+	  and independently by stsp@.  Tested by weerd@, stsp@, reyk@ OK
+	  bluhm@, reyk@
+
+2015-07-31 02:10  benno
+
+	* usr.sbin/httpd/: httpd.h, server_fcgi.c, server_http.c: repair
+	  hsts header output, wrong format strings caused broken
+	  Strict-Transport-Security headers. Add __format__ attribute to
+	  kv_set() and kv_setkey() to make it easier to spot such problems.
+
+	  Found by and fix from Donovan Watteau <tsoomi -AT- gmail -DOT-
+	  com>, thanks for your help.
+
+	  ok deraadt@
+
+2015-07-30 00:03  reyk
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_fcgi.c, server_http.c:
+	  backout the previous:  it broke wordpress somehow.  we need more
+	  care to find a proper fix for the fastcgi headers.
+
+	  acknowledged by deraadt@
+
+2015-07-29 22:03  florian
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_fcgi.c, server_http.c:
+	  Read fcgi response records until we have the whole http header
+	  and can parse it. Otherwise http headers can leak into the body.
+	  Pointed out by Jean-Philippe Ouellet on bugs@ Thanks! OK reyk,
+	  commit ASAP deraadt@
+
+2015-07-28 12:13  florian
+
+	* usr.sbin/httpd/server_fcgi.c: add HSTS to fcgi responses OK reyk
+
+2015-07-24 00:19  tedu
+
+	* lib/libc/crypt/cryptutil.c: permit "bcrypt" as an alias for
+	  "blowfish". this is, after all, what 99% of the world calls it.
+	  allow just "bcrypt" without params to mean auto-tune
+	  ("bcrypt,a").  default remains 8 rounds (for now) ok deraadt
+
+2015-07-23 11:36  semarie
+
+	* usr.sbin/httpd/server_http.c: The realm in authenticate directive
+	  of config file isn't escaped for '"' char.  The diff corrects
+	  this problem by using VIS_DQ.
+
+	  ok reyk@ florian@
+
+2015-07-20 13:38  semarie
+
+	* usr.sbin/httpd/server_file.c: ensure http_path is escaped before
+	  using it in Location redirection.
+
+	  OK reyk@
+
+2015-07-20 03:52  millert
+
+	* lib/libc/gen/vis.c: Add VIS_DQ to escape double quotes.  OK
+	  deraadt@ semarie@ reyk@
+
+2015-07-19 18:34  blambert
+
+	* usr.sbin/httpd/server_fcgi.c: handle error returns from
+	  bufferevent_write()
+
+	  ok florian@
+
+2015-07-19 09:18  nicm
+
+	* lib/libutil/imsg.c: Handle malloc(0) returning NULL (which can
+	  happen on some other platforms) by explicitly making imsg->data =
+	  NULL when there is no data. ok deraadt
+
+2015-07-19 07:17  reyk
+
+	* usr.sbin/httpd/: config.c, httpd.conf.5, httpd.h, parse.y,
+	  server_http.c: For the completeness of HSTS, add the non-standard
+	  preload option.
+
+	  OK florian@
+
+2015-07-19 00:42  blambert
+
+	* usr.sbin/httpd/server_fcgi.c: remove XXX and handle error return
+	  from evbuffer_add()
+
+	  ok florian@
+
+2015-07-19 00:19  reyk
+
+	* usr.sbin/httpd/: httpd.h, server.c: libtls has been changed to
+	  set SSL_MODE_ENABLE_PARTIAL_WRITE and
+	  SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER by default.  This gives
+	  tls_write() a similar short write semantics as write(2) and a
+	  workaround in httpd to cope with the previous differences can be
+	  removed.  Specifically, httpd can stop copying data into a local
+	  buffer that was used to keep it around for repeated writes.
+
+	  OK bluhm@
+
+2015-07-18 21:17  benno
+
+	* regress/usr.sbin/httpd/tests/funcs.pl: whitespace, no functional
+	  change
+
+2015-07-18 18:42  blambert
+
+	* usr.sbin/httpd/server_fcgi.c: treat asprintf failure in
+	  REQUEST_URI case as a fatal error
+
+	  ok florian@
+
+2015-07-18 16:36  kili
+
+	* usr.sbin/httpd/server_file.c: Fix check against NULL which was
+	  reverted by accident in r1.56.
+
+	  ok reyk@
+
+2015-07-18 11:29  jmc
+
+	* usr.sbin/httpd/httpd.conf.5: tweak previous;
+
+2015-07-18 08:00  reyk
+
+	* usr.sbin/httpd/: config.c, httpd.c, httpd.conf.5, httpd.h,
+	  parse.y, server_file.c, server_http.c: Allow to change the
+	  default media type globally or per-location, eg. default type
+	  text/html.
+
+	  OK florian@
+
+2015-07-18 07:41  florian
+
+	* usr.sbin/httpd/: config.c, httpd.conf.5, httpd.h, parse.y,
+	  server_http.c: Implement HTTP Strict Transport Security (HSTS).
+	  Input & OK reyk
+
+2015-07-18 02:56  tedu
+
+	* lib/libc/crypt/bcrypt.c: standards compliant error return (null).
+	  will make ruby happier, at least.  ok deraadt jeremy
+
+2015-07-17 23:53  reyk
+
+	* usr.sbin/httpd/server_file.c: Adjust server_file_modified_since()
+	  to our style.  Please keep httpd clean.
+
+2015-07-17 22:44  reyk
+
+	* usr.sbin/httpd/server_fcgi.c: According to RFC 3875 PATH_INFO
+	  should either contain a full path or be empty ("").  It was not
+	  set at all when there is nothing to set which caused problems
+	  with some FastCGI applications (like Flask/Python through uWSGI).
+
+	  From hrkfdn via github
+
+2015-07-16 21:05  reyk
+
+	* usr.sbin/httpd/: parse.y, server_file.c, server_http.c: spacing
+
+2015-07-16 20:57  reyk
+
+	* regress/usr.sbin/httpd/tests/args-tls-get-1073741824.pl: Add
+	  gigabit test over tls
+
+2015-07-16 20:50  reyk
+
+	* regress/usr.sbin/httpd/tests/funcs.pl: Print the received
+	  percentage in client.log instead of dots.  This makes it nicer
+	  when waiting for large test files.
+
+2015-07-16 20:18  reyk
+
+	* regress/usr.sbin/httpd/tests/funcs.pl: Use sysread instead of
+	  <STDIN> for the stream.
+
+2015-07-16 19:00  reyk
+
+	* regress/usr.sbin/httpd/tests/Makefile: Fix non-sparse mode
+
+2015-07-16 18:43  reyk
+
+	* regress/usr.sbin/httpd/tests/args-get-512.pl: Add another test
+	  for small packets
+
+2015-07-16 18:38  reyk
+
+	* regress/usr.sbin/httpd/tests/funcs.pl: Remove my copyright here
+
+2015-07-16 18:35  reyk
+
+	* regress/usr.sbin/httpd/: Makefile, tests/Client.pm,
+	  tests/Httpd.pm, tests/LICENSE, tests/Makefile, tests/Proc.pm,
+	  tests/README, tests/args-default.pl, tests/args-get-1048576.pl,
+	  tests/args-get-1073741824.pl, tests/args-get-slash.pl,
+	  tests/args-log-user-agent.pl, tests/args-tls.pl, tests/funcs.pl,
+	  tests/httpd.pl: Add httpd regression tests based on bluhm's
+	  regression suite for relayd - "bluhm test".  This is just the
+	  initial version, more tests and changes will be done.
+
+	  As discussed with bluhm@ florian@
+
+2015-07-16 18:29  florian
+
+	* usr.sbin/httpd/: httpd.h, server.c: If we can read faster from
+	  disk than send data to the client stop reading from disk when we
+	  hold a certain amount of data in RAM. Re-enable reading once we
+	  send enough data to the client. Otherwise we might end up with
+	  the whole file (which can be huge) in RAM.  Reported by Matthew
+	  Martin ( matt.a.martin AT gmail ) on bugs@, thanks! OK reyk@,
+	  benno@
+
+2015-07-16 06:46  reyk
+
+	* usr.sbin/httpd/httpd.h: VIS_QUOTE is not there yet, unbreak the
+	  tree. Noticed by semarie@
+
+2015-07-16 01:16  reyk
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_http.c: Escape the
+	  message in server_log() as well.
+
+	  OK benno@
+
+2015-07-16 00:23  reyk
+
+	* usr.sbin/httpd/server_http.c: For some values like the
+	  User-Agent, use vis(3) instead of url_encode().  This makes the
+	  output more readable and matches Apache's log encoding.
+
+	  OK sthen@ brynet@
+
+2015-07-15 19:52  reyk
+
+	* usr.sbin/httpd/server_http.c: Simplify the error path of the
+	  previous commit: by using ret = -1 by default and only setting it
+	  to 0 on success, we don't have to set it in each error case.
+	  While here, also remove two superfluous NULL checks (as pointed
+	  out by semarie).
+
+	  OK semarie@
+
+2015-07-15 19:29  jsing
+
+	* usr.sbin/httpd/server.c: Close connections that fail to complete
+	  a TLS handshake.
+
+	  Based on a diff from Jack Burton <jack at saosce dot com dot au>.
+
+	  ok reyk@
+
+2015-07-15 19:14  jsing
+
+	* usr.sbin/httpd/parse.y: Unbreak configurations that have a
+	  non-TLS listen statement followed by a TLS listen statement. A
+	  bug was introduced in r1.68 of parse.y, which results in flags
+	  being directly copied from the parent, meaning that the TLS flag
+	  for the second server gets lost.
+
+	  ok reyk@
+
+2015-07-15 19:11  jsing
+
+	* usr.sbin/httpd/server.c: Fix typo in comment.
+
+2015-07-15 19:10  jsing
+
+	* usr.sbin/httpd/httpd.conf.5: Document default locations for TLS
+	  certificate and key.
+
+	  ok reyk@
+
+2015-07-15 18:02  semarie
+
+	* usr.sbin/httpd/server_http.c: httpd don't sanitize variables
+	  before putting them in logs. It is possible for an attacker to
+	  push arbitaries characters in logs (newline for forging entries,
+	  or some control escaping interpreted by terminal emulator).
+
+	  OK reyk@
+
+2015-07-15 18:00  jsing
+
+	* usr.sbin/httpd/: config.c, httpd.h, server.c: Send the TLS
+	  certificate and key via separate imsgs, rather than including
+	  them in the IMSG_CFG_SERVER imsg. This allows the certificate and
+	  key to each be almost 16KB (the maximum size for an imsg), rather
+	  than having a combined total of less than 16KB (which can be
+	  reached with large keys, certificate bundles or by including text
+	  versions of certificates).
+
+	  ok reyk@
+
+2015-07-15 16:49  jsing
+
+	* usr.sbin/httpd/server.c: Explicitly check for and handle EOF on a
+	  TLS connection.
+
+	  ok reyk@
+
+2015-07-15 16:39  jsing
+
+	* usr.sbin/httpd/: config.c, server.c: Fix memory leaks that can
+	  occur when config_getserver() fails.
+
+	  config.c r1.34 and r1.30 introduced potential memory leaks for
+	  auth and return_uri when config_getserver fails. Fix this by
+	  switching to serverconfig_free() and adding the missing free for
+	  srv_conf->auth.  While here, make serverconfig_free() a little
+	  more bulletproof by explicit_bzero()ing key material.
+
+	  ok reyk@
+
+2015-07-12 20:40  nicm
+
+	* lib/libutil/: imsg-buffer.c, imsg.c: Use memset instead of bzero
+	  for better portability.
+
+	  ok gilles claudio doug
+
+2015-07-03 16:50  brynet
+
+	* lib/libutil/: imsg-buffer.c, imsg.c: bzero cmsgbuf before using
+	  it, silences valgrind warnings.
+
+	  henning@ "sure"
+
+2015-06-30 21:01  jmc
+
+	* usr.sbin/httpd/patterns.7: new sentence, new line; my apologies
+	  to semarie for not pointing this out when he asked for an ok...
+
+2015-06-30 10:28  semarie
+
+	* usr.sbin/httpd/patterns.7: Add a small paragraph about some
+	  difference with Lua implementation.  Suggestion from Theo
+	  Buehler.
+
+	  OK jmc@ reyk@
+
+2015-06-27 06:22  semarie
+
+	* usr.sbin/httpd/patterns.7: Corrects the manpage for patterns(7):
+	  the indexing for empty capture follow C-style (starting from 0)
+	  and not the Lua-style (starting from 1).
+
+	  Patch from Theo Buehler.
+
+	  OK reyk@
+
+2015-06-26 19:26  semarie
+
+	* usr.sbin/httpd/patterns.h: move #include inside #ifndef
+	  PATTERNS_H
+
+	  OK reyk@
+
+2015-06-26 12:09  semarie
+
+	* regress/usr.sbin/httpd/patterns/test-patterns.out: change
+	  test-patterns.out in order to reflect the error message change in
+	  patterns.c
+
+2015-06-26 12:07  semarie
+
+	* usr.sbin/httpd/patterns.c: Corrects some minors nits. Patch from
+	  Theo Buehler.
+
+	  - cleanup in included headers (removing unsed assert.h, and
+	  reorder) - one remaining '%%' in an error string corrected in '%'
+
+	  while here, add sys/types.h for off_t type.
+
+	  OK reyk@
+
+2015-06-23 21:33  reyk
+
+	* regress/usr.sbin/httpd/patterns/: Makefile,
+	  test-patterns-lua.out: Fix the optional lua patterns test with
+	  obj and different versions.
+
+2015-06-23 20:03  semarie
+
+	* regress/usr.sbin/httpd/: Makefile, patterns/Makefile,
+	  patterns/patterns-tester.c, patterns/patterns-tester.lua,
+	  patterns/test-patterns-lua.out, patterns/test-patterns.in,
+	  patterns/test-patterns.out: add regress tests for httpd
+
+	  - this testsuite covers patterns
+
+2015-06-23 19:29  jmc
+
+	* usr.sbin/httpd/: httpd.conf.5, patterns.7: various tweaks;
+
+2015-06-23 19:25  semarie
+
+	* usr.sbin/httpd/server_http.c: escape the matched substrings
+	  before using it in expansion.
+
+	  ok reyk@
+
+2015-06-23 17:35  semarie
+
+	* usr.sbin/httpd/patterns.c: remove a deprecated character class.
+
+	  it was deprecated in lua code, but here the code is new. The
+	  documentation don't mention it either.
+
+	  ok reyk@
+
+2015-06-23 17:23  reyk
+
+	* usr.sbin/httpd/: Makefile, httpd.conf.5, httpd.h, parse.y,
+	  patterns.7, patterns.c, patterns.h, server_http.c: Add initial
+	  support for pattern matching using Lua's pattern matching code.
+
+	  With important help on the pattern matcher from semarie@
+
+	  OK semarie@
+
+2015-06-22 13:46  reyk
+
+	* usr.sbin/httpd/server_http.c: After the last change, we also have
+	  to url_encode $SERVER_NAME and $REMOTE_USER before using them in
+	  the Location.
+
+	  From Sebastien Marie (semarie)
+
+2015-06-21 15:08  reyk
+
+	* usr.sbin/httpd/server_http.c: When encoding the Location url,
+	  only encode the query and path elements from the user input and
+	  not the constants from the configuration.  This makes it possible
+	  to specify chars like '?' in the uri.
+
+	  OK Sebastien Marie
+
+2015-06-20 03:16  jca
+
+	* lib/libc/asr/asr_private.h: Rename print_sockaddr() to avoid
+	  symbol visibility problems
+
+	  print_sockaddr is internal to asr, and conflicts with
+	  ports/net/samba4.
+
+	  ok eric@
+
+2015-06-11 21:25  reyk
+
+	* lib/libutil/imsg.c: The correct semantic is to check
+	  msgbuf_write() for <= 0, not just < 0.  Fix one occurence in
+	  imsg_flush() and clarify it the man page.
+
+	  Discussed with at least blambert@ jsg@ yasuoka@.
+
+	  OK gilles@
+
+2015-06-11 20:49  reyk
+
+	* usr.sbin/httpd/http.h: Use "compliant" header guards by avoiding
+	  the reserved '_' namespace.
+
+	  Pointed out by Markus Elfring
+
+	  OK mikeb@ millert@
+
+2015-06-09 10:50  jung
+
+	* usr.sbin/httpd/server_fcgi.c: plug fd leak found by Todd Mortimer
+
+	  ok claudio deraadt florian
+
+2015-06-04 21:23  eric
+
+	* lib/libc/asr/: asr.c, asr_private.h: make sure to check for
+	  resolv.conf update the first time the resolver is used after pid
+	  has changed.
+
+	  ok deraadt@
+
+2015-06-03 04:24  millert
+
+	* usr.sbin/httpd/httpd.c: Do not assume that asprintf() clears the
+	  pointer on failure, which is non-portable.  Also add missing
+	  asprintf() return value checks.  OK deraadt@ guenther@ doug@
+
+2015-05-29 10:49  eric
+
+	* lib/libc/asr/: asr.c, asr_private.h: fix a possible off-by-one
+	  when reading /etc/hosts if it doesn't end with a newline.
+
+	  ok jca@
+
+2015-05-28 21:29  jmc
+
+	* usr.sbin/httpd/httpd.conf.5: use "uri"; from yegor timoschenko
+
+2015-05-28 19:08  florian
+
+	* usr.sbin/httpd/: control.c, httpd.c: Do not try to unlink the
+	  control socket in an unprivileged child process on shutdown.
+	  Found while working on tame(2).  OK benno@
+
+2015-05-26 21:28  eric
+
+	* lib/libc/asr/: asr.c, asr_private.h: simply use _PATH_HOSTS where
+	  appropriate
+
+2015-05-20 11:28  kettenis
+
+	* usr.sbin/httpd/: httpd.h, server_http.c: Use off_t instead of
+	  size_t to pass file size and print it using %lld when
+	  constructing the Content-Length header field.  Should fix some,
+	  but probably not all, problems with serving files bigger than 2G
+	  on 32-bit architectures.
+
+	  ok reyk@, florian@
+
+2015-05-19 20:16  sobrado
+
+	* usr.sbin/httpd/httpd.conf.5: better spacing in media types.
+
+	  ok reyk@
+
+2015-05-19 20:12  sobrado
+
+	* usr.sbin/httpd/httpd.conf.5: sort media type extensions for
+	  text/html and image/jpeg as given in /usr/share/misc/mime.types;
+	  do not include shtml as it is for Server Side Includes (SSI) --
+	  we will never do SSI.
+
+	  joint work with reyk@
+
+	  ok reyk@
+
+2015-05-19 20:03  sobrado
+
+	* usr.sbin/httpd/httpd.conf.5: drop comment about being possible to
+	  include /etc/nginx/mime.types, we do not have to care about nginx
+	  anymore.
+
+	  ok jmc@ (who thinks previously suggested removing it), and reyk@
+
+2015-05-05 13:10  florian
+
+	* usr.sbin/httpd/server_file.c: Implement If-Modified-Since.  From
+	  Kyle Thompson <jmp AT giga DOT moe>.	Tweaks by me.  OK benno@
+
+2015-05-03 20:39  florian
+
+	* usr.sbin/httpd/: server_file.c, server_http.c: Implement byte
+	  ranges.  From Sunil Nimmagadda <sunil At nimmagadda DOT net> OK
+	  benno@
+
+2015-05-01 00:18  sthen
+
+	* usr.sbin/httpd/: server.c: MFC
+	  usr.sbin/httpd/server.c:1.62->1.63, req by florian@
+
+	  We cannot log errors with server_close() before allocating
+	  clt_log evbuffer.  server_close() calls server_log() which uses
+	  ctl_log.  Crash reported by Daniel Jakots <vigdis AT chown DOT
+	  me>, thanks! OK benno
+
+2015-04-25 16:40  florian
+
+	* usr.sbin/httpd/server_file.c: Prepend files or directories
+	  containing ":" with "./" in directory indexes as per RFC 3986: A
+	  path segment that contains a colon character (e.g., "this:that")
+	  cannot be used as the first segment of a relative-path reference,
+	  as it would be mistaken for a scheme name.  Such a segment must
+	  be preceded by a dot-segment (e.g., "./this:that") to make a
+	  relative- path reference.
+
+	  While here add a "/" to the end of directory names, this saves us
+	  one redirect round trip.
+
+	  Found the hard way & "functionality wise, OK" ajacoutot@ RFC
+	  pointer & OK benno@
+
+2015-04-23 18:59  florian
+
+	* usr.sbin/httpd/server.c: We cannot log errors with server_close()
+	  before allocating clt_log evbuffer.  server_close() calls
+	  server_log() which uses ctl_log.  Crash reported by Daniel Jakots
+	  <vigdis AT chown DOT me>, thanks! OK benno
+
+2015-04-18 11:27  jsg
+
+	* usr.sbin/httpd/server_http.c: Regis Leroy reported that httpd
+	  does not strictly accept CRLF for newlines which could lead to
+	  http response splitting/smuggling if a badly behaved proxy is in
+	  front of httpd.
+
+	  Switch from evbuffer_readline() to evbuffer_readln() with
+	  EVBUFFER_EOL_CRLF_STRICT to avoid this.
+
+	  ok florian@
+
+2015-04-15 00:16  nicm
+
+	* lib/libevent/event.3: Another couple of commas in the wrong
+	  place, ok jmc
+
+2015-04-14 23:34  nicm
+
+	* lib/libevent/event.3: Remove an extra comma pointed out by jmc@.
+
+2015-04-14 23:25  nicm
+
+	* lib/libevent/: Makefile, event.3: Reorder prototypes to better
+	  match manpage layout and add some missing argument names, from
+	  Fabian Raetz. ok deraadt
+
+2015-04-11 16:52  jsing
+
+	* usr.sbin/httpd/: config.c, logger.c, server.c: Always check the
+	  return value of proc_composev_imsg() and handle failures
+	  appropriately. Otherwise imsg construction can silently fail,
+	  resulting in non-obvious problems.
+
+	  Found the hard way by Theodore Wynnychenko.
+
+	  ok doug@ florian@
+
+2015-04-09 18:48  florian
+
+	* usr.sbin/httpd/server_http.c: Revert previous as this breaks
+	  stuff.  I fscked up the testing, sorry! Found the hard way by
+	  jsg@
+
+2015-04-08 21:39  florian
+
+	* usr.sbin/httpd/server_http.c: Do not silently accept multiple
+	  Content-Length headers.  Pointed out by Regis Leroy (regis.leroy
+	  AT makina-corpus DOT com), thanks! Tweak and OK reyk@
+
+2015-04-01 06:51  jsg
+
+	* usr.sbin/httpd/parse.y: Zero the tls cert/key length variables
+	  when inheriting a server configuration for multiple listen
+	  statements in a server block.  Otherwise httpd will crash when a
+	  listen statement with tls is followed by a listen statement
+	  without tls.
+
+	  Problem reported by Kent Fritz on misc.
+
+	  ok jsing@ looks good deraadt@
+
+2015-03-26 20:16  jmc
+
+	* usr.sbin/httpd/: httpd.8, httpd.conf.5: pointers to slowcgi(8);
+	  from alexei malinin
+
+2015-03-26 10:01  florian
+
+	* usr.sbin/httpd/server_fcgi.c: Allow more characters in CGI
+	  environment variables as specified by RFC 7230 and RFC 3875.
+	  sthen@ suggested to add a comment to explain where the list of
+	  characters is coming from.  Found the hard way and initial diff
+	  from Tim van der Molen (tbvdm at xs4all), thanks! Some more
+	  allowed characters added by me.  OK sthen@
+
+2015-03-15 23:08  florian
+
+	* usr.sbin/httpd/: httpd.h, server.c: Prevent use after free.
+	  While here unconditionally free clt and move declaration of
+	  server_inflight_dec() into server.c Found while investigating if
+	  (foo != NULL) free(foo) patterns pointed out by Markus Elfring.
+	  OK reyk
+
+2015-03-11 22:52  reyk
+
+	* usr.sbin/httpd/httpd.conf.5: Wrap long line.	This is another
+	  airplane commit from an 747-8 somewhere over Siberia and I think
+	  I'm just getting into minor turbulences.
+
+2015-03-09 16:51  reyk
+
+	* usr.sbin/httpd/httpd.conf.5: Document the TLSv1.2-only change.
+
+	  Figured out sthen@
+
+2015-03-09 16:46  reyk
+
+	* usr.sbin/httpd/parse.y: Make httpd TLSv1.2-only by default.  Some
+	  older browsers, like IE 10, will be incompatible with this
+	  change.  We do this early in the release cycle, so there is a
+	  good chance to get more experience with the impact of it and the
+	  upcoming restricted cipher modes.
+
+	  OK jsing@ deraadt@ benno@ bmercer@ krw@ florian@
+
+2015-03-06 06:10  reyk
+
+	* usr.sbin/httpd/httpd.conf.5: Fix minor manpage bug: it is a
+	  server, not a relay.
+
+	  OK deraadt@
+
+2015-02-24 20:19  tedu
+
+	* lib/libc/crypt/cryptutil.c: Set errno to EINVAL, instead of
+	  letting ERANGE escape out.  Printing strerror() in that case will
+	  say result too large, even if rounds is actually too small.
+	  invalid is less specific, but less incorrect.  ok millert
+
+2015-02-24 08:56  bentley
+
+	* usr.sbin/httpd/httpd.8: Mark up filenames with Pa.
+
+	  ok reyk@
+
+2015-02-23 20:22  chrisz
+
+	* usr.sbin/httpd/server_fcgi.c: Use the rewritten (index file
+	  appended) uri as DOCUMENT_URI.
+
+	  OK florian@
+
+2015-02-23 19:43  reyk
+
+	* usr.sbin/httpd/: httpd.c, httpd.conf.5, httpd.h, server_http.c:
+	  Allow to specify CGI variables as macros in redirection strings,
+	  eg.  block return 301 "http://www.example.com/$REQUEST_URI"
+
+	  OK tedu@ florian@
+
+2015-02-23 12:48  reyk
+
+	* usr.sbin/httpd/config.c: Fix an issues that was found by halex@:
+	  we didn't set the return_uri in non-location virtual hosts.  Add
+	  comments clarify the variable-length values.
+
+	  OK halex@
+
+2015-02-23 11:39  reyk
+
+	* usr.sbin/httpd/Makefile: Add -O0 to the DEBUG example.  Figured
+	  out while analysing core dumps with halex@.  No binary change -
+	  it is commented out.
+
+2015-02-23 10:52  reyk
+
+	* usr.sbin/httpd/server.c: Add return_uri to serverconfig_reset()
+	  to avoid using garbage from the imsg buffer.
+
+	  Debugging & OK halex@
+
+2015-02-19 10:19  florian
+
+	* usr.sbin/httpd/httpd.conf.5: Typo.  From Navan Carson, thanks!
+
+2015-02-15 14:43  jsing
+
+	* usr.sbin/httpd/httpd.conf.5: Document the tls protocols option.
+
+2015-02-14 21:15  jca
+
+	* lib/libc/asr/asr_private.h: Limit AI_ADDRCONFIG effects to DNS
+	  queries.
+
+	  This is what RFC 2553 initially described, sadly RFC 3493 stopped
+	  limiting scope to DNS.  This can result in nonsensical failures
+	  with loopback addresses, link-local addresses, raw addresses and
+	  /etc/hosts entries.
+
+	  with and ok eric@ sperreault@
+
+2015-02-12 11:05  reyk
+
+	* usr.sbin/httpd/: httpd.c, httpd.h, server_file.c: Rename
+	  escape_uri() to url_encode() because it is the opposite of
+	  url_decode().  No functional change.
+
+2015-02-12 05:40  jsing
+
+	* usr.sbin/httpd/: httpd.h, parse.y, server.c: Allow TLS protocols
+	  to be specified via a "tls protocols" configuration option.
+
+	  ok reyk@
+
+2015-02-12 05:23  jsing
+
+	* usr.sbin/httpd/server.c: Change TLS_PROTOCOLS_DEFAULT to be
+	  TLSv1.2 only. Add a TLS_PROTOCOLS_ALL that includes all currently
+	  supported protocols (TLSv1.0, TLSv1.1 and TLSv1.2). Change all
+	  users of libtls to use TLS_PROTOCOLS_ALL so that they maintain
+	  existing behaviour.
+
+	  Discussed with tedu@ and reyk@.
+
+2015-02-11 13:52  florian
+
+	* usr.sbin/httpd/http.h: More http status codes.  OK benno@, reyk@
+
+2015-02-10 09:12  florian
+
+	* usr.sbin/httpd/: httpd.c, httpd.h, server_file.c: Encode
+	  directory listings.  Problem pointed out by remco AT
+	  d-compu.dyndns.org some time ago.  Input / OK reyk@
+
+2015-02-09 00:40  deraadt
+
+	* usr.bin/htpasswd/htpasswd.c: in getopt() blocks, stop
+	  incrementing flag variable which are supposed to just be 0/1 ok
+	  miod florian
+
+2015-02-08 05:50  reyk
+
+	* usr.sbin/httpd/parse.y: Use AI_ADDRCONFIG when resolv hosts on
+	  startup.
+
+	  OK henning@
+
+2015-02-08 00:59  reyk
+
+	* usr.sbin/httpd/: server_http.c, httpd.c, logger.c, parse.y,
+	  server_file.c: spacing
+
+2015-02-08 00:56  reyk
+
+	* usr.sbin/httpd/: config.c, httpd.h, server.c: Remove
+	  server_load_file() in favor of tls_load_file(3)
+
+2015-02-07 09:12  jmc
+
+	* usr.sbin/httpd/httpd.conf.5: double word fix;
+
+2015-02-07 07:46  jsing
+
+	* usr.sbin/httpd/httpd.conf.5: Document tls dhe and tls ecdhe
+	  options.
+
+2015-02-07 07:26  jsing
+
+	* usr.sbin/httpd/: httpd.h, parse.y, server.c: Add httpd
+	  configuration options to allow the specification of DHE
+	  parameters and the ECDHE curve. This primarily allows for DHE
+	  cipher suites to be enabled.
+
+	  ok reyk@
+
+2015-02-07 02:23  reyk
+
+	* usr.sbin/httpd/: config.c, httpd.conf.5, httpd.h, parse.y,
+	  server.c, server_http.c: Add support for blocking, dropping, and
+	  redirecting requests.
+
+	  OK florian@
+
+2015-02-06 14:05  reyk
+
+	* usr.sbin/httpd/: httpd.h, parse.y, server_http.c: Fix log options
+	  in locations.
+
+	  Reported and tested by Markus Bergkvist OK florian@
+
+2015-02-05 13:59  millert
+
+	* lib/libevent/buffer.c: Include stdint.h, not limits.h to get
+	  SIZE_MAX.  OK guenther@
+
+2015-02-05 11:47  reyk
+
+	* usr.sbin/httpd/server_http.c: Fix potential NULL pointer
+	  dereference.
+
+2015-02-05 11:46  reyk
+
+	* usr.sbin/httpd/config.c: Add missing error case to free allocated
+	  server_config on failure.
+
+2015-02-04 09:39  florian
+
+	* etc/examples/httpd.conf: Typo From Michael (lesniewskister AT
+	  gmail), thanks!
+
+2015-01-29 09:52  reyk
+
+	* usr.sbin/httpd/parse.y: Fix a regression that removed support for
+	  using service names instead of ports.  It is now possible to use
+	  "listen on * port www" again.
+
+	  Found by ajacoutot@ OK ajacoutot@ blambert@
+
+2015-01-29 00:33  tedu
+
+	* lib/libc/crypt/bcrypt.c: dial the time back to about 0.1s, closer
+	  to the original targets and friendlier for users. requested by
+	  deraadt
+
+2015-01-21 23:23  reyk
+
+	* usr.sbin/httpd/: httpd.h, server_fcgi.c: Ooops, no need to
+	  include sys/cdefs.h.
+
+	  Pointed out by florian@
+
+2015-01-21 23:21  reyk
+
+	* usr.sbin/httpd/: config.c, control.c, httpd.c, httpd.h, log.c,
+	  logger.c, parse.y, proc.c, server.c, server_fcgi.c,
+	  server_file.c, server_http.c: httpd is based on relayd and had
+	  included many headers that are only needed by its ancestor.
+	  jsg@, include-what-you-use, and some manual review helped to
+	  cleanup the headers (take iwyu with a grain of salt).  Based on
+	  common practice, httpd.h now also includes the necessary headers
+	  for itself.
+
+	  OK florian@
+
+2015-01-19 22:07  reyk
+
+	* usr.sbin/httpd/: config.c, parse.y: No need to include pfvar.h,
+	  another leftover from relayd.  It was also used for portrange
+	  operators which weren't used in httpd.
+
+	  OK florian@
+
+2015-01-19 21:01  florian
+
+	* usr.sbin/httpd/server_http.c: Log the remote user in the
+	  access.log.  Pointed out by, tweak & OK reyk@
+
+2015-01-19 21:00  florian
+
+	* usr.sbin/httpd/: httpd.h, server_fcgi.c, server_http.c:
+	  s/clt_fcgi_remote_user/clt_remote_user/ OK reyk@
+
+2015-01-19 20:37  reyk
+
+	* usr.sbin/httpd/: config.c, httpd.c, httpd.conf.5, httpd.h,
+	  parse.y, server.c, server_fcgi.c, server_http.c: Decouple auth
+	  parameters from struct server_config into struct auth.
+
+	  OK florian@
+
+2015-01-18 19:39  florian
+
+	* usr.sbin/httpd/httpd.conf.5: tweak previous with help from jmc@
+
+2015-01-18 15:01  florian
+
+	* usr.sbin/httpd/: httpd.conf.5, httpd.h, parse.y, server_fcgi.c,
+	  server_http.c: First stab at implementing basic auth.  Currently
+	  the htpasswd file needs to be in the chroot; will hopefully
+	  improved soonish.  Based on a diff from Oscar Linderholm many
+	  months ago but turned into a complete rewrite.  input/OK reyk@
+
+2015-01-16 17:48  deraadt
+
+	* lib/libc/asr/asr.c: Move to the <limits.h> universe.	review by
+	  millert, binary checking process with doug, concept with guenther
+
+2015-01-16 07:40  deraadt
+
+	* usr.sbin/httpd/: httpd.c, httpd.h, logger.c, parse.y, server.c,
+	  server_fcgi.c, server_file.c, server_http.c: Replace
+	  <sys/param.h> with <limits.h> and other less dirty headers where
+	  possible.  Annotate <sys/param.h> lines with their current
+	  reasons.  Switch to PATH_MAX, NGROUPS_MAX, HOST_NAME_MAX+1,
+	  LOGIN_NAME_MAX, etc.	Change MIN() and MAX() to local definitions
+	  of MINIMUM() and MAXIMUM() where sensible to avoid pulling in the
+	  pollution.  These are the files confirmed through binary
+	  verification.  ok guenther, millert, doug (helped with the
+	  verification protocol)
+
+2015-01-15 18:32  chl
+
+	* lib/libc/crypt/cryptutil.c: remove unused variable
+
+	  ok tedu@
+
+2015-01-13 10:21  reyk
+
+	* usr.sbin/httpd/: config.c, http.h, httpd.conf.5, httpd.h,
+	  parse.y, server.c, server_file.c, server_http.c: bump copyright
+	  year
+
+2015-01-13 09:54  reyk
+
+	* usr.sbin/httpd/server_fcgi.c: Abort if fcgi_chunked is not true
+	  to avoid sending additional garbage after the response.
+
+	  Found by Erik Lax
+
+	  ok florian@
+
+2015-01-12 04:20  tedu
+
+	* lib/libc/crypt/bcrypt.c: rename blocks to words. bcrypt "blocks"
+	  are unrelated to blowfish blocks, nor are they the same size.
+
+2015-01-07 21:12  bluhm
+
+	* lib/libevent/buffer.c: Security fix for libevent 1.4
+	  CVE-2014-6272 in 5.5-stable.	OK deraadt@
+
+2015-01-07 21:05  bluhm
+
+	* lib/libevent/buffer.c: Security fix for libevent 1.4
+	  CVE-2014-6272 in 5.6-stable.	OK deraadt@
+
+2015-01-07 17:57  reyk
+
+	* usr.sbin/httpd/http.h: SVG is common enough to add it to the
+	  default types.
+
+2015-01-07 17:05  tedu
+
+	* lib/libc/crypt/bcrypt.c: stupid me. need errno.h
+
+2015-01-07 16:46  tedu
+
+	* lib/libc/crypt/bcrypt.c: set errno = EINVAL for invalid salts and
+	  hashes in most functions.  remember to set EACCES in
+	  bcrypt_checkpass for hash differences.  the higher level
+	  crypt_checkpass function will reset errno to EACCES in all cases,
+	  which is probably the right behavior, but this change gives code
+	  working with the lower level functions the correct errno if they
+	  care.
+
+2015-01-07 12:04  reyk
+
+	* usr.sbin/httpd/parse.y: Relax configuration list parsing to allow
+	  multi-line blocks for tls, root, tcp etc.
+
+	  Based on a diff from Nathanael Rensen.  OK florian@
+
+2015-01-07 00:11  bluhm
+
+	* lib/libevent/event.c: Backout revision 1.37.	Setting
+	  ev->ev_pncalls to NULL results in a use after free if the
+	  callback has freed the ev.  With F in malloc.conf both tmux and
+	  the regression tests triggered a segmentation fault.	OK nicm@
+
+2015-01-06 18:55  stsp
+
+	* usr.sbin/httpd/server_file.c: Make httpd return "404 not found"
+	  if an intermediate component of a requested file path does not
+	  exist rather than returning "500 internal server error".  ok reyk
+
+2015-01-06 18:48  reyk
+
+	* usr.sbin/httpd/server_http.c: I missed one goto abort instead of
+	  free(line).
+
+	  Found by Fabian Raetz at gmail
+
+2015-01-06 15:07  reyk
+
+	* usr.sbin/httpd/: config.c, parse.y, server.c: Only open a socket
+	  once for each unique "listen on" statement.  This prevents
+	  running out of file descriptors when loading a configuration with
+	  many aliases.
+
+	  OK florian@
+
+2015-01-06 14:48  reyk
+
+	* usr.sbin/httpd/server_http.c: Instead of calling free(line) in
+	  each error case, call it once in fail:.
+
+	  From Fabian Raetz at gmail
+
+2015-01-06 14:38  reyk
+
+	* usr.sbin/httpd/server_http.c: Return "400 Bad Request" instead of
+	  "500 Internal Server Error" for unknown/invalid HTTP requests.
+
+	  From Fabian Raetz at gmail
+
+2015-01-06 12:42  bluhm
+
+	* lib/libevent/signal.c: Apply commit
+	  e0e6958aa074a7714cd7c4aa779a1dfede3a03b1 from upstream.  - Avoid
+	  deadlock when activating signals.  Fixes bug 3048812.    Based on
+	  patch by Nicholas Marriott.  The deadlock was ultimately fixed in
+	  a different way (by disabling reinit - see event.c r1.25).  Add
+	  it now for consistency but without the Windows compatibility
+	  code.  Convert the fnctl() calls to SOCK_CLOEXEC | SOCK_NONBLOCK
+	  to simplify the code.  OK nicm@
+
+2015-01-06 12:27  bluhm
+
+	* lib/libevent/event.c: Apply commit
+	  2d8cf0b720cdd5f9f292f174a10ff74e62a380ec from upstream.  -
+	  Defensive programming to prevent (hopefully impossible)
+	  stack-stomping OK nicm@
+
+2015-01-06 00:14  bluhm
+
+	* lib/libevent/: buffer.c, event.h: Fix CVE-2014-6272 in Libevent
+	  1.4 from upstream: -
+	  https://github.com/libevent/libevent/commit/7b21c4eabf1f3946d3f63cce1319c490caab8ecf
+	  - For this fix, we need to make sure that passing too-large
+	  inputs to   the evbuffer functions can't make us do bad things
+	  with the heap.  On top of that do: - Update libevent version to
+	  1.4.15-stable.  - Use SIZE_MAX from limits.h instead of a private
+	  define.  - Do not declare 'size_t need' twice to avoid a compiler
+	  warning.  OK sthen
+
+2015-01-05 14:10  tedu
+
+	* lib/libc/crypt/bcrypt.c: convert clock() to clock_gettime() for
+	  improved precision (and accuracy?) guenther suggested using
+	  thread time, which actually may improve accuracy if somebody puts
+	  this in a threaded program.
+
+2015-01-05 12:03  reyk
+
+	* usr.sbin/httpd/httpd.conf.5: Be more specific: path is a
+	  component of the URI/URL, so use "path" instead of "URI" or "URL"
+	  when referring to it.
+
+2015-01-04 23:23  chrisz
+
+	* usr.sbin/httpd/: httpd.conf.5, httpd.h, parse.y, server_fcgi.c,
+	  server_file.c, server_http.c: add new url stripping option:
+
+	  strip number	  Strip number path components from the beginning
+	  of the  request URI before looking up the stripped-down URI at
+	  the document root.
+
+	  reviewed with much patience and OK by reyk@
+
+2015-01-04 00:54  reyk
+
+	* usr.sbin/httpd/parse.y: Reset tls key and cert to NULL when
+	  duplicating a server - avoids a possible double free in the error
+	  path of the parser.
+
+	  Found by + OK doug@
+
+2015-01-03 17:20  reyk
+
+	* usr.sbin/httpd/parse.y: Tweak previous - add a missing free in
+	  the error path.
+
+2015-01-03 16:49  reyk
+
+	* usr.sbin/httpd/: config.c, httpd.conf.5, parse.y: Support alias
+	  names and multiple listen statements per server block.  The
+	  implementation is done in the parser by expanding each
+	  alias/listen into an independent server configuration; this makes
+	  it easier to handle internally without adding additional loops or
+	  conditions.
+
+	  OK florian@
+
+2015-01-02 20:09  reyk
+
+	* usr.sbin/httpd/httpd.h: Bump config flags field to 32bits.  Makes
+	  room for future changes - but no functional change yet.
+
+2015-01-01 15:15  reyk
+
+	* usr.sbin/httpd/: server_file.c, server_http.c: Use the HTML5
+	  doctype for error and auto index pages because it is shorter,
+	  newer, and the recommendation.  From James Jerkins.
+
+	  Exclude the charset for now because it is not explicitly handled
+	  by httpd.
+
+	  OK validator.w3.org (This document was successfully checked as
+	  HTML5!)
+
+2014-12-30 11:27  tedu
+
+	* lib/libc/crypt/: bcrypt.c, cryptutil.c: copy bcrypt autotune from
+	  encrypt(1) and expose via crypt_newhash ok deraadt miod
+
+2014-12-28 14:55  reyk
+
+	* etc/examples/httpd.conf: Change the default ext_addr from
+	  "egress" to "*".  Listening on the egress group only works if you
+	  have a default route; this confused some people.
+
+2014-12-28 14:53  reyk
+
+	* usr.sbin/httpd/httpd.conf.5: Change the default example from
+	  "listen on egress" to "listen on *".	Listening on the egress
+	  group only works if you have a default route; this confused some
+	  people.
+
+2014-12-25 23:20  benno
+
+	* lib/libutil/imsg-buffer.c: return ERANGE instead of ENOMEM, so
+	  callers can differentiate real oom from this case where we have a
+	  static buffer and cant realloc.
+
+	  ok phessler, claudio, reyk
+
+2014-12-24 23:10  tedu
+
+	* lib/libc/crypt/cryptutil.c: simplify crypt_checkpass. The API
+	  promise is that this function doesn't use global data. The
+	  simplest fix is to only check blowfish passwords, and implicitly
+	  lock out DES passwords.  crypt_checkpass is currently only used
+	  in one place, passwd, to verify the local user's password, so
+	  this is probably acceptable.	Gives people a little more time to
+	  migrate away from DES before introduing checkpass into more
+	  places.
+
+2014-12-21 01:54  guenther
+
+	* usr.sbin/httpd/: config.c, control.c, log.c, logger.c, parse.y,
+	  proc.c, server.c, server_fcgi.c, server_file.c, server_http.c:
+	  Stop pulling in <arpa/inet.h> or <arpa/nameser.h> when
+	  unnecessary.	*Do* pull it in when in_{port,addr}_h is needed and
+	  <netinet/in.h> isn't.
+
+	  ok reyk@
+
+2014-12-18 11:18  reyk
+
+	* usr.sbin/httpd/httpd.conf.5: Document * and :: to listen on all
+	  IPv4 or IPv6 addresses.
+
+2014-12-18 11:10  reyk
+
+	* usr.sbin/httpd/parse.y: Accept * as an alias for the default ipv4
+	  listen address.
+
+	  OK jsg@
+
+2014-12-18 10:00  reyk
+
+	* usr.sbin/httpd/httpd.conf.5: "tcp nodelay" shouldn't be
+	  discussing relaying SSH; this was a remnant from relayd.conf.5.
+
+	  From Ross L Richardson
+
+2014-12-16 04:35  millert
+
+	* usr.sbin/httpd/proc.c: Replace setpgrp(0, getpid()) with
+	  setpgid(0, 0).  OK deraadt@ tedu@
+
+2014-12-12 15:45  reyk
+
+	* etc/examples/httpd.conf, usr.sbin/httpd/config.c,
+	  usr.sbin/httpd/httpd.8, usr.sbin/httpd/httpd.conf.5,
+	  usr.sbin/httpd/httpd.h, usr.sbin/httpd/parse.y,
+	  usr.sbin/httpd/server.c, usr.sbin/httpd/server_fcgi.c,
+	  usr.sbin/httpd/server_file.c: Like previously done in relayd,
+	  change the keyword "ssl" to "tls" to reflect reality.
+
+	  OK benno@
+
+2014-12-11 18:06  schwarze
+
+	* usr.sbin/httpd/httpd.c: When scanning backwards for the last dot
+	  in a filename, stop at the '/' marking the beginning of the
+	  filename.  This allows to configure a Content-Type for a filename
+	  without a dot.  OK reyk@
+
+2014-12-08 20:31  florian
+
+	* usr.sbin/httpd/server_http.c: Do not send an error body in a HEAD
+	  request answer.  From Bertrand Janin (b at janin dot com),
+	  thanks! OK reyk@
+
+2014-12-08 04:45  bcook
+
+	* lib/libc/stdlib/reallocarray.c: avoid left shift overflow in
+	  reallocarray.
+
+	  Some 64-bit platforms (e.g. Windows 64) have a 32-bit long. So,
+	  shifting 1UL 32-bits to the left causes an overflow. This
+	  replaces the constant 1UL with (size_t)1 so that we get the
+	  correct constant size for the platform.
+
+	  discussed with tedu@ & deraadt@
+
+2014-12-07 17:05  florian
+
+	* usr.sbin/httpd/config.c: Avoid NULL deref in error case; found
+	  with llvm.  OK reyk
+
+2014-12-04 03:44  tedu
+
+	* usr.sbin/httpd/: httpd.c, parse.y, server.c, server_fcgi.c,
+	  server_file.c, server_http.c: stop viral header propagation. none
+	  of this code uses sys/hash.h from Max Fillinger
+
+2014-11-24 23:47  tedu
+
+	* lib/libc/crypt/bcrypt.c: introduce a hashspace define and check
+	  that there's enough space to write out a hash. also simplify
+	  writing out the hash.
+
+2014-11-24 22:36  tedu
+
+	* lib/libc/crypt/cryptutil.c: check crypt() for null. noticed by
+	  Jonas Termansen
+
+2014-11-22 01:24  tedu
+
+	* usr.sbin/httpd/: config.c, httpd.c: use size_t where appropriate.
+	  ok deraadt reyk
+
+2014-11-21 18:49  deraadt
+
+	* usr.sbin/httpd/httpd.c: white space begone
+
+2014-11-21 13:32  schwarze
+
+	* lib/libc/crypt/cryptutil.c: Let crypt_checkpass() set EACCES
+	  after bcrypt_checkpass() failure; ok tedu@
+
+2014-11-21 08:44  dlg
+
+	* lib/libevent/buffer.c: libraries shouldnt print to stderr when
+	  things dont go their way.
+
+	  switch fprintf(stderr) over to event_warn() on malloc failure.
+	  fix up an errant newline in an existing event_warn while there.
+
+	  originally i just wanted to delete the fprintf diff from nicm@
+	  who is away from a keyboard right now so cant commit guenther@
+	  agrees with the idea
+
+2014-11-21 07:59  dlg
+
+	* lib/libevent/evbuffer_new.3: evbuffer_read will return 0 one an
+	  end of file condition.
+
+2014-11-21 06:13  tedu
+
+	* lib/libc/crypt/cryptutil.c: change prototype for crypt_newhash.
+	  the login_cap_t is a holdover from its pwd_gensalt origins, but a
+	  string argument works equally work and is more friendly to
+	  consumers beyond local user accounts.  ok deraadt
+
+2014-11-20 14:39  jmc
+
+	* lib/libevent/evbuffer_new.3: zap some stray commas;
+
+2014-11-20 14:35  jmc
+
+	* lib/libevent/evbuffer_new.3: add evbuffer_expand to NAME;
+
+2014-11-20 14:34  jmc
+
+	* lib/libevent/Makefile: put MLINKS in the order they appear in the
+	  man page, so i don;t go blind trying to check what's missing;
+
+2014-11-20 08:48  jasper
+
+	* usr.sbin/httpd/: config.c, http.h, httpd.c, httpd.h, logger.c,
+	  parse.y, server.c, server_fcgi.c, server_file.c, server_http.c:
+	  httpd was developed very rapidly in the weeks before 5.6 release,
+	  and it has a few flaws.  It would be nice to get these flaws
+	  fully remediated before the next release, and that requires the
+	  community to want to use it.	Therefore here is a "jumbo" patch
+	  that brings in the most important fixes.
+
+	  committing on behalf of reyk@
+
+2014-11-20 06:51  jsg
+
+	* usr.sbin/httpd/parse.y: Don't allow embedded nul characters in
+	  strings.  Fixes a pfctl crash with an anchor name containing an
+	  embedded nul found with the afl fuzzer.
+
+	  pfctl parse.y patch from and ok deraadt@
+
+2014-11-20 02:49  dlg
+
+	* lib/libevent/evbuffer_new.3: document the only macro i find
+	  useful when working with evbuffers.
+
+2014-11-20 01:02  dlg
+
+	* lib/libevent/event.3: might help to Xr evbuffer_new 3
+
+2014-11-20 01:01  dlg
+
+	* lib/libevent/evbuffer_new.3: im not good at grammar things.
+
+	  from schwarze@
+
+2014-11-20 01:00  dlg
+
+	* lib/libevent/evbuffer_new.3: use .Va to say errno is a variable.
+
+	  from schwarze@
+
+2014-11-20 00:58  dlg
+
+	* lib/libevent/evbuffer_new.3: fix erroneous capitalisation of a
+	  word in the middle of a sentence.
+
+	  from schwarze again
+
+2014-11-20 00:57  dlg
+
+	* lib/libevent/evbuffer_new.3: less worse escapes for \ from ingo.
+	  im sure there's a much nicer way to represent newlines still.
+
+2014-11-20 00:55  dlg
+
+	* lib/libevent/: evbuffer_new.3, event.3: use .In to specify
+	  includes.
+
+2014-11-20 00:54  dlg
+
+	* lib/libevent/evbuffer_new.3: ingo also points out we're
+	  documenting things that work with evbuffers, not evbufbuffers.
+
+2014-11-20 00:53  dlg
+
+	* lib/libevent/evbuffer_new.3: ingo points out
+
+	  .Fo evbuffer_readln .Fa "struct evbuffer *buf" .Fa "size_t
+	  *read_out" .Fa "enum evbuffer_eol_style eol_style" .Fc
+
+	  is more readable mdoc for very long prototypes than lines like
+
+	  .Fn "evbuffer_readln" "struct evbuffer *buf" "size_t *read_out"
+	  "enum evbuffer_eol_style eol_style"
+
+2014-11-20 00:50  dlg
+
+	* lib/libevent/: Makefile, evbuffer_new.3, event.3: i got sick of
+	  having to read the source code to know what the evbuffer_foo
+	  functions do. reyk, nicm, jmc, and schwarze seem to support a
+	  manpage as a reasonable solution to this problem.
+
+	  im putting this in a separate manpage because i find they get too
+	  cumbersome when they get too big. ingo agrees (and suggests even
+	  this might be too big).
+
+	  the file is evbuffer_new.3 rather than evbuffer.3 because we
+	  document functions.
+
+	  ok reyk@ nicm@ jmc@ schwarze@ this is rough, everyone has tweaks
+	  coming.
+
+2014-11-19 21:29  jmc
+
+	* lib/libevent/event.3: BUGS is no longer relevant, according to
+	  nicm;
+
+2014-11-17 20:48  millert
+
+	* lib/libc/gen/vis.c: Add stravis(), an allocating version of
+	  strvis().  OK doug@
+
+2014-11-17 17:47  tedu
+
+	* lib/libc/crypt/cryptutil.c: add new function crypt_newhash to
+	  simplify creating new hashes.  does most of the work pwd_gensalt
+	  did, but also creates the hash.  (unused yet)
+
+2014-11-12 17:52  jmc
+
+	* usr.sbin/httpd/httpd.conf.5: tweak previous;
+
+2014-11-11 16:54  beck
+
+	* usr.sbin/httpd/: httpd.c, httpd.conf.5, httpd.h, logger.c,
+	  parse.y: Allow the log directory to be configurable in the config
+	  file, rather than fixed as /logs within the chroot.  As this
+	  httpd is properly privesp'ed this has the nice property of
+	  allowing us to put the logs outside the chroot if we want to.  ok
+	  reyk@
+
+2014-11-10 15:16  beck
+
+	* usr.sbin/httpd/logger.c: Don't attempt to open log files when
+	  using syslog, as we are not going to use them.  ok reyk@
+
+2014-11-03 19:43  bluhm
+
+	* usr.sbin/httpd/: httpd.h, parse.y: Convert the logic in
+	  yyerror().  Instead of creating a temporary format string, create
+	  a temporary message.	OK deraadt@
+
+2014-11-03 04:46  doug
+
+	* usr.sbin/httpd/parse.y: Add gcc format attributes to yyerror() in
+	  httpd.
+
+	  Fix a few format characters as well.	ok bluhm@
+
+2014-10-31 17:00  bluhm
+
+	* lib/libevent/event.h: Libevent has compatibilty wrappers in
+	  evutil.  OpenBSD does not use them anymore, but evutil is still
+	  part of libevent's interface.  Separate the API of evutil from
+	  libevent and do not include evutil.h from event.h automatically.
+	  A version bump is not necessary as the library itself does not
+	  change.  Bulk ports build done by landry@ had no fallout.  OK
+	  nicm@ deraadt@
+
+2014-10-31 14:49  jsing
+
+	* usr.sbin/httpd/: Makefile, httpd.h, server.c: Update httpd(8) to
+	  use libtls instead of libressl.
+
+2014-10-31 13:50  bluhm
+
+	* lib/libevent/Makefile: Use CDIAGFLAGS from bsd.own.mk and append
+	  additional warning flags.  All warnings have been fixed in
+	  libevent.  OK nicm@
+
+2014-10-30 17:45  bluhm
+
+	* lib/libevent/: buffer.c, evbuffer.c, event.c, event.h,
+	  event_tagging.c, kqueue.c, log.c, poll.c, signal.c: Fix
+	  whitespace errors in libevent.  OK nicm@
+
+2014-10-30 14:43  bluhm
+
+	* lib/libevent/select.c: The fdsz and n_events variables contain
+	  unsigned values that are derived from size_t and passed to
+	  functions as size_t parameters.  Change them from int to size_t
+	  to avoid compiler warnings.  OK doug@ nicm@
+
+2014-10-29 23:47  bluhm
+
+	* lib/libevent/: buffer.c, evbuffer.c, event.c, event_tagging.c,
+	  kqueue.c, log.c, min_heap.h, poll.c, select.c, signal.c: After
+	  removing all the #ifdef, the wrappers in evutil are rather
+	  useless.  Let libevent call the libc functions directly.  OK
+	  nicm@
+
+2014-10-29 23:38  bluhm
+
+	* lib/libevent/kqueue.c: Remove workaround for Mac OS X kqueue bug.
+	  OK nicm@
+
+2014-10-29 23:31  bluhm
+
+	* lib/libevent/event_tagging.c: Do not cast a (const void *)
+	  pointer to (void *) to avoid a warning.  OK nicm@
+
+2014-10-25 05:23  lteo
+
+	* usr.sbin/httpd/: log.c, proc.c, server.c, server_fcgi.c,
+	  server_file.c, server_http.c: Remove unnecessary
+	  netinet/in_systm.h include.
+
+	  ok millert@
+
+2014-10-22 11:48  reyk
+
+	* usr.sbin/httpd/: httpd.c, httpd.h, server_http.c: URL-decode the
+	  request path.
+
+	  Tested by ajacoutot@ and others OK doug@
+
+2014-10-21 15:00  reyk
+
+	* usr.sbin/httpd/: server_file.c, server_http.c: Rework the error
+	  message a little bit: Do not send details of the error.
+	  Traditionally, web servers responsed with the request path on 40x
+	  errors which could be abused to inject JavaScript etc.  Instead
+	  of sanitizing the path, we just don't reprint it.  Also modify
+	  the style a little bit but keep Comic Sans.
+
+	  With input from Jonas Lindemann and doug@
+
+2014-10-18 23:56  bluhm
+
+	* lib/libevent/: buffer.c, evutil.c, kqueue.c, select.c: Remove
+	  some #ifdef from libevent.  OK nicm@
+
+2014-10-18 18:48  bluhm
+
+	* lib/libevent/: Makefile, buffer.c, evutil.c, kqueue.c, select.c,
+	  signal.c: Remove the remaining #ifdef HAVE_ and the #define
+	  _GNU_SOURCE.	OK nicm@
+
+2014-10-18 00:59  bluhm
+
+	* lib/libevent/: Makefile, event.c: Remove #ifdef HAVE_backend and
+	  remove references to unimplemented backends.	OK nicm@
+
+2014-10-17 22:52  bluhm
+
+	* lib/libevent/: Makefile, event.c, evutil.c: Remove some #ifdef
+	  HAVE_syscall.  OK nicm@
+
+2014-10-17 21:16  bluhm
+
+	* lib/libevent/: Makefile, buffer.c, evbuffer.c, event.c,
+	  event_tagging.c, evutil.c, kqueue.c, log.c, poll.c, select.c,
+	  signal.c: Remove #ifdef HAVE_.*_H, just include the header files.
+	  Do not include sys/param.h.	OK nicm@
+
+2014-10-16 09:38  bluhm
+
+	* lib/libevent/: buffer.c, evbuffer.c, event.c, event_tagging.c,
+	  evutil.c, kqueue.c, log.c, poll.c, select.c, signal.c: Remove
+	  #ifdef HAVE_CONFIG_H, there is no config.h file.  OK nicm@
+
+2014-10-16 00:34  bluhm
+
+	* lib/libevent/: Makefile, event-internal.h: Remove #ifndef
+	  HAVE_TAILQFOREACH containing a private tailq implementation.	OK
+	  nicm@
+
+2014-10-11 06:07  doug
+
+	* lib/libevent/select.c: Userland reallocarray() audit.
+
+	  Avoid potential integer overflow in the size argument of malloc()
+	  and realloc() by using reallocarray() to avoid unchecked
+	  multiplication.
+
+	  ok deraadt@
+
+2014-10-08 22:14  bluhm
+
+	* lib/libevent/: buffer.c, evbuffer.c, event.c, event.h,
+	  event_tagging.c, evutil.c, log.c, signal.c: iRemove the #ifdef
+	  WIN32 implementation from libevent.  OK nicm@
+
+2014-10-08 07:41  deraadt
+
+	* lib/libevent/: kqueue.c, poll.c, signal.c: use reallocarray() to
+	  detect multiplicative integer overflow; obvious pattern.  This
+	  commit does not fix the non-obvious bloody horror of select.c.
+
+2014-10-06 23:16  bluhm
+
+	* lib/libevent/: Makefile, evsignal.h, signal.c: Remove the #ifdef
+	  HAVE_SIGACTION from libevent.  The struct evsignal_info does not
+	  change, so no library crank.	OK nicm@ deraadt@
+
+2014-10-03 15:41  jsing
+
+	* usr.sbin/httpd/server.c: Update ressl configuration to handle
+	  recent changes in the library.
+
+	  ok tedu@
+
+2014-10-02 21:22  reyk
+
+	* usr.sbin/httpd/: server.c, server_file.c: Fix an error case that
+	  was never handled ending up in an endless event loop that could
+	  eat all CPU.	I thought that the previous (correct) commit fixed
+	  it which wasn't the case.  But this one is obvious.
+
+	  ok florian@
+
+2014-09-29 21:30  deraadt
+
+	* usr.sbin/httpd/: http.h, httpd.c, server_fcgi.c, server_http.c:
+	  whitespace spotted while studying the code
+
+2014-09-27 14:49  reyk
+
+	* usr.sbin/httpd/server_file.c: In addition to READ, disable WRITE
+	  events when closing the file descriptor of the file I/O
+	  bufferevent. This fixes a potential event flood.
+
+	  OK florian@
+
+2014-09-15 10:00  reyk
+
+	* usr.sbin/httpd/server_http.c: Make the HTTP version mandatory and
+	  abort if it is missing in the request.
+
+2014-09-15 08:15  guenther
+
+	* lib/libc/asr/asr.c: When fopen()ing internal to libc (the API
+	  doesn't support the use of the resulting FILE *), then pass
+	  fopen() the 'e' mode letter to mark it close-on-exec.
+
+	  ok miod@
+
+2014-09-13 18:06  doug
+
+	* lib/libevent/event-internal.h: Replace all queue *_END macro
+	  calls except CIRCLEQ_END with NULL.
+
+	  CIRCLEQ_* is deprecated and not called in the tree.  The other
+	  queue types have *_END macros which were added for symmetry with
+	  CIRCLEQ_END.	They are defined as NULL.  There's no reason to
+	  keep the other *_END macro calls.
+
+	  ok millert@
+
+2014-09-10 17:39  reyk
+
+	* usr.sbin/httpd/: httpd.h, server_http.c: Handle different
+	  possible variations of the Host header (eg.  www.example.com,
+	  www.example.com:80, [2001:db8::1], [2001:db8::1]:80).  The port
+	  is optional and is typically used on non-default ports.  If the
+	  server name is a plain IPv6 address, it is commonly specified in
+	  square brackets.
+
+	  Makes ajacoutot@ happy OK florian@
+
+2014-09-05 17:06  reyk
+
+	* usr.sbin/httpd/: http.h, server_http.c: Add various RFC-based
+	  WebDAV methods to the list of accepted HTTP methods.	This fixes
+	  (Fast)CGI-based WebDAV and CalDAV (calendar) servers with httpd.
+
+	  ok benno@ stsp@
+
+2014-09-05 12:04  reyk
+
+	* usr.sbin/httpd/: config.c, httpd.c, httpd.h, parse.y, server.c,
+	  server_http.c: Remove a limitation that only allowed to specify a
+	  server name once.  The key has been changed to server name +
+	  address + port and now it is possible to use the same server name
+	  for multiple servers with different addresses, eg.
+	  http://www.example.com and https://www.example.com/.
+
+	  OK doug@ florian@
+
+2014-09-04 15:45  reyk
+
+	* usr.sbin/httpd/parse.y: One line change adding the 'include'
+	  directive to the valid server options.  This allows to include
+	  external configuration files from within server and location
+	  sections, not just from global context, for example to share
+	  common configuration within multiple servers (or virtual hosts).
+
+2014-09-02 18:20  reyk
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_fcgi.c: FastCGI did
+	  not support persistent connections.  Add initial support for
+	  persistent connections with FastCGI by implementing chunked
+	  Transfer-Encoding.  This only works with HTTP/1.1.
+
+	  With input and help from florian@ who found some FastCGI edge
+	  cases.
+
+	  OK florian@
+
+2014-09-01 15:26  bluhm
+
+	* lib/libevent/event.c: The libevent event_log() function called by
+	  event_msgx() adds a new line itself.	Do not print a double new
+	  line when EVENT_SHOW_METHOD is set.  OK nicm@
+
+2014-09-01 14:28  reyk
+
+	* usr.sbin/httpd/server_fcgi.c: Don't pass the local buffer array
+	  by reference.
+
+	  OK florian@
+
+2014-09-01 14:22  jmc
+
+	* usr.sbin/httpd/httpd.conf.5: remove Xr, but not the reference, to
+	  nginx, after some discussion with reyk;
+
+2014-09-01 11:32  reyk
+
+	* usr.sbin/httpd/: httpd.c, httpd.h, server_fcgi.c: Replace the
+	  code to get the FastCGI Status header with a proper way to parse
+	  and write the headers using the http response descriptor.  This
+	  allows to add other tweaks, like support for chunked encoding,
+	  later.
+
+	  OK florian@
+
+2014-08-29 15:01  reyk
+
+	* usr.sbin/httpd/: httpd.h, server_fcgi.c, server_file.c,
+	  server_http.c: Use two instead of one http descriptor for request
+	  and response.
+
+	  OK chrisz@
+
+2014-08-27 11:51  reyk
+
+	* usr.sbin/httpd/server.c: Write all data before closing the server
+	  socket if the output buffer is not empty.  This fixes a bug of
+	  short responses that could happen with large files or fcgi data
+	  on connections with a higher latency.
+
+	  OK florian@
+
+2014-08-26 23:50  jmc
+
+	* usr.bin/htpasswd/htpasswd.1: fix SEE ALSO;
+
+2014-08-26 22:03  robert
+
+	* usr.bin/htpasswd/htpasswd.1: remove nginx references
+
+2014-08-25 16:27  reyk
+
+	* etc/examples/httpd.conf, usr.sbin/httpd/httpd.conf.5,
+	  usr.sbin/httpd/parse.y: Add a generic system-wide
+	  /usr/share/misc/mime.types file that can be included in
+	  httpd.conf.  httpd(8) now supports both mime.types flavours with
+	  or without semicolon at the end of the line (nginx- or
+	  apache-style).
+
+	  Discussed with many, with input from halex@ OK halex@
+
+2014-08-21 21:23  chrisz
+
+	* usr.sbin/httpd/: httpd.h, server_fcgi.c, server_file.c,
+	  server_http.c: Add Last-Modified: HTTP header.
+
+	  OK reyk@
+
+2014-08-17 20:46  jmc
+
+	* usr.sbin/httpd/httpd.conf.5: don;t mark up {};
+
+2014-08-14 11:12  doug
+
+	* usr.sbin/httpd/http.h: Sync with RFC 7230-7235 phrases and IANA
+	  registered status codes.
+
+	  ok reyk@
+
+2014-08-14 09:50  chrisz
+
+	* usr.sbin/httpd/server_file.c: Remove obsolete struct stat
+	  parameters.
+
+	  ok reyk@
+
+2014-08-13 20:00  chrisz
+
+	* usr.sbin/httpd/server_fcgi.c: For a non-existent root we don't
+	  want the root prefix to show up in PATH_INFO.  Therefore put a
+	  lower bound of strlen(root) on scriptlen.  This makes perfect
+	  sense for virtual FastCGI scripts which run chrooted in another
+	  directory from httpd.
+
+	  ok reyk@
+
+2014-08-13 18:04  reyk
+
+	* usr.sbin/httpd/: httpd.c, httpd.h, server_fcgi.c: Provide a
+	  failsafe version of the path_info() function that doesn't need a
+	  temporary path variable.  Based on an initial diff from chrisz@.
+
+	  "Commit any failsafe version and I'm ok with it" chrisz@
+
+2014-08-13 10:08  chrisz
+
+	* usr.sbin/httpd/httpd.c: fix early loop termination in httpd
+	  path_info() without this fix httpd always put at least the first
+	  path component in SCRIPT_NAME even when it did not exist.  Now
+	  for completely non-existant paths everything goes into PATH_INFO.
+
+2014-08-11 17:26  deraadt
+
+	* usr.sbin/httpd/server_fcgi.c: make a few variables more local
+
+2014-08-09 11:07  jmc
+
+	* usr.sbin/httpd/httpd.conf.5: some minor tweaks;
+
+2014-08-09 10:54  jmc
+
+	* usr.sbin/httpd/httpd.conf.5: sort "prefork", and remove a useless
+	  macro;
+
+2014-08-09 10:49  jmc
+
+	* usr.sbin/httpd/httpd.8: basic cleanup;
+
+2014-08-09 09:35  reyk
+
+	* usr.sbin/httpd/parse.y: Allow to inclue the types section
+	  anywhere in the configuration file.
+
+	  Found by chris@ OK doug@
+
+2014-08-08 20:29  reyk
+
+	* usr.sbin/httpd/: http.h, httpd.h, server_fcgi.c, server_file.c,
+	  server_http.c: When opening directories, re-match the location
+	  after the index file has been appended.  This allows to use a
+	  fastcgi target as the default index, for example index.php.
+
+	  OK florian@
+
+2014-08-08 17:46  reyk
+
+	* usr.sbin/httpd/server_http.c: Allow to serve emtpy (0 bytes)
+	  files.
+
+	  Found by jasper@ OK florian@
+
+2014-08-07 20:21  reyk
+
+	* usr.sbin/httpd/httpd.8: Fix and simplify the description of
+	  httpd(8)'s signal handling.  httpd does not re-executed itself on
+	  SIGHUP, it simply reload the configuration and sends it to its
+	  child processes.
+
+	  ok deraadt@
+
+2014-08-07 14:43  florian
+
+	* usr.sbin/httpd/server_fcgi.c: Don't try to ouput FCGI_STDERR into
+	  error.log if there is no data.  Problem noticed by naddy@, OK
+	  reyk@
+
+2014-08-07 12:52  florian
+
+	* usr.sbin/httpd/server_fcgi.c: Opportunistically try to parse
+	  "Status: $code" in the very first response from the fcgi daemon
+	  and use that code as HTTP response code. If it doesn't work out
+	  fall back to code 200.  This might fix naddy@'s issue with
+	  redirects in cvsweb.	To be revisited after unlock.  Discussed
+	  with & grudgingly OK reyk@
+
+2014-08-07 08:56  deraadt
+
+	* usr.sbin/httpd/httpd.8: shorten signal text a bit
+
+2014-08-07 00:33  doug
+
+	* usr.sbin/httpd/httpd.8: Mention how httpd responds to SIGHUP and
+	  SIGUSR1.
+
+	  Description from reyk@
+
+2014-08-06 23:08  reyk
+
+	* usr.sbin/httpd/server_fcgi.c: Write STDERR from the CGI to the
+	  web server error log as intended.
+
+	  OK florian@
+
+2014-08-06 22:56  florian
+
+	* usr.sbin/httpd/server_fcgi.c: If the very first fcgi STDOUT
+	  record has length 0 the cgi script didn't send anything back.
+	  This is an internal server error.  OK reyk@
+
+2014-08-06 22:29  reyk
+
+	* etc/examples/httpd.conf, usr.sbin/httpd/httpd.conf.5,
+	  usr.sbin/httpd/parse.y: Change grammar to remove a shift/reduce
+	  conflict that was introduced with the ssl options.  "listen on
+	  $ip port 443 ssl" turns into "listen on $ip ssl port 443".
+
+	  ok florian@
+
+2014-08-06 20:40  reyk
+
+	* usr.sbin/httpd/server_fcgi.c: Always zero-out the fcgi record
+	  header for STDIN data.
+
+	  OK florian@
+
+2014-08-06 20:38  reyk
+
+	* usr.sbin/httpd/: server.c, server_fcgi.c: Use memset(buf instead
+	  of memset(&buf.
+
+	  Pointed out by deraadt@
+
+2014-08-06 20:21  reyk
+
+	* usr.sbin/httpd/: config.c, httpd.conf.5, httpd.h, parse.y,
+	  server_http.c: Limit the body size in client requests (eg. POST
+	  data) to 1M by default; add a configuration option to change the
+	  limit.
+
+	  ok florian@
+
+2014-08-06 18:31  jsing
+
+	* usr.sbin/httpd/httpd.conf.5: Document the SSL configuration for
+	  httpd (partly based on relayd.conf(5)).
+
+2014-08-06 18:11  jsing
+
+	* usr.sbin/httpd/parse.y: Provide configuration options that allow
+	  the SSL certificate, key and ciphers to be specified for each
+	  server.
+
+	  ok deraadt@ reyk@
+
+2014-08-06 18:10  jsing
+
+	* usr.sbin/httpd/server.c: Also clean up the public key when it is
+	  no longer needed.
+
+	  ok deraadt@ reyk@
+
+2014-08-06 18:09  jsing
+
+	* usr.sbin/httpd/: httpd.h, parse.y, server.c: Configure the
+	  default SSL ciphers as HIGH:!aNULL.
+
+	  ok deraadt@ reyk@
+
+2014-08-06 17:08  florian
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_fcgi.c, server_http.c:
+	  http POST support with & OK reyk@
+
+2014-08-06 15:40  florian
+
+	* usr.sbin/httpd/server_fcgi.c: Content-Length and Content-Type are
+	  transmitted as CONTENT_LENGTH and CONTENT_TYPE environment
+	  variables to cgi scripts, without the HTTP_ prefix.  OK reyk@
+
+2014-08-06 14:56  reyk
+
+	* usr.sbin/httpd/: logger.c, parse.y, server.c: spacing
+
+2014-08-06 14:29  jsg
+
+	* usr.sbin/httpd/logger.c: avoid displaying a NULL pointer ok
+	  deraadt@ reyk@
+
+2014-08-06 13:24  reyk
+
+	* usr.sbin/httpd/: server.c, server_file.c: The watermark exposed a
+	  bug in server_write that broke keep-alive support.  Instead of
+	  calling server_close from server_write, we have to proceed to the
+	  next connection by calling the error handler.
+
+	  OK jsg@
+
+2014-08-06 11:40  reyk
+
+	* usr.sbin/httpd/server.c: Bring back the last read (done) / last
+	  write (done) messages instead of just "done" to simplify
+	  connection debugging.
+
+2014-08-06 11:36  reyk
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_file.c: Adjust the
+	  read/write watermarks according to the TCP send buffer.  This
+	  fixes sending of large files.  Previously, httpd was reading the
+	  input file too quickly and could run out of memory when filling
+	  the input buffer.
+
+	  Found by jsg@ OK florian@
+
+2014-08-06 11:34  reyk
+
+	* usr.sbin/httpd/server_http.c: Add braces.  Style-only change.
+
+2014-08-06 07:47  doug
+
+	* usr.sbin/httpd/httpd.8: Add an overview of the features for httpd
+	  in the description section.
+
+	  "commit" deraadt@
+
+2014-08-06 06:39  jsg
+
+	* usr.sbin/httpd/server.c: add missing va_start/va_end calls ok
+	  deraadt@ guenther@
+
+2014-08-06 04:31  doug
+
+	* usr.sbin/httpd/httpd.8: Explain the options in httpd.8
+
+	  ok deraadt@
+
+2014-08-06 04:04  jsing
+
+	* usr.sbin/httpd/: config.c, httpd.8, httpd.h, parse.y, server.c:
+	  Load the SSL public/private keys in the parent process, then
+	  provide them to the privsep process via imsg. This allows the
+	  keys to be moved out of the chroot (now /etc/ssl/server.crt,
+	  /etc/ssl/private/server.key).
+
+	  ok reyk@
+
+2014-08-05 20:01  reyk
+
+	* etc/examples/httpd.conf, usr.sbin/httpd/config.c,
+	  usr.sbin/httpd/httpd.conf.5, usr.sbin/httpd/httpd.h,
+	  usr.sbin/httpd/parse.y, usr.sbin/httpd/server_http.c: Add
+	  configuration options for the most-important connection limits:
+	  max requests (per connection) and timeout.  We don't want to add
+	  too many button, and there are good defaults, but these ones are
+	  kind of mandatory.
+
+2014-08-05 19:13  reyk
+
+	* usr.sbin/httpd/httpd.conf.5: Tweak the httpd.conf manpage with
+	  "sub-lists".
+
+2014-08-05 19:03  reyk
+
+	* usr.sbin/httpd/: httpd.conf.5, parse.y: Bring back the tcp/ip
+	  configuration options.  This code was already there and is from
+	  relayd.  We can decide later which options should be added or
+	  removed, but it shouldn't do any harm.
+
+2014-08-05 18:46  reyk
+
+	* usr.sbin/httpd/parse.y: Add srv_conf helper variable to make the
+	  code more readable.  No functional change.
+
+2014-08-05 18:30  reyk
+
+	* usr.sbin/httpd/: httpd.h, server_http.c: Limit the number of
+	  (Keep-Alive) requests per connection to 100.	(Same default as in
+	  nginx and Apache).
+
+2014-08-05 17:36  reyk
+
+	* usr.sbin/httpd/: config.c, httpd.c, httpd.conf.5, httpd.h,
+	  logger.c, parse.y, server.c: Improve logging to allow per-
+	  server/location log files.  The log files can also be owned by
+	  root now: they're opened by the parent and send to the logger
+	  process with fd passing.  This also works with reload.
+
+	  ok deraadt@
+
+2014-08-05 16:36  deraadt
+
+	* usr.sbin/httpd/server_http.c: retire blink because this is
+	  serious software now; ok beck
+
+2014-08-05 16:35  deraadt
+
+	* usr.sbin/httpd/config.c: spaces
+
+2014-08-05 11:24  jsg
+
+	* usr.sbin/httpd/: httpd.c, httpd.conf.5, httpd.h, parse.y: add a
+	  config option to specify the chroot directory ok reyk@
+
+2014-08-04 20:12  reyk
+
+	* usr.sbin/httpd/: httpd.8, httpd.h, server.c: Temporarily move the
+	  default location of the SSL/TLS server key and certificate from
+	  /var/www/ to /var/www/conf/.	Don't get scared - this will be
+	  changed soon!  They're currently located in the chroot directory
+	  but will be moved outside as soon as we adopted some of the key
+	  privsep from relayd in ressl/httpd.
+
+2014-08-04 20:00  reyk
+
+	* usr.sbin/httpd/: config.c, server_fcgi.c: Add HTTPS = on CGI
+	  variable.
+
+2014-08-04 19:50  reyk
+
+	* etc/examples/httpd.conf: Add HTTPS server example.
+
+2014-08-04 19:43  reyk
+
+	* usr.sbin/httpd/server_file.c: Redirect to https:// if SSL/TLS is
+	  enabled.
+
+2014-08-04 19:38  reyk
+
+	* usr.sbin/httpd/: Makefile, config.c, httpd.conf.5, httpd.h,
+	  parse.y, server.c: Proxy commit for jsing@: "Add TLS/SSL support
+	  to httpd, based on the recent ressl commits."
+
+	  From jsing@ ok reyk@
+
+2014-08-04 19:12  reyk
+
+	* usr.sbin/httpd/: httpd.8, httpd.conf.5: manpage tweaks about
+	  logging
+
+2014-08-04 18:07  reyk
+
+	* etc/examples/httpd.conf, usr.sbin/httpd/parse.y: Change grammar
+	  from "log [style]" to "log style [style]".
+
+2014-08-04 17:57  reyk
+
+	* usr.sbin/httpd/logger.c: Print error message if the log files
+	  cannot be opened.
+
+2014-08-04 17:49  reyk
+
+	* usr.sbin/httpd/: Makefile, config.c, control.c, httpd.c,
+	  httpd.conf.5, httpd.h, logger.c, parse.y, proc.c, server.c: Add
+	  initial support for log files in /var/www/logs/.  Logging with
+	  syslog is still supported but disabled by default.
+
+	  ok deraadt@
+
+2014-08-04 16:49  reyk
+
+	* usr.sbin/httpd/: httpd.c, httpd.h, server_fcgi.c: Implement
+	  PATH_INFO and add DOCUMENT_ROOT.  PATH_INFO was requested by
+	  naddy@ who successfully tested it with "cvsweb".
+
+	  ok naddy@
+
+2014-08-04 13:09  reyk
+
+	* usr.sbin/httpd/: Makefile, config.c, control.c, httpd.c, log.c,
+	  parse.y, proc.c, server.c, server_fcgi.c, server_file.c,
+	  server_http.c: httpd doesn't support SSL/TLS yet, remove the
+	  remaining bits.  The secrect plan is to add it later using the
+	  ressl wrapper library.
+
+2014-08-04 08:35  deraadt
+
+	* usr.sbin/httpd/control.c: no need for param.h
+
+2014-08-04 08:35  deraadt
+
+	* usr.sbin/httpd/: httpd.h, proc.c, server_http.c: whitespace
+
+2014-08-04 00:47  reyk
+
+	* usr.sbin/httpd/server_file.c: Only allow GET and HEAD for static
+	  files or return 405.
+
+	  ok florian@
+
+2014-08-04 00:38  reyk
+
+	* usr.sbin/httpd/: server_file.c, server_http.c: Also write log
+	  messages, like 404 Not Found, on error.  This is a bit tricky
+	  because we couldn't guarantee a sane state after
+	  server_response_http() so fail hard afterwards and close the
+	  connection.
+
+	  ok doug@
+
+2014-08-04 00:06  florian
+
+	* usr.sbin/httpd/server_fcgi.c: c-type functions / makros need a
+	  cast to unsigned char, not int "feel free to commit" reyk@
+
+2014-08-03 23:33  reyk
+
+	* usr.sbin/httpd/: http.h, server_http.c: Allocate http_host
+	  instead of carrying a buffer in the descriptor.
+
+2014-08-03 22:43  reyk
+
+	* usr.sbin/httpd/: parse.y, server.c, server_fcgi.c: spacing
+
+2014-08-03 22:39  reyk
+
+	* usr.sbin/httpd/: httpd.h, server_fcgi.c, server_http.c:
+	  Dynamically pass HTTP request headers as protocol-specific HTTP_*
+	  CGI meta-variables.
+
+	  ok florian@
+
+2014-08-03 14:26  reyk
+
+	* usr.sbin/httpd/: httpd.h, server_fcgi.c, server_http.c: Add
+	  function to iterate all headers.  No functional change.
+
+2014-08-03 13:51  reyk
+
+	* etc/examples/httpd.conf: The first server example should be the
+	  "minimal default" to illustrate that you don't have to push all
+	  kinds of buttons to run httpd.
+
+2014-08-03 13:28  reyk
+
+	* etc/examples/httpd.conf: More examples, include FastCGI for php
+	  and cgi-bin and logging.
+
+2014-08-03 13:16  reyk
+
+	* usr.sbin/httpd/: config.c, httpd.h, parse.y, server_fcgi.c,
+	  server_file.c: Split fastcgi socket path and document root option
+	  and add the SCRIPT_FILENAME CGI param with a prepended root.
+	  This fixes php-fpm that expects SCRIPT_FILENAME and also works
+	  with slowcgi if you configure the root correctly.  For example,
+	  if SCRIPT_NAME and REQUEST_URI are /php/index.php, root is
+	  /htdocs, SCRIPT_FILENAME will be /htdocs/php/index.php.  As
+	  tested and discussed with florian@
+
+2014-08-03 12:38  reyk
+
+	* usr.sbin/httpd/server_fcgi.c: Add missing log call for FastCGI
+	  requests.
+
+2014-08-03 12:26  reyk
+
+	* usr.sbin/httpd/: httpd.conf.5, httpd.h, parse.y, server.c,
+	  server_http.c: Add another log mode "connection" for a
+	  relayd(8)-style log entry after each connection, not every
+	  request.  The code was already there and enabled on debug, I just
+	  turned it into an alternative log format.
+
+2014-08-03 12:22  reyk
+
+	* usr.sbin/httpd/server_http.c: Prefer getnameinfo() with
+	  NI_NUMERICHOST over inet_ntop because it is also aware of the
+	  IPv6 scope Id.  We already have a function print_host() that uses
+	  getnameinfo, so no need for the inet_ntop cases. Confirmed by
+	  florian@
+
+2014-08-02 23:21  doug
+
+	* usr.sbin/httpd/: config.c, httpd.conf.5, httpd.h, parse.y,
+	  server_http.c: Locations now inherit access log settings from the
+	  server.
+
+	  Add log to the server flags.
+
+	  input/"Looks ok" reyk@
+
+2014-08-02 19:42  florian
+
+	* usr.sbin/httpd/server_fcgi.c: don't leak fcgi fd
+
+2014-08-02 19:05  florian
+
+	* usr.sbin/httpd/: httpd.h, server_fcgi.c: Padding of fcgi records
+	  is optional, but if we receive padding data we should read it.
+
+2014-08-02 13:59  florian
+
+	* usr.sbin/httpd/server_fcgi.c: We need to read from the fcgi
+	  bufferevent until it's empty because the event handler will not
+	  be called again if no new data arrives.  Debugged with and OK
+	  reyk@
+
+2014-08-02 13:52  reyk
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_fcgi.c: Allow to
+	  specify a FastCGI TCP socket on localhost (eg. :9000).  Used for
+	  debugging, you should prefer local UNIX sockets, but it helped to
+	  find an issue that will be fixed with the next commit.
+
+	  OK florian@
+
+2014-08-02 12:24  reyk
+
+	* usr.sbin/httpd/httpd.conf.5: 'fastcgi socket "path"' is the
+	  correct syntax; update the manpage.  Found by jsg@
+
+2014-08-02 11:54  reyk
+
+	* usr.sbin/httpd/: httpd.c, server_fcgi.c, server_file.c: spacing
+
+2014-08-02 11:46  reyk
+
+	* usr.sbin/httpd/server_file.c: scandir(3)-based directory auto
+	  index didn't work on NFS because the file system is not filling
+	  in d_type properly.  Using st_mode from the stat call fixes the
+	  problem, eg. S_ISDIR(st.st_mode) instead of dp->d_type == DT_DIR.
+	  Pointed out by pelikan@
+
+2014-08-02 10:07  jmc
+
+	* usr.sbin/httpd/httpd.conf.5: remove nasty unclosed Xo in
+	  previous; ok reyk
+
+2014-08-02 00:24  reyk
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_http.c: Use the log
+	  buffer to defer the logging until the connection is closed or the
+	  request completed.  Turn the old log message into a debug
+	  message.
+
+	  ok doug@
+
+2014-08-01 23:59  reyk
+
+	* usr.sbin/httpd/: httpd.c, httpd.conf.5, httpd.h, parse.y,
+	  server.c: remove the global "log updates/all" option that came
+	  from relayd.
+
+2014-08-01 23:51  doug
+
+	* usr.sbin/httpd/: httpd.conf.5, httpd.h, parse.y, server_http.c:
+	  Add common and combined access logging to httpd.
+
+	  ok reyk@
+
+2014-08-01 20:26  florian
+
+	* usr.sbin/httpd/server_fcgi.c: Rewrite fcgi_add_param and hand
+	  over a lot more http headers etc. to the cgi script.	OK reyk@
+	  "blanket OK" for changes in httpd for the time beeing from
+	  deraadt@
+
+2014-08-01 10:34  florian
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_fcgi.c: Correctly
+	  parse fcgi records if we don't get the whole record in one
+	  bufferevent_read().  Input/OK reyk@
+
+2014-07-31 20:07  reyk
+
+	* usr.sbin/httpd/: httpd.h, server_fcgi.c, server_http.c: Only
+	  write the HTTP header for the first fastcgi chunk.
+
+2014-07-31 19:55  reyk
+
+	* usr.sbin/httpd/: httpd.h, server_fcgi.c, server_file.c,
+	  server_http.c: some fastcgi improvements: - DPRINTF instead of
+	  log_info for internal debugging.  - submit QUERY_STRING, if it
+	  exists - use a proper function to create an HTTP header.  - use
+	  server_file_error() to detect EOF and fastcgi stream errors.	-
+	  disable keep-alive/persist for now until we have a reliable way
+	  to get the content length from the cgi response or support
+	  chunked encoding.
+
+	  "Cool, jep" florian@
+
+2014-07-31 16:25  reyk
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_fcgi.c, server_file.c:
+	  One bufferevent can be shared by file and fcgi.
+
+2014-07-31 16:18  reyk
+
+	* usr.sbin/httpd/: config.c, httpd.conf.5, httpd.h, parse.y,
+	  server_fcgi.c: Allow to specify a non-default fastcgi socket.
+
+2014-07-31 15:28  reyk
+
+	* usr.sbin/httpd/: config.c, httpd.h, parse.y, server_file.c:
+	  Rename the "docroot" variable to "path" because it will be used
+	  for either files or the fastcgi socket (and there's no need to
+	  use a union yet).
+
+2014-07-31 11:34  reyk
+
+	* usr.sbin/httpd/: config.c, httpd.conf.5, httpd.h, parse.y,
+	  server_http.c: Add a configuration variable "fastcgi" to enable
+	  it per server or location.
+
+2014-07-31 11:23  florian
+
+	* usr.sbin/httpd/: Makefile, httpd.h, server_fcgi.c, server_http.c:
+	  Put in first stab at fastcgi. Very early work in progress.
+	  Putting it in now so that we can quickly work on it in tree.
+	  Requested by reyk@.  deraadt@ is OK with this according to reyk@.
+
+2014-07-30 15:49  reyk
+
+	* usr.sbin/httpd/: config.c, httpd.h, parse.y, server.c,
+	  server_http.c: Make "location" work with name-based virtual
+	  servers.
+
+2014-07-30 12:05  reyk
+
+	* etc/examples/httpd.conf, usr.sbin/httpd/config.c,
+	  usr.sbin/httpd/httpd.conf.5, usr.sbin/httpd/httpd.h,
+	  usr.sbin/httpd/parse.y, usr.sbin/httpd/server.c,
+	  usr.sbin/httpd/server_http.c: Add "location" keyword to specify
+	  path-specific configuration in servers, for example auto index
+	  for a sub-directory only.  Internally, a "location" is just a
+	  special type of a "virtual" server.
+
+2014-07-30 11:51  reyk
+
+	* usr.sbin/httpd/httpd.conf.5: Small fix and clarification
+
+2014-07-30 09:09  reyk
+
+	* usr.sbin/httpd/server_file.c: Reserve an extra file descriptor
+	  per connection instead of per request.  This fixes fd accounting
+	  with persistent connections and reduces the complexity of the
+	  implementation.
+
+	  ok benno@
+
+2014-07-29 18:38  reyk
+
+	* usr.sbin/httpd/server.c: The inflight decremented message should
+	  only be printed with DEBUG.
+
+2014-07-29 18:17  reyk
+
+	* etc/examples/httpd.conf, usr.sbin/httpd/httpd.conf.5,
+	  usr.sbin/httpd/httpd.h, usr.sbin/httpd/parse.y,
+	  usr.sbin/httpd/server_file.c: Add extended directory index
+	  options: "[no] index" and "[no] auto index".	The option
+	  "directory auto index" implements basic directory listing and is
+	  turned off by default.
+
+	  ok deraadt@
+
+2014-07-29 14:16  reyk
+
+	* usr.sbin/httpd/: httpd.h, server.c: Move configurable TCP options
+	  into struct server_config.
+
+2014-07-28 01:52  deraadt
+
+	* usr.sbin/httpd/Makefile: turn of -Werror, unless you are sure
+	  both gcc work...
+
+2014-07-27 00:38  reyk
+
+	* usr.sbin/httpd/server_file.c: Remove redundant slash
+
+2014-07-26 12:27  reyk
+
+	* etc/examples/httpd.conf: Add more examples.  Requested by
+	  deraadt@
+
+2014-07-26 11:59  reyk
+
+	* usr.sbin/httpd/httpd.c: bzero is over, memset is cool.  pointed
+	  out by halex@
+
+2014-07-26 01:30  reyk
+
+	* usr.sbin/httpd/: config.c, httpd.h, server.c: Differentiate
+	  servers by address and port, not just by address.
+
+2014-07-26 01:25  reyk
+
+	* usr.sbin/httpd/server_http.c: Reset the default Host for each
+	  request
+
+2014-07-26 01:23  reyk
+
+	* usr.sbin/httpd/: http.h, httpd.h, server.c, server_file.c,
+	  server_http.c: It is recommended to use a URL in the Location
+	  header of 3xx responses.  To accomplish this, add some semantics
+	  to retrieve the server host name of a connection: either IP,
+	  IP:PORT (if not 80) or [IP6]:PORT, or Host value (if valid).
+
+2014-07-25 23:48  reyk
+
+	* usr.sbin/httpd/server_http.c: Append mandatory Date header to
+	  each response.
+
+2014-07-25 23:36  reyk
+
+	* usr.sbin/httpd/server_http.c: New HTTP/1.1 RFC 7231 prefers
+	  IMF-fixdate from RFC 5322.
+
+2014-07-25 23:29  reyk
+
+	* usr.sbin/httpd/: httpd.c, httpd.h, server_file.c, server_http.c:
+	  Canonicalize the request path once without the docroot and
+	  prepend the docroot only only when it's needed.  Suggested by
+	  deraadt@.
+
+2014-07-25 22:13  reyk
+
+	* usr.sbin/httpd/server_file.c: Don't leak docroot in the error
+	  message if the default index file is missing.
+
+	  OK florian@
+
+2014-07-25 19:49  reyk
+
+	* usr.sbin/httpd/httpd.conf.5: Add multiple-servers "virtual hosts"
+	  example.
+
+2014-07-25 19:04  reyk
+
+	* usr.sbin/httpd/parse.y: Add a single line to fix the address
+	  matching of multiple server blocks with non-virtual hosts.  I had
+	  this line in a previous diff.
+
+2014-07-25 18:23  reyk
+
+	* usr.sbin/httpd/: config.c, httpd.c, httpd.h, parse.y, server.c,
+	  server_http.c: Add support for "virtual hosts" aka. server blocks
+	  aka. multiple servers with the same or "overlapping" IP address
+	  but a different name.
+
+	  ok beck@
+
+2014-07-25 17:47  reyk
+
+	* usr.sbin/httpd/: httpd.conf.5, parse.y: Add and document 'root'
+	  configuration option for the docroot.
+
+2014-07-25 15:10  reyk
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_file.c, server_http.c:
+	  Split server and server_config.
+
+2014-07-25 14:46  reyk
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_file.c, server_http.c:
+	  Rename a field, needed later, no functional change.
+
+2014-07-25 14:42  reyk
+
+	* usr.sbin/httpd/: httpd.h, parse.y, server_file.c: Move the
+	  docroot into the server block.
+
+2014-07-24 10:32  reyk
+
+	* usr.sbin/httpd/: httpd.c, server.c, server_http.c: Plug a memleak
+	  by correctly free'ing the HTTP descriptor that contains all the
+	  headers etc. of a connection.
+
+2014-07-24 10:11  reyk
+
+	* usr.sbin/httpd/httpd.h: Remove unused fields from structure
+
+2014-07-24 01:10  reyk
+
+	* usr.sbin/httpd/httpd.c: When canonicalizing the path, it is
+	  better to fail on truncation.
+
+	  Pointed out by Doug Hogan.
+
+2014-07-24 00:56  reyk
+
+	* usr.sbin/httpd/httpd.c: I wanted to know if people pay attention.
+
+	  Doug Hogan found an off-by-one.  More improvements will follow.
+
+2014-07-24 00:20  reyk
+
+	* usr.sbin/httpd/server_file.c: The default index page shouldn't be
+	  a directory.	It's a 500.
+
+2014-07-24 00:18  reyk
+
+	* usr.sbin/httpd/server_file.c: Don't expose the docroot on error.
+
+2014-07-24 00:02  reyk
+
+	* usr.sbin/httpd/: httpd.c, parse.y: The media_encoding is not used
+	  in parse.y but stack garbage could lead to a double free; set it
+	  to NULL.
+
+	  This should fix a problem that was found by deraadt@
+
+2014-07-23 23:43  reyk
+
+	* usr.sbin/httpd/: server_file.c, server_http.c: First attempt at
+	  verifying the request path and the access permissions.  We also
+	  have to redirect with 301 if a directory name was requested
+	  without the trailing slash.
+
+2014-07-23 21:03  reyk
+
+	* usr.sbin/httpd/: httpd.c, httpd.h, server_file.c: Add
+	  canonicalize_path() to canonicalize the requested URL path.
+
+2014-07-23 15:26  reyk
+
+	* usr.sbin/httpd/: config.c, httpd.h, server.c: Correctly shutdown
+	  the servers when the process is terminating; prevents a crash on
+	  exit.  With debugging help from blambert@.
+
+2014-07-23 14:01  reyk
+
+	* usr.sbin/httpd/httpd.h: always enable DPRINTF with compiled with
+	  DEBUG
+
+2014-07-22 21:03  jmc
+
+	* usr.sbin/httpd/: httpd.8, httpd.conf.5: some minor fixes;
+
+2014-07-22 20:31  ajacoutot
+
+	* usr.sbin/httpd/httpd.conf.5: Typo.
+
+	  no ok needed miod@ guenther@
+
+2014-07-22 19:54  reyk
+
+	* usr.sbin/httpd/httpd.8: There is no httpctl yet.
+
+	  Found by jturner
+
+2014-07-22 19:49  deraadt
+
+	* usr.sbin/httpd/httpd.8: floating ,
+
+2014-07-22 18:58  reyk
+
+	* etc/examples/httpd.conf: Add initial httpd.conf(5) example for
+	  httpd(8)
+
+	  Requested by deraadt@
+
+2014-07-20 06:22  guenther
+
+	* lib/libc/crypt/bcrypt.c: From ISO/IEC 9899:1999 and 9899:201x,
+	  6.11.5 - Storage-class specifiers:	 The placement of a
+	  storage-class specifier other than at the	beginning of the
+	  declaration specifiers in a declaration is	 an obsolescent
+	  feature.
+
+	  Diff from Jean-Philippe Ouellet (jean-philippe (at) ouellet.biz)
+
+2014-07-19 20:15  miod
+
+	* share/mk/bsd.regress.mk: Explicitely check the value of
+	  REGRESS_SKIP_SLOW rather than its emptyness, for it defaults to a
+	  non-empty value; Doug Hogan
+
+2014-07-17 13:35  stsp
+
+	* usr.sbin/httpd/server_http.c: Move comment about strcasecmp() to
+	  a more suitable spot.  ok reyk benno
+
+2014-07-17 13:32  stsp
+
+	* usr.sbin/httpd/httpd.conf.5: Fix typo in example httpd config
+	  which caused error on startup.  /etc/httpd.conf:8: failed to add
+	  media type ok reyk
+
+2014-07-16 12:25  reyk
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_file.c, server_http.c:
+	  Implement file descriptor accounting.  The concept was taken from
+	  relayd but had to be adjusted for httpd.  It now handles
+	  single-pass HTTP connections, persistent connections with
+	  multiple requests, and body-less HEAD requests.  With input from
+	  benno@
+
+2014-07-15 11:51  reyk
+
+	* usr.sbin/httpd/server_file.c: don't diplay the full path in error
+	  messages
+
+2014-07-14 11:03  reyk
+
+	* usr.sbin/httpd/server_http.c: Track Connection: Keep-Alive
+
+2014-07-14 02:19  reyk
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_file.c, server_http.c:
+	  first step towards keep-alive/persistent connections support
+
+2014-07-13 17:39  reyk
+
+	* usr.sbin/httpd/server_http.c: Remove a debug message
+
+2014-07-13 17:11  reyk
+
+	* usr.sbin/httpd/http.h: Sync file to be identical in relayd(8) and
+	  httpd(8).
+
+2014-07-13 17:07  reyk
+
+	* usr.sbin/httpd/: server.c, server_file.c: Finish writing the
+	  output before closing the connection (adopted from relayd).
+
+2014-07-13 16:46  reyk
+
+	* usr.sbin/httpd/server.c: Close the connection after the response
+	  is completed (no Keepalive yet).
+
+2014-07-13 16:17  reyk
+
+	* usr.sbin/httpd/: config.c, http.h, httpd.c, httpd.conf.5,
+	  httpd.h, parse.y, server.c, server_file.c, server_http.c: Add
+	  support for media types (aka. MIME types): the types section is
+	  compatible to nginx' mime.types file which can be included
+	  directly.  If not present, use a few built-in defaults for html,
+	  css, txt, jpeg, gif, png, and js.
+
+2014-07-13 11:46  beck
+
+	* usr.sbin/httpd/server_http.c: Make error messages more obvious to
+	  the user.  ok reyk@ florian@
+
+2014-07-13 01:55  reyk
+
+	* usr.sbin/httpd/server_http.c: Use Comic Sans (or Chalkboard) as
+	  the default font for HTTP error messages because we love web
+	  hipsters.
+
+	  ok beck@
+
+2014-07-13 01:34  reyk
+
+	* usr.sbin/httpd/: Makefile, config.c, control.c, http.h, httpd.8,
+	  httpd.c, httpd.conf.5, httpd.h, log.c, parse.y, proc.c, server.c,
+	  server_file.c, server_http.c: Add httpd(8), an attempt to turn
+	  the relayd(8) codebase into a simple web server.  It is not
+	  finished yet and I just started it today, but the goal is to
+	  provide an HTTP server that a) provides minimal features, b)
+	  serves static files, c) provides FastCGI support, and d) follows
+	  common coding practices of OpenBSD.
+
+	  It will neither support plugins, nor custom memory allocators,
+	  EBCDIC support, PCRE or any other things that can be found
+	  elsewhere.  httpd(8) is not intended to provide a fully-featured
+	  replacement for nginx(8) or the Apache, but it will provide
+	  enough functionality that is needed in the OpenBSD base system.
+
+	  ok deraadt@
+
