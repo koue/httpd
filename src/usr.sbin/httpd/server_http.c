@@ -1,7 +1,7 @@
-/*	$OpenBSD: server_http.c,v 1.119 2018/04/06 13:02:07 florian Exp $	*/
+/*	$OpenBSD: server_http.c,v 1.122 2018/06/20 16:43:05 reyk Exp $	*/
 
 /*
- * Copyright (c) 2006 - 2017 Reyk Floeter <reyk@openbsd.org>
+ * Copyright (c) 2006 - 2018 Reyk Floeter <reyk@openbsd.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -1032,7 +1032,7 @@ server_expand_http(struct client *clt, const char *val, char *buf,
 {
 	struct http_descriptor	*desc = clt->clt_descreq;
 	struct server_config	*srv_conf = clt->clt_srv_conf;
-	char			 ibuf[128], *str, *path, *query;
+	char			 ibuf[128], *str, *path;
 	const char		*errstr = NULL, *p;
 	size_t			 size;
 	int			 n, ret;
@@ -1076,10 +1076,8 @@ server_expand_http(struct client *clt, const char *val, char *buf,
 		if (desc->http_query == NULL) {
 			ret = expand_string(buf, len, "$QUERY_STRING", "");
 		} else {
-			if ((query = url_encode(desc->http_query)) == NULL)
-				return (NULL);
-			ret = expand_string(buf, len, "$QUERY_STRING", query);
-			free(query);
+			ret = expand_string(buf, len, "$QUERY_STRING",
+			    desc->http_query);
 		}
 		if (ret != 0)
 			return (NULL);
@@ -1128,13 +1126,8 @@ server_expand_http(struct client *clt, const char *val, char *buf,
 		if (desc->http_query == NULL) {
 			str = path;
 		} else {
-			if ((query = url_encode(desc->http_query)) == NULL) {
-				free(path);
-				return (NULL);
-			}
-			ret = asprintf(&str, "%s?%s", path, query);
+			ret = asprintf(&str, "%s?%s", path, desc->http_query);
 			free(path);
-			free(query);
 			if (ret == -1)
 				return (NULL);
 		}
@@ -1186,13 +1179,16 @@ server_response(struct httpd *httpd, struct client *clt)
 	struct kv		*kv, key, *host;
 	struct str_find		 sm;
 	int			 portval = -1, ret;
-	char			*hostval;
+	char			*hostval, *query;
 	const char		*errstr = NULL;
 
-	/* Canonicalize the request path */
+	/* Decode the URL */
 	if (desc->http_path == NULL ||
-	    url_decode(desc->http_path) == NULL ||
-	    canonicalize_path(desc->http_path, path, sizeof(path)) == NULL)
+	    url_decode(desc->http_path) == NULL)
+		goto fail;
+
+	/* Canonicalize the request path */
+	if (canonicalize_path(desc->http_path, path, sizeof(path)) == NULL)
 		goto fail;
 	free(desc->http_path);
 	if ((desc->http_path = strdup(path)) == NULL)
@@ -1296,6 +1292,42 @@ server_response(struct httpd *httpd, struct client *clt)
 	/* Now search for the location */
 	srv_conf = server_getlocation(clt, desc->http_path);
 
+	/* Optional rewrite */
+	if (srv_conf->flags & SRVFLAG_PATH_REWRITE) {
+		/* Expand macros */
+		if (server_expand_http(clt, srv_conf->path,
+		    path, sizeof(path)) == NULL)
+			goto fail;
+
+		/*
+		 * Reset and update the query.  The updated query must already
+		 * be URL encoded - either specified by the user or by using the
+		 * original $QUERY_STRING.
+		 */
+		free(desc->http_query);
+		desc->http_query = NULL;
+		if ((query = strchr(path, '?')) != NULL) {
+			*query++ = '\0';
+			if ((desc->http_query = strdup(query)) == NULL)
+				goto fail;
+		}
+
+		/* Canonicalize the updated request path */
+		if (canonicalize_path(path,
+		    path, sizeof(path)) == NULL)
+			goto fail;
+
+		log_debug("%s: rewrote %s -> %s?%s", __func__,
+		    desc->http_path, path, desc->http_query);
+
+		free(desc->http_path);
+		if ((desc->http_path = strdup(path)) == NULL)
+			goto fail;
+
+		/* Now search for the updated location */
+		srv_conf = server_getlocation(clt, desc->http_path);
+	}
+
 	if (srv_conf->flags & SRVFLAG_BLOCK) {
 		server_abort_http(clt, srv_conf->return_code,
 		    srv_conf->return_uri);
@@ -1378,7 +1410,7 @@ server_response_http(struct client *clt, unsigned int code,
 	    (error = server_httperror_byid(code)) == NULL)
 		return (-1);
 
-	if (server_log_http(clt, code, size) == -1)
+	if (server_log_http(clt, code, size >= 0 ? size : 0) == -1)
 		return (-1);
 
 	/* Add error codes */
@@ -1404,9 +1436,9 @@ server_response_http(struct client *clt, unsigned int code,
 		return (-1);
 
 	/* Set content length, if specified */
-	if ((cl =
+	if (size >= 0 && ((cl =
 	    kv_add(&resp->http_headers, "Content-Length", NULL)) == NULL ||
-	    kv_set(cl, "%lld", (long long)size) == -1)
+	    kv_set(cl, "%lld", (long long)size) == -1))
 		return (-1);
 
 	/* Set last modification time */
@@ -1439,7 +1471,7 @@ server_response_http(struct client *clt, unsigned int code,
 	    server_bufferevent_print(clt, "\r\n") == -1)
 		return (-1);
 
-	if (size == 0 || resp->http_method == HTTP_METHOD_HEAD) {
+	if (size <= 0 || resp->http_method == HTTP_METHOD_HEAD) {
 		bufferevent_enable(clt->clt_bev, EV_READ|EV_WRITE);
 		if (clt->clt_persist)
 			clt->clt_toread = TOREAD_HTTP_HEADER;
@@ -1600,7 +1632,6 @@ server_log_http(struct client *clt, unsigned int code, size_t len)
 	int			 ret = -1;
 	char			*user = NULL;
 	char			*path = NULL;
-	char			*query = NULL;
 	char			*version = NULL;
 	char			*referrer_v = NULL;
 	char			*agent_v = NULL;
@@ -1644,9 +1675,6 @@ server_log_http(struct client *clt, unsigned int code, size_t len)
 		if (desc->http_path &&
 		    (path = url_encode(desc->http_path)) == NULL)
 			goto done;
-		if (desc->http_query &&
-		    (query = url_encode(desc->http_query)) == NULL)
-			goto done;
 
 		ret = evbuffer_add_printf(clt->clt_log,
 		    "%s %s - %s [%s] \"%s %s%s%s%s%s\" %03d %zu\n",
@@ -1655,7 +1683,7 @@ server_log_http(struct client *clt, unsigned int code, size_t len)
 		    server_httpmethod_byid(desc->http_method),
 		    desc->http_path == NULL ? "" : path,
 		    desc->http_query == NULL ? "" : "?",
-		    desc->http_query == NULL ? "" : query,
+		    desc->http_query == NULL ? "" : desc->http_query,
 		    desc->http_version == NULL ? "" : " ",
 		    desc->http_version == NULL ? "" : version,
 		    code, len);
@@ -1688,9 +1716,6 @@ server_log_http(struct client *clt, unsigned int code, size_t len)
 		if (desc->http_path &&
 		    (path = url_encode(desc->http_path)) == NULL)
 			goto done;
-		if (desc->http_query &&
-		    (query = url_encode(desc->http_query)) == NULL)
-			goto done;
 		if (referrer &&
 		    (referrer_v = url_encode(referrer->kv_value)) == NULL)
 			goto done;
@@ -1703,7 +1728,7 @@ server_log_http(struct client *clt, unsigned int code, size_t len)
 		    server_httpmethod_byid(desc->http_method),
 		    desc->http_path == NULL ? "" : path,
 		    desc->http_query == NULL ? "" : "?",
-		    desc->http_query == NULL ? "" : query,
+		    desc->http_query == NULL ? "" : desc->http_query,
 		    desc->http_version == NULL ? "" : " ",
 		    desc->http_version == NULL ? "" : version,
 		    code, len,
@@ -1727,7 +1752,6 @@ server_log_http(struct client *clt, unsigned int code, size_t len)
 done:
 	free(user);
 	free(path);
-	free(query);
 	free(version);
 	free(referrer_v);
 	free(agent_v);
