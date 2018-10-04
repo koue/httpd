@@ -1,4 +1,4 @@
-/*	$OpenBSD: httpd.h,v 1.138 2018/06/20 16:43:05 reyk Exp $	*/
+/*	$OpenBSD: httpd.h,v 1.141 2018/10/01 19:24:09 benno Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -64,7 +64,7 @@
 #define HTTPD_LOGVIS		VIS_NL|VIS_TAB|VIS_CSTYLE
 #define HTTPD_TLS_CERT		"/etc/ssl/server.crt"
 #define HTTPD_TLS_KEY		"/etc/ssl/private/server.key"
-#define HTTPD_TLS_CONFIG_MAX	255
+#define HTTPD_TLS_CONFIG_MAX	511
 #define HTTPD_TLS_CIPHERS	"compat"
 #define HTTPD_TLS_DHE_PARAMS	"none"
 #define HTTPD_TLS_ECDHE_CURVES	"default"
@@ -104,10 +104,11 @@
 
 enum httpchunk {
 	TOREAD_UNLIMITED		= -1,
-	TOREAD_HTTP_HEADER		= -2,
-	TOREAD_HTTP_CHUNK_LENGTH	= -3,
-	TOREAD_HTTP_CHUNK_TRAILER	= -4,
-	TOREAD_HTTP_NONE		= -5,
+	TOREAD_HTTP_INIT		= -2,
+	TOREAD_HTTP_HEADER		= -3,
+	TOREAD_HTTP_CHUNK_LENGTH	= -4,
+	TOREAD_HTTP_CHUNK_TRAILER	= -5,
+	TOREAD_HTTP_NONE		= -6,
 	TOREAD_HTTP_RANGE		= TOREAD_HTTP_CHUNK_LENGTH
 };
 
@@ -784,7 +785,7 @@ __dead void fatalx(const char *, ...)
 /* proc.c */
 enum privsep_procid
 	    proc_getid(struct privsep_proc *, unsigned int, const char *);
-void	 proc_init(struct privsep *, struct privsep_proc *, unsigned int,
+void	 proc_init(struct privsep *, struct privsep_proc *, unsigned int, int,
 	    int, char **, enum privsep_procid);
 void	 proc_kill(struct privsep *);
 void	 proc_connect(struct privsep *);
