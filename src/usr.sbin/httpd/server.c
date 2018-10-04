@@ -944,15 +944,7 @@ server_input(struct client *clt)
 	bufferevent_setwatermark(clt->clt_bev, EV_READ, 0, FCGI_CONTENT_SIZE);
 
 	bufferevent_settimeout(clt->clt_bev,
-#ifdef __OpenBSD__
 	    srv_conf->requesttimeout.tv_sec, srv_conf->requesttimeout.tv_sec);
-#else
-	/*
-	   On FreeBSD lots of 'timeout (408 Request Timeout)' if use
-	   requesttimeout
-	*/
-	    srv_conf->timeout.tv_sec, srv_conf->timeout.tv_sec);
-#endif
 	bufferevent_enable(clt->clt_bev, EV_READ|EV_WRITE);
 }
 
