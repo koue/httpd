@@ -1,15 +1,19 @@
 # FreeBSD port of OpenBSD httpd
 
-- OpenBSD branch is cvs copy
-- https://github.com/koue/scripts/blob/master/OpenBSD/cvs_checkout.sh
+The httpd daemon is a HTTP server with FastCGI and TLS support.
 
-## Compilation
+http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.sbin/httpd/
 
-cd httpd/src/ && make
+## Installation
+
+### Requirements
+* libressl
+
+`cd src/ && make && make install`
 
 ## Usage
 
-usr.sbin/httpd/httpd -f etc/examples/httpd.conf
+`httpd -f etc/examples/httpd.conf`
 
 ## Status
 
