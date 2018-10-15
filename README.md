@@ -1,14 +1,18 @@
 # FreeBSD port of OpenBSD httpd
 
 - OpenBSD branch is cvs copy
-- https://github.com/koue/scripts/blob/master/OpenBSD/cvs_checkout_httpd.sh
+- https://github.com/koue/scripts/blob/master/OpenBSD/cvs_checkout.sh
 
-## Installation
+## Compilation
 
 cd httpd/src/ && make
 
 ## Usage
 
-httpd -f /etc/httpd.conf <br />
-<br />
-Note: Don't forget to specify the chroot directory in the config file
+usr.sbin/httpd/httpd -f etc/examples/httpd.conf
+
+## Status
+
+master | develop
+-------|--------
+[![Build Status](https://cipier.net/status/koue/httpd/master)](https://cipier.net/status/koue/httpd/master) | [![Build Status](https://cipier.net/status/koue/httpd/develop)](https://cipier.net/status/koue/httpd/develop)
