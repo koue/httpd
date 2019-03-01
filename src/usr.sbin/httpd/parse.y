@@ -1,4 +1,4 @@
-/*	$OpenBSD: parse.y,v 1.106 2018/09/07 07:35:30 miko Exp $	*/
+/*	$OpenBSD: parse.y,v 1.110 2019/02/19 11:37:26 pirofti Exp $	*/
 
 /*
  * Copyright (c) 2007 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -140,7 +140,7 @@ typedef struct {
 %token	PROTOCOLS REQUESTS ROOT SACK SERVER SOCKET STRIP STYLE SYSLOG TCP TICKET
 %token	TIMEOUT TLS TYPE TYPES HSTS MAXAGE SUBDOMAINS DEFAULT PRELOAD REQUEST
 %token	ERROR INCLUDE AUTHENTICATE WITH BLOCK DROP RETURN PASS REWRITE
-%token	CA CLIENT CRL OPTIONAL
+%token	CA CLIENT CRL OPTIONAL PARAM
 %token	<v.string>	STRING
 %token  <v.number>	NUMBER
 %type	<v.port>	port
@@ -290,6 +290,7 @@ server		: SERVER optmatch STRING	{
 
 			SPLAY_INIT(&srv->srv_clients);
 			TAILQ_INIT(&srv->srv_hosts);
+			TAILQ_INIT(&srv_conf->fcgiparams);
 
 			TAILQ_INSERT_TAIL(&srv->srv_hosts, srv_conf, entry);
 		} '{' optnl serveropts_l '}'	{
@@ -344,13 +345,10 @@ server		: SERVER optmatch STRING	{
 				YYERROR;
 			}
 
-			if (server_tls_load_keypair(srv) == -1) {
-				yyerror("server \"%s\": failed to load "
-				    "public/private keys", srv->srv_conf.name);
-				serverconfig_free(srv_conf);
-				free(srv);
-				YYERROR;
-			}
+			if (server_tls_load_keypair(srv) == -1)
+				log_warnx("%s:%d: server \"%s\": failed to "
+				    "load public/private keys", file->name,
+				    yylval.lineno, srv->srv_conf.name);
 
 			if (server_tls_load_ca(srv) == -1) {
 				yyerror("server \"%s\": failed to load "
@@ -660,6 +658,36 @@ fcgiflags	: SOCKET STRING		{
 			}
 			free($2);
 			srv_conf->flags |= SRVFLAG_SOCKET;
+		}
+		| PARAM STRING STRING	{
+			struct fastcgi_param	*param;
+
+			if ((param = calloc(1, sizeof(*param))) == NULL)
+				fatal("out of memory");
+
+			if (strlcpy(param->name, $2, sizeof(param->name)) >=
+			    sizeof(param->name)) {
+				yyerror("fastcgi_param name truncated");
+				free($2);
+				free($3);
+				free(param);
+				YYERROR;
+			}
+			if (strlcpy(param->value, $3, sizeof(param->value)) >=
+			    sizeof(param->value)) {
+				yyerror("fastcgi_param value truncated");
+				free($2);
+				free($3);
+				free(param);
+				YYERROR;
+			}
+			free($2);
+			free($3);
+
+			DPRINTF("[%s,%s,%d]: adding param \"%s\" value \"%s\"",
+			    srv_conf->location, srv_conf->name, srv_conf->id,
+			    param->name, param->value);
+			TAILQ_INSERT_HEAD(&srv_conf->fcgiparams, param, entry);
 		}
 		;
 
@@ -1285,6 +1313,7 @@ lookup(char *s)
 		{ "ocsp",		OCSP },
 		{ "on",			ON },
 		{ "optional",		OPTIONAL },
+		{ "param",		PARAM },
 		{ "pass",		PASS },
 		{ "port",		PORT },
 		{ "prefork",		PREFORK },
@@ -1488,7 +1517,8 @@ top:
 			} else if (c == '\\') {
 				if ((next = lgetc(quotec)) == EOF)
 					return (0);
-				if (next == quotec || c == ' ' || c == '\t')
+				if (next == quotec || next == ' ' ||
+				    next == '\t')
 					c = next;
 				else if (next == '\n') {
 					file->lineno++;
@@ -1520,7 +1550,7 @@ top:
 	if (c == '-' || isdigit(c)) {
 		do {
 			*p++ = c;
-			if ((unsigned)(p-buf) >= sizeof(buf)) {
+			if ((size_t)(p-buf) >= sizeof(buf)) {
 				yyerror("string too long");
 				return (findeol());
 			}
@@ -1559,7 +1589,7 @@ nodigits:
 	if (isalnum(c) || c == ':' || c == '_' || c == '*') {
 		do {
 			*p++ = c;
-			if ((unsigned)(p-buf) >= sizeof(buf)) {
+			if ((size_t)(p-buf) >= sizeof(buf)) {
 				yyerror("string too long");
 				return (findeol());
 			}
@@ -2132,16 +2162,13 @@ server_inherit(struct server *src, struct server_config *alias,
 	dst->srv_conf.flags &= ~SRVFLAG_SERVER_MATCH;
 	dst->srv_conf.flags |= (alias->flags & SRVFLAG_SERVER_MATCH);
 
-	if (server_tls_load_keypair(dst) == -1) {
-		yyerror("failed to load public/private keys "
-		    "for server %s", dst->srv_conf.name);
-		serverconfig_free(&dst->srv_conf);
-		free(dst);
-		return (NULL);
-	}
+	if (server_tls_load_keypair(dst) == -1)
+		log_warnx("%s:%d: server \"%s\": failed to "
+		    "load public/private keys", file->name,
+		    yylval.lineno, dst->srv_conf.name);
 
 	if (server_tls_load_ca(dst) == -1) {
-		yyerror("falied to load ca cert(s) for server %s",
+		yyerror("failed to load ca cert(s) for server %s",
 		    dst->srv_conf.name);
 		serverconfig_free(&dst->srv_conf);
 		return NULL;

@@ -1,4 +1,4 @@
-/*	$OpenBSD: server.c,v 1.115 2018/10/01 19:24:09 benno Exp $	*/
+/*	$OpenBSD: server.c,v 1.118 2019/02/19 11:37:26 pirofti Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -119,6 +119,13 @@ server_privinit(struct server *srv)
 	}
 
 	/* Open listening socket in the privileged process */
+	if ((srv->srv_conf.flags & SRVFLAG_TLS) && srv->srv_conf.tls_cert ==
+	    NULL) {
+		/* soft fail if cert is not there yet */
+		srv->srv_s = -1;
+		return (0);
+	}
+
 	if ((srv->srv_s = server_socket_listen(&srv->srv_conf.ss,
 	    srv->srv_conf.port, &srv->srv_conf)) == -1)
 		return (-1);
@@ -248,6 +255,10 @@ server_tls_init(struct server *srv)
 	struct server_config *srv_conf;
 
 	if ((srv->srv_conf.flags & SRVFLAG_TLS) == 0)
+		return (0);
+
+	if (srv->srv_conf.tls_cert == NULL)
+		/* soft fail if cert is not there yet */
 		return (0);
 
 	log_debug("%s: setting up tls for %s", __func__, srv->srv_conf.name);
@@ -480,6 +491,8 @@ server_purge(struct server *srv)
 void
 serverconfig_free(struct server_config *srv_conf)
 {
+	struct fastcgi_param	*param, *tparam;
+
 	free(srv_conf->return_uri);
 	free(srv_conf->tls_ca_file);
 	free(srv_conf->tls_ca);
@@ -491,6 +504,9 @@ serverconfig_free(struct server_config *srv_conf)
 	free(srv_conf->tls_ocsp_staple);
 	freezero(srv_conf->tls_cert, srv_conf->tls_cert_len);
 	freezero(srv_conf->tls_key, srv_conf->tls_key_len);
+
+	TAILQ_FOREACH_SAFE(param, &srv_conf->fcgiparams, entry, tparam)
+		free(param);
 }
 
 void
@@ -508,6 +524,7 @@ serverconfig_reset(struct server_config *srv_conf)
 	srv_conf->tls_key_file = NULL;
 	srv_conf->tls_ocsp_staple = NULL;
 	srv_conf->tls_ocsp_staple_file = NULL;
+	TAILQ_INIT(&srv_conf->fcgiparams);
 }
 
 struct server *
@@ -901,6 +918,7 @@ server_input(struct client *clt)
 		return;
 	}
 
+	clt->clt_toread = TOREAD_HTTP_HEADER;
 	inrd = server_read_http;
 
 	slen = sizeof(clt->clt_sndbufsiz);
@@ -1018,10 +1036,7 @@ server_error(struct bufferevent *bev, short error, void *arg)
 	struct evbuffer		*dst;
 
 	if (error & EVBUFFER_TIMEOUT) {
-		if (clt->clt_toread != TOREAD_HTTP_INIT)
-			server_abort_http(clt, 408, "timeout");
-		else
-			server_abort_http(clt, 0, "timeout");
+		server_abort_http(clt, 408, "timeout");
 		return;
 	}
 	if (error & EVBUFFER_ERROR) {
@@ -1360,6 +1375,9 @@ server_dispatch_parent(int fd, struct privsep_proc *p, struct imsg *imsg)
 		break;
 	case IMSG_CFG_TLS:
 		config_getserver_tls(httpd_env, imsg);
+		break;
+	case IMSG_CFG_FCGI:
+		config_getserver_fcgiparams(httpd_env, imsg);
 		break;
 	case IMSG_CFG_DONE:
 		config_getcfg(httpd_env, imsg);

@@ -1,4 +1,4 @@
-/*	$OpenBSD: server_http.c,v 1.124 2018/10/01 19:24:09 benno Exp $	*/
+/*	$OpenBSD: server_http.c,v 1.129 2019/02/10 13:41:27 benno Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2018 Reyk Floeter <reyk@openbsd.org>
@@ -88,7 +88,6 @@ server_httpdesc_init(struct client *clt)
 	}
 	RB_INIT(&desc->http_headers);
 	clt->clt_descresp = desc;
-	clt->clt_toread = TOREAD_HTTP_INIT;
 
 	return (0);
 }
@@ -199,7 +198,6 @@ void
 server_read_http(struct bufferevent *bev, void *arg)
 {
 	struct client		*clt = arg;
-	struct server_config	*srv_conf = clt->clt_srv_conf;
 	struct http_descriptor	*desc = clt->clt_descreq;
 	struct evbuffer		*src = EVBUFFER_INPUT(bev);
 	char			*line = NULL, *key, *value;
@@ -212,10 +210,6 @@ server_read_http(struct bufferevent *bev, void *arg)
 	size = EVBUFFER_LENGTH(src);
 	DPRINTF("%s: session %d: size %lu, to read %lld",
 	    __func__, clt->clt_id, size, clt->clt_toread);
-
-	if (clt->clt_toread == TOREAD_HTTP_INIT)
-		clt->clt_toread = TOREAD_HTTP_HEADER;
-
 	if (!size) {
 		clt->clt_toread = TOREAD_HTTP_HEADER;
 		goto done;
@@ -225,7 +219,7 @@ server_read_http(struct bufferevent *bev, void *arg)
 		if (!clt->clt_line) {
 			/* Peek into the buffer to see if it looks like HTTP */
 			key = EVBUFFER_DATA(src);
-			if (!isalpha(*key)) {
+			if (!isalpha((unsigned char)*key)) {
 				server_abort_http(clt, 400,
 				    "invalid request line");
 				goto abort;
@@ -360,11 +354,6 @@ server_read_http(struct bufferevent *bev, void *arg)
 			    &errstr);
 			if (errstr) {
 				server_abort_http(clt, 500, errstr);
-				goto abort;
-			}
-			if ((size_t)clt->clt_toread >
-			    srv_conf->maxrequestbody) {
-				server_abort_http(clt, 413, NULL);
 				goto abort;
 			}
 		}
@@ -739,7 +728,6 @@ server_reset_http(struct client *clt)
 	server_httpdesc_free(clt->clt_descresp);
 	clt->clt_headerlen = 0;
 	clt->clt_headersdone = 0;
-	clt->clt_toread = TOREAD_HTTP_INIT;
 	clt->clt_done = 0;
 	clt->clt_line = 0;
 	clt->clt_chunk = 0;
@@ -956,7 +944,8 @@ server_abort_http(struct client *clt, unsigned int code, const char *msg)
 		goto done;
 	}
 
-	if (srv_conf->flags & SRVFLAG_SERVER_HSTS) {
+	if (srv_conf->flags & SRVFLAG_SERVER_HSTS &&
+	    srv_conf->flags & SRVFLAG_TLS) {
 		if (asprintf(&hstsheader, "Strict-Transport-Security: "
 		    "max-age=%d%s%s\r\n", srv_conf->hsts_max_age,
 		    srv_conf->hsts_flags & HSTSFLAG_SUBDOMAINS ?
@@ -1339,6 +1328,12 @@ server_response(struct httpd *httpd, struct client *clt)
 		srv_conf = server_getlocation(clt, desc->http_path);
 	}
 
+	if (clt->clt_toread > 0 && (size_t)clt->clt_toread >
+	    srv_conf->maxrequestbody) {
+		server_abort_http(clt, 413, NULL);
+		return (-1);
+	}
+
 	if (srv_conf->flags & SRVFLAG_BLOCK) {
 		server_abort_http(clt, srv_conf->return_code,
 		    srv_conf->return_uri);
@@ -1458,7 +1453,8 @@ server_response_http(struct client *clt, unsigned int code,
 		return (-1);
 
 	/* HSTS header */
-	if (srv_conf->flags & SRVFLAG_SERVER_HSTS) {
+	if (srv_conf->flags & SRVFLAG_SERVER_HSTS &&
+	    srv_conf->flags & SRVFLAG_TLS) {
 		if ((cl =
 		    kv_add(&resp->http_headers, "Strict-Transport-Security",
 		    NULL)) == NULL ||
@@ -1716,6 +1712,13 @@ server_log_http(struct client *clt, unsigned int code, size_t len)
 		if (clt->clt_remote_user &&
 		    stravis(&user, clt->clt_remote_user, HTTPD_LOGVIS) == -1)
 			goto done;
+		if (clt->clt_remote_user == NULL &&
+		    clt->clt_tls_ctx != NULL &&
+		    (srv_conf->tls_flags & TLSFLAG_CA) &&
+		    tls_peer_cert_subject(clt->clt_tls_ctx) != NULL &&
+		    stravis(&user, tls_peer_cert_subject(clt->clt_tls_ctx),
+				HTTPD_LOGVIS) == -1)
+			goto done;
 		if (desc->http_version &&
 		    stravis(&version, desc->http_version, HTTPD_LOGVIS) == -1)
 			goto done;
@@ -1734,7 +1737,7 @@ server_log_http(struct client *clt, unsigned int code, size_t len)
 		ret = evbuffer_add_printf(clt->clt_log,
 		    "%s %s - %s [%s] \"%s %s%s%s%s%s\""
 		    " %03d %zu \"%s\" \"%s\"\n",
-		    srv_conf->name, ip, clt->clt_remote_user == NULL ? "-" :
+		    srv_conf->name, ip, user == NULL ? "-" :
 		    user, tstamp,
 		    server_httpmethod_byid(desc->http_method),
 		    desc->http_path == NULL ? "" : path,

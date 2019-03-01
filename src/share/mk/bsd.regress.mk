@@ -1,4 +1,4 @@
-# $OpenBSD: bsd.regress.mk,v 1.15 2018/09/26 09:34:23 bluhm Exp $
+# $OpenBSD: bsd.regress.mk,v 1.17 2018/12/03 22:30:04 bluhm Exp $
 # Documented in bsd.regress.mk(5)
 
 # No man pages for regression tests.
@@ -68,9 +68,22 @@ REGRESS_SKIP_TARGETS+=${REGRESS_ROOT_TARGETS}
 .endif
 
 REGRESS_SETUP?=
+REGRESS_SETUP_ONCE?=
 REGRESS_CLEANUP?=
+
 .if !empty(REGRESS_SETUP)
 ${REGRESS_TARGETS}: ${REGRESS_SETUP}
+.endif
+
+.if !empty(REGRESS_SETUP_ONCE)
+CLEANFILES+=${REGRESS_SETUP_ONCE:S/^/stamp-/}
+${REGRESS_TARGETS}: ${REGRESS_SETUP_ONCE:S/^/stamp-/}
+${REGRESS_SETUP_ONCE:S/^/stamp-/}: .SILENT
+	${MAKE} -C ${.CURDIR} ${@:S/^stamp-//}
+	date >$@
+REGRESS_CLEANUP+=${REGRESS_SETUP_ONCE:S/^/cleanup-stamp-/}
+${REGRESS_SETUP_ONCE:S/^/cleanup-stamp-/}: .SILENT
+	rm -f ${@:S/^cleanup-//}
 .endif
 
 regress: .SILENT
@@ -81,9 +94,13 @@ regress: .SILENT
 	echo =========================================================
 	exit 1
 .endif
+.if !empty(REGRESS_SETUP_ONCE)
+	rm -f ${REGRESS_SETUP_ONCE:S/^/stamp-/}
+.endif
 .for RT in ${REGRESS_TARGETS} ${REGRESS_CLEANUP}
 .  if ${REGRESS_SKIP_TARGETS:M${RT}}
 	@echo -n "SKIP " ${_REGRESS_OUT}
+	@echo SKIPPED
 .  else
 # XXX - we need a better method to see if a test fails due to timeout or just
 #       normal failure.
