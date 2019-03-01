@@ -1,3 +1,158 @@
+2019-02-19 11:37  pirofti
+
+	* usr.sbin/httpd/: config.c, httpd.conf.5, httpd.h, parse.y,
+	  server.c, server_fcgi.c: httpd(8): add support for setting custom
+	  FastCGI parameters.
+
+	  This commit extends the existing grammar by adding the param
+	  option to the fastcgi directive: fastcgi param name value.
+
+	  Example usage:   fastcgi param VAR1 hello   fastcgi param VAR2
+	  world
+
+	  With help and OK florian@ Rogue manpage bits, feel free to modify
+	  them.
+
+2019-02-13 22:57  deraadt
+
+	* usr.sbin/httpd/parse.y: (unsigned) means (unsigned int) which on
+	  ptrdiff_t or size_t or other larger types really is a range
+	  reduction...	Almost any cast to (unsigned) is a bug.  ok millert
+	  tb benno
+
+2019-02-10 13:41  benno
+
+	* usr.sbin/httpd/server_http.c: log X509 peer's cert subject name
+	  when tls client authentication is used, in the same way as the
+	  http authenticated username is loged.  From Karel Gardas, gardask
+	  at gmail dot com, Thanks! ok florian@
+
+2019-02-08 11:46  florian
+
+	* usr.sbin/httpd/httpd.conf.5: Improve fastcgi socket documentation
+	  and mention that TCP is supported in addition to UNIX domain
+	  sockets.  Prompted by a mail from Daniel Gracia ( paladdin AT
+	  gmail ) pointing out that we are not documenting TCP support at
+	  all, thanks! Prodding by and with jmc@
+
+2019-01-20 02:50  bcook
+
+	* lib/libutil/: imsg-buffer.c, imsg.h: Change imsg header
+	  definitions to use standard types.
+
+	  ok deraadt@ claudio@
+
+2019-01-08 18:35  florian
+
+	* usr.sbin/httpd/: parse.y, server.c: Allow httpd(8) to start when
+	  TLS is configured but a cert is not yet available.  Assuming a
+	  httpd.conf based on /etc/examples/httpd.conf, httpd(8) will only
+	  listen on port 80 and serve the acme-challenge directory for
+	  acme-client(1).  The workflow to get a certificate then becomes
+	  acme-client -vAD example.com && rcctl reload httpd Without the
+	  need to edit the httpd.conf yet again. Once the cert is in place
+	  and httpd is reloaded it starts to serve on port 443.
+
+	  Idea, tweaks & OK deraadt, OK benno
+
+2018-12-04 18:12  florian
+
+	* usr.sbin/httpd/server_http.c: Check maxrequestbody when we found
+	  the right server / location.	Very patiently pointed out
+	  repeatedly by Tracey Emery ( tracey AT traceyemery.net ), thanks!
+	  OK benno
+
+2018-12-03 22:30  bluhm
+
+	* share/mk/bsd.regress.mk: If a regress uses REGRESS_SKIP_TARGETS
+	  to skip part of its tests, print SKIPPED.  This helps to detect
+	  such incomplete tests.  OK anton@
+
+2018-11-04 05:56  guenther
+
+	* usr.sbin/httpd/server_http.c: isalpha(3) requires an unsigned
+	  char value (or -1).
+
+	  from Hiltjo Posthuma (hiltjo(at)codemadness.org)
+
+2018-11-01 00:18  sashan
+
+	* usr.sbin/httpd/parse.y: - odd condition/test in PF lexer   (and
+	  other lexers too)
+
+	  This commit rectifies earlier change:
+
+	      in the lex... even inside quotes, a \ followed by space or
+	  tab should
+	      expand to space or tab, and a \ followed by newline should be
+	  ignored
+	      (as a line continuation).  compatible with the needs of
+	  hoststated
+	      (which has the most strict quoted string requirements), and
+	  ifstated
+	      (where one commonly does line continuations in strings).
+
+	  OK deraadt@, OK millert@
+
+2018-10-31 07:39  mestre
+
+	* usr.bin/htpasswd/htpasswd.c: htpasswd(1) when in batch mode (-I)
+	  and 1 argument is used, or when not in batch mode and 2 arguments
+	  are used we know we have to access argv[0] with rwc permissions
+	  and also to rwc a temporary file in /tmp so we can unveil(2) both
+	  argv[0] and /tmp with rwc permissions. In order to avoid adding
+	  "unveil" to pledge(2), just call it after getopt(3).
+
+	  Remaining code paths already have fs access disabled via
+	  pledge(2).
+
+	  OK florian@ deraadt@
+
+2018-10-22 17:31  krw
+
+	* lib/libc/asr/asr.c: More "explicitely" -> "explicitly" in various
+	  comments.
+
+	  ok guenther@ tb@ deraadt@
+
+2018-10-15 08:16  bentley
+
+	* usr.sbin/httpd/: server_fcgi.c, server_http.c: Omit HSTS headers
+	  over unencrypted connections, per RFC 6797.
+
+	  ok florian@
+
+2018-10-11 09:52  benno
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_http.c: Backout my
+	  previous commit:
+
+	   date: 2018/10/01 19:24:09; author: benno; state: Exp; lines: +7
+	  -1;
+	     commitid: 0O8fyHPNvPd8rvYU;
+	   Only send 408 Timeout responses when we have seen at least part
+	  of a
+	   request.  Without a request, just close the connection when we
+	  hit
+	   request timeout.
+	   Prompted by a bug report from Nikola Kolev, thanks.
+	   ok reyk@ and some suggestions from claudio@ and bluhm@
+
+	  Mark Patruck (mark AT wrapped DOT cx) found a problem with it,
+	  thanks for the report.
+
+	  ok reyk@ bluhm@ sthen@ deraadt@
+
+2018-10-06 10:52  bluhm
+
+	* regress/usr.sbin/httpd/tests/Makefile: Simplify regress tests by
+	  using the new setup and cleanup feature.
+
+2018-10-05 11:15  bluhm
+
+	* share/mk/bsd.regress.mk: Add regress variable to run setup once
+	  for all tests.  OK anton@ benno@
+
 2018-10-01 19:24  benno
 
 	* usr.sbin/httpd/: httpd.h, server.c, server_http.c: Only send 408
@@ -4793,4 +4948,31 @@
 
 	* usr.sbin/httpd/server_http.c: Make error messages more obvious to
 	  the user.  ok reyk@ florian@
+
+2014-07-12 23:55  reyk
+
+	* usr.sbin/httpd/server_http.c: Use Comic Sans (or Chalkboard) as
+	  the default font for HTTP error messages because we love web
+	  hipsters.
+
+	  ok beck@
+
+2014-07-12 23:34  reyk
+
+	* usr.sbin/httpd/: Makefile, config.c, control.c, http.h, httpd.8,
+	  httpd.c, httpd.conf.5, httpd.h, log.c, parse.y, proc.c, server.c,
+	  server_file.c, server_http.c: Add httpd(8), an attempt to turn
+	  the relayd(8) codebase into a simple web server.  It is not
+	  finished yet and I just started it today, but the goal is to
+	  provide an HTTP server that a) provides minimal features, b)
+	  serves static files, c) provides FastCGI support, and d) follows
+	  common coding practices of OpenBSD.
+
+	  It will neither support plugins, nor custom memory allocators,
+	  EBCDIC support, PCRE or any other things that can be found
+	  elsewhere.  httpd(8) is not intended to provide a fully-featured
+	  replacement for nginx(8) or the Apache, but it will provide
+	  enough functionality that is needed in the OpenBSD base system.
+
+	  ok deraadt@
 

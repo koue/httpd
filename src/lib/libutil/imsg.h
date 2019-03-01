@@ -1,4 +1,4 @@
-/*	$OpenBSD: imsg.h,v 1.4 2017/03/24 09:34:12 nicm Exp $	*/
+/*	$OpenBSD: imsg.h,v 1.5 2019/01/20 02:50:03 bcook Exp $	*/
 
 /*
  * Copyright (c) 2006, 2007 Pierre-Yves Ritschard <pyr@openbsd.org>
@@ -21,6 +21,8 @@
 #ifndef _IMSG_H_
 #define _IMSG_H_
 
+#include <stdint.h>
+
 #ifndef __OpenBSD__
 #include "compat.h"
 #endif
@@ -31,7 +33,7 @@
 
 struct ibuf {
 	TAILQ_ENTRY(ibuf)	 entry;
-	u_char			*buf;
+	unsigned char		*buf;
 	size_t			 size;
 	size_t			 max;
 	size_t			 wpos;
@@ -46,8 +48,8 @@ struct msgbuf {
 };
 
 struct ibuf_read {
-	u_char			 buf[IBUF_READ_SIZE];
-	u_char			*rptr;
+	unsigned char		 buf[IBUF_READ_SIZE];
+	unsigned char		*rptr;
 	size_t			 wpos;
 };
 
