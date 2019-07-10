@@ -1,4 +1,4 @@
-/*	$OpenBSD: server_http.c,v 1.129 2019/02/10 13:41:27 benno Exp $	*/
+/*	$OpenBSD: server_http.c,v 1.133 2019/05/08 21:46:56 tb Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2018 Reyk Floeter <reyk@openbsd.org>
@@ -109,6 +109,8 @@ server_httpdesc_free(struct http_descriptor *desc)
 	desc->http_path_alias = NULL;
 	free(desc->http_query);
 	desc->http_query = NULL;
+	free(desc->http_query_alias);
+	desc->http_query_alias = NULL;
 	free(desc->http_version);
 	desc->http_version = NULL;
 	free(desc->http_host);
@@ -1041,7 +1043,7 @@ server_expand_http(struct client *clt, const char *val, char *buf,
 {
 	struct http_descriptor	*desc = clt->clt_descreq;
 	struct server_config	*srv_conf = clt->clt_srv_conf;
-	char			 ibuf[128], *str, *path;
+	char			 ibuf[128], *str, *path, *query;
 	const char		*errstr = NULL, *p;
 	size_t			 size;
 	int			 n, ret;
@@ -1078,6 +1080,18 @@ server_expand_http(struct client *clt, const char *val, char *buf,
 			return (NULL);
 		ret = expand_string(buf, len, "$DOCUMENT_URI", path);
 		free(path);
+		if (ret != 0)
+			return (NULL);
+	}
+	if (strstr(val, "$QUERY_STRING_ENC") != NULL) {
+		if (desc->http_query == NULL) {
+			ret = expand_string(buf, len, "$QUERY_STRING_ENC", "");
+		} else {
+			if ((query = url_encode(desc->http_query)) == NULL)
+				return (NULL);
+			ret = expand_string(buf, len, "$QUERY_STRING_ENC", query);
+			free(query);
+		}
 		if (ret != 0)
 			return (NULL);
 	}
@@ -1313,11 +1327,11 @@ server_response(struct httpd *httpd, struct client *clt)
 		 * be URL encoded - either specified by the user or by using the
 		 * original $QUERY_STRING.
 		 */
-		free(desc->http_query);
-		desc->http_query = NULL;
+		free(desc->http_query_alias);
+		desc->http_query_alias = NULL;
 		if ((query = strchr(path, '?')) != NULL) {
 			*query++ = '\0';
-			if ((desc->http_query = strdup(query)) == NULL)
+			if ((desc->http_query_alias = strdup(query)) == NULL)
 				goto fail;
 		}
 
@@ -1326,15 +1340,15 @@ server_response(struct httpd *httpd, struct client *clt)
 		    path, sizeof(path)) == NULL)
 			goto fail;
 
-		log_debug("%s: rewrote %s -> %s?%s", __func__,
-		    desc->http_path, path, desc->http_query);
+		log_debug("%s: rewrote %s?%s -> %s?%s", __func__,
+		    desc->http_path, desc->http_query, path, query);
 
-		free(desc->http_path);
-		if ((desc->http_path = strdup(path)) == NULL)
+		free(desc->http_path_alias);
+		if ((desc->http_path_alias = strdup(path)) == NULL)
 			goto fail;
 
 		/* Now search for the updated location */
-		srv_conf = server_getlocation(clt, desc->http_path);
+		srv_conf = server_getlocation(clt, desc->http_path_alias);
 	}
 
 	if (clt->clt_toread > 0 && (size_t)clt->clt_toread >
@@ -1641,7 +1655,7 @@ server_log_http(struct client *clt, unsigned int code, size_t len)
 	static char		 tstamp[64];
 	static char		 ip[INET6_ADDRSTRLEN];
 	time_t			 t;
-	struct kv		 key, *agent, *referrer;
+	struct kv		 key, *agent, *referrer, *xff, *xfp;
 	struct tm		*tm;
 	struct server_config	*srv_conf;
 	struct http_descriptor	*desc;
@@ -1651,6 +1665,8 @@ server_log_http(struct client *clt, unsigned int code, size_t len)
 	char			*version = NULL;
 	char			*referrer_v = NULL;
 	char			*agent_v = NULL;
+	char			*xff_v = NULL;
+	char			*xfp_v = NULL;
 
 	if ((srv_conf = clt->clt_srv_conf) == NULL)
 		return (-1);
@@ -1707,6 +1723,7 @@ server_log_http(struct client *clt, unsigned int code, size_t len)
 		break;
 
 	case LOG_FORMAT_COMBINED:
+	case LOG_FORMAT_FORWARDED:
 		key.kv_key = "Referer"; /* sic */
 		if ((referrer = kv_find(&desc->http_headers, &key)) != NULL &&
 		    referrer->kv_value == NULL)
@@ -1726,7 +1743,7 @@ server_log_http(struct client *clt, unsigned int code, size_t len)
 		    (srv_conf->tls_flags & TLSFLAG_CA) &&
 		    tls_peer_cert_subject(clt->clt_tls_ctx) != NULL &&
 		    stravis(&user, tls_peer_cert_subject(clt->clt_tls_ctx),
-				HTTPD_LOGVIS) == -1)
+		    HTTPD_LOGVIS) == -1)
 			goto done;
 		if (desc->http_version &&
 		    stravis(&version, desc->http_version, HTTPD_LOGVIS) == -1)
@@ -1743,9 +1760,9 @@ server_log_http(struct client *clt, unsigned int code, size_t len)
 		    (referrer_v = url_encode(referrer->kv_value)) == NULL)
 			goto done;
 
-		ret = evbuffer_add_printf(clt->clt_log,
+		if ((ret = evbuffer_add_printf(clt->clt_log,
 		    "%s %s - %s [%s] \"%s %s%s%s%s%s\""
-		    " %03d %zu \"%s\" \"%s\"\n",
+		    " %03d %zu \"%s\" \"%s\"",
 		    srv_conf->name, ip, user == NULL ? "-" :
 		    user, tstamp,
 		    server_httpmethod_byid(desc->http_method),
@@ -1756,7 +1773,38 @@ server_log_http(struct client *clt, unsigned int code, size_t len)
 		    desc->http_version == NULL ? "" : version,
 		    code, len,
 		    referrer == NULL ? "" : referrer_v,
-		    agent == NULL ? "" : agent_v);
+		    agent == NULL ? "" : agent_v)) == -1)
+			break;
+
+		if (srv_conf->logformat == LOG_FORMAT_COMBINED)
+			goto finish;
+
+		xff = xfp = NULL;
+
+		key.kv_key = "X-Forwarded-For";
+		if ((xff = kv_find(&desc->http_headers, &key)) != NULL
+		    && xff->kv_value == NULL)
+			xff = NULL;
+
+		if (xff &&
+		    stravis(&xff_v, xff->kv_value, HTTPD_LOGVIS) == -1)
+			goto finish;
+
+		key.kv_key = "X-Forwarded-Port";
+		if ((xfp = kv_find(&desc->http_headers, &key)) != NULL &&
+		    (xfp->kv_value == NULL))
+			xfp = NULL;
+
+		if (xfp &&
+		    stravis(&xfp_v, xfp->kv_value, HTTPD_LOGVIS) == -1)
+			goto finish;
+
+		if ((ret = evbuffer_add_printf(clt->clt_log, " %s %s",
+		    xff == NULL ? "-" : xff_v,
+		    xfp == NULL ? "-" : xfp_v)) == -1)
+			break;
+finish:
+		ret = evbuffer_add_printf(clt->clt_log, "\n");
 
 		break;
 
@@ -1778,6 +1826,8 @@ done:
 	free(version);
 	free(referrer_v);
 	free(agent_v);
+	free(xff_v);
+	free(xfp_v);
 
 	return (ret);
 }

@@ -1,3 +1,176 @@
+2019-06-28 13:32  deraadt
+
+	* lib/libevent/evutil.c, usr.sbin/httpd/parse.y,
+	  usr.sbin/httpd/server.c: When system calls indicate an error they
+	  return -1, not some arbitrary value < 0.  errno is only updated
+	  in this case.  Change all (most?) callers of syscalls to follow
+	  this better, and let's see if this strictness helps us in the
+	  future.
+
+2019-06-17 17:20  espie
+
+	* share/mk/bsd.regress.mk: add REGRESS_EXPECTED_FAILURES variable,
+	  for those tests that are expected to fail because they're not yet
+	  implemented.
+
+	  okay bluhm@
+
+2019-06-15 07:30  espie
+
+	* share/mk/bsd.regress.mk: simplify cleanup handling okay bluhm@
+
+2019-06-11 18:14  espie
+
+	* share/mk/bsd.regress.mk: make things slightly less insane: -
+	  actually use the ERRORS framework for REGRESS_LOG - put it at end
+	  of file, as best working (years of practice on bsd.port.mk) -
+	  actually use .SILENT - fix REGRESS_IGNORE_FAIL. Don't put a - in
+	  front of lines, but just don't error out as false on FAILED
+	  tests.  This finally allows ^C to actually interrupt a testsuite.
+	   - add one missing .PHONY (quite a few more for later)
+
+	  okay bluhm@
+
+2019-05-14 16:43  bluhm
+
+	* share/mk/bsd.regress.mk: Remove the REGRESS_MAXTIME feature from
+	  regress framework.  The timeout based on CPU seconds is pretty
+	  useless, most hanging tests sleep and do not spin.  The timeout
+	  could not be distinguished from failure.  Only 3 tests used it.
+	  OK anton@ schwarze@ cheloha@ otto@
+
+2019-05-08 21:46  tb
+
+	* usr.sbin/httpd/: httpd.conf.5, server_http.c: The QUERY_STRING
+	  macro is not actually URL encoded, so fix the manual.  Add a
+	  QUERY_STRING_ENC macro that is URL encoded.
+
+	  Patch from Tim Baumgartner
+
+	  ok reyk
+
+2019-05-08 21:41  tb
+
+	* usr.sbin/httpd/: http.h, server_fcgi.c, server_http.c: Set the
+	  REQUEST_URI CGI variable to the requested URI and query string
+	  instead of the rewritten path and query string.
+
+	  Patch from Tim Baumgard, reminded by Mischa Peters.
+
+	  ok benno, reyk
+
+2019-05-08 19:57  reyk
+
+	* usr.sbin/httpd/: config.c, httpd.h, parse.y, server_fcgi.c,
+	  server_http.c: spacing
+
+2019-05-08 17:33  tobias
+
+	* lib/libevent/kqueue.c: Fixed integer overflow with an excessively
+	  large amount of events.
+
+	  While at it: KNF and switch from reallocarray to recallocarray.
+
+	  ok tedu
+
+2019-05-03 17:16  tb
+
+	* usr.sbin/httpd/: httpd.conf.5, httpd.h, parse.y, server_http.c:
+	  Add a "forwarded" log format that extends the "combined" log
+	  format by including the contents of the X-Forwarded-For and
+	  X-Forwarded-Port headers.  If httpd(8) runs behind a proxy like
+	  relayd(8), this allows tracking the origin of the requests.  The
+	  format is compatible with log analyzers such as GoAccess and
+	  Webalizer.
+
+	  Patch from Bruno Flueckiger
+
+	  ok benno, reyk
+
+2019-05-03 16:31  tobias
+
+	* lib/libevent/buffer.c: Fixed endless loop/ OOB write on 64 bit
+	  systems with large buffers.
+
+	  If a buffer exceeds UINT_MAX (which is only possible on 64 bit
+	  systems) an endless loop or OOB write can occur in
+	  buffer-specific readline functions.
+
+	  Switching variables in function scope to size_t solves these
+	  issue because relevant fields in struct buffer are already
+	  size_t.
+
+	  ok cheloha, deraadt, nicm, tedu
+
+2019-05-02 22:32  kn
+
+	* usr.sbin/httpd/logger.c: Avoid opening log files on "no log"
+
+	  When not logging anything, do not open files in the first place.
+	  This prevents startup failures on configurations where the log/
+	  directory is missing but logging is disabled anyway.
+
+	  OK aja solene reyk
+
+2019-05-01 19:14  jca
+
+	* lib/libevent/event.c: Tweaks previous: gettime() can be void, use
+	  TIMESPEC_TO_TIMEVAL
+
+	  ok nicm@ tobias@ cheloha@
+
+2019-05-01 19:12  jca
+
+	* lib/libevent/event.c: Require clock_gettime(CLOCK_MONOTONIC) and
+	  remove fallback code
+
+	  If clock_gettime(CLOCK_MONOTONIC) fails here, something is really
+	  wrong.  Lots of userland already require it anyway.  Removing the
+	  fallback code means less code, less global state and less
+	  fiddling with the timeheap internals.
+
+	  ok nicm@ tedu@ tobias@ cheloha@
+
+2019-04-29 17:11  tobias
+
+	* lib/libevent/: event.c, event.h, min_heap.h: Switched min_heap to
+	  size_t to prevent integer overflows.
+
+	  Also, as deraadt suggested, switched realloc to recallocarray to
+	  at least prevent uninitialized memory to be used as pointers in
+	  case of other programming errors. A proper solution (not using an
+	  array) needs more work.
+
+	  This change occured in sync with upstream libevent 2.2.
+
+	  with input by and ok bluhm, jca, tedu
+
+2019-04-20 23:22  tedu
+
+	* lib/libevent/min_heap.h: knf, ok bluhm
+
+2019-04-18 23:44  tedu
+
+	* lib/libevent/min_heap.h: unfold some compound operations to make
+	  this easier to follow
+
+2019-04-16 20:52  jmc
+
+	* usr.sbin/httpd/httpd.conf.5: document where multiline {} is
+	  applicable; lack of documentation and original diff provided by
+	  alfred morgan; benno helped me track down the applicable options;
+
+	  ok benno
+
+2019-03-12 21:38  jmc
+
+	* usr.sbin/httpd/httpd.conf.5: reference the /etc/examples files
+	  for httpd and acme-client. started from a thread by alfred
+	  morgan, who wanted a tls example in the man page. florian noted
+	  that they exist already in /etc/examples;
+
+	  ok florian
+
 2019-02-19 11:37  pirofti
 
 	* usr.sbin/httpd/: config.c, httpd.conf.5, httpd.h, parse.y,
