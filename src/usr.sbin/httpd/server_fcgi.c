@@ -1,4 +1,4 @@
-/*	$OpenBSD: server_fcgi.c,v 1.78 2019/02/19 11:37:26 pirofti Exp $	*/
+/*	$OpenBSD: server_fcgi.c,v 1.80 2019/05/08 21:41:06 tb Exp $	*/
 
 /*
  * Copyright (c) 2014 Florian Obser <florian@openbsd.org>
@@ -92,13 +92,13 @@ server_fcgi(struct httpd *env, struct client *clt)
 	struct http_descriptor		*desc = clt->clt_descreq;
 	struct fcgi_record_header	*h;
 	struct fcgi_begin_request_body	*begin;
-	struct fastcgi_param 		*fcgiparam;
+	struct fastcgi_param		*fcgiparam;
 	char				 hbuf[HOST_NAME_MAX+1];
 	size_t				 scriptlen;
 	int				 pathlen;
 	int				 fd = -1, ret;
 	const char			*stripped, *p, *alias, *errstr = NULL;
-	char				*str, *script = NULL;
+	char				*query_alias, *str, *script = NULL;
 
 	if (srv_conf->socket[0] == ':') {
 		struct sockaddr_storage	 ss;
@@ -194,6 +194,10 @@ server_fcgi(struct httpd *env, struct client *clt)
 	    ? desc->http_path_alias
 	    : desc->http_path;
 
+	query_alias = desc->http_query_alias != NULL
+	    ? desc->http_query_alias
+	    : desc->http_query;
+
 	stripped = server_root_strip(alias, srv_conf->strip);
 	if ((pathlen = asprintf(&script, "%s%s", srv_conf->root, stripped))
 	    == -1) {
@@ -242,8 +246,8 @@ server_fcgi(struct httpd *env, struct client *clt)
 		goto fail;
 	}
 
-	if (desc->http_query) {
-		if (fcgi_add_param(&param, "QUERY_STRING", desc->http_query,
+	if (query_alias) {
+		if (fcgi_add_param(&param, "QUERY_STRING", query_alias,
 		    clt) == -1) {
 			errstr = "failed to encode param";
 			goto fail;
@@ -297,7 +301,8 @@ server_fcgi(struct httpd *env, struct client *clt)
 	}
 
 	TAILQ_FOREACH(fcgiparam, &srv_conf->fcgiparams, entry) {
-		if (fcgi_add_param(&param, fcgiparam->name, fcgiparam->value, clt) == -1) {
+		if (fcgi_add_param(&param, fcgiparam->name, fcgiparam->value,
+		    clt) == -1) {
 			errstr = "failed to encode param";
 			goto fail;
 		}

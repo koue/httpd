@@ -1,4 +1,4 @@
-.\"	$OpenBSD: httpd.conf.5,v 1.103 2019/02/19 11:37:26 pirofti Exp $
+.\"	$OpenBSD: httpd.conf.5,v 1.107 2019/05/08 21:46:56 tb Exp $
 .\"
 .\" Copyright (c) 2014, 2015 Reyk Floeter <reyk@openbsd.org>
 .\"
@@ -14,7 +14,7 @@
 .\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 .\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 .\"
-.Dd $Mdocdate: February 19 2019 $
+.Dd $Mdocdate: May 8 2019 $
 .Dt HTTPD.CONF 5
 .Os
 .Sh NAME
@@ -208,7 +208,9 @@ may contain predefined macros that will be expanded at runtime:
 .It Ic $DOCUMENT_URI
 The request path.
 .It Ic $QUERY_STRING
-The URL encoded query string of the request.
+The query string of the request.
+.It Ic $QUERY_STRING_ENC
+The URL-encoded query string of the request.
 .It Ic $REMOTE_ADDR
 The IP address of the connected client.
 .It Ic $REMOTE_PORT
@@ -234,6 +236,7 @@ option.
 .El
 .It Ic connection Ar option
 Set the specified options and limits for HTTP connections.
+Multiple options may be specified within curly braces.
 Valid options are:
 .Bl -tag -width Ds
 .It Ic max request body Ar number
@@ -260,6 +263,7 @@ Set the default media type for the specified location,
 overwriting the global setting.
 .It Ic directory Ar option
 Set the specified options when serving or accessing directories.
+Multiple options may be specified within curly braces.
 Valid options are:
 .Bl -tag -width Ds
 .It Oo Ic no Oc Ic auto index
@@ -430,6 +434,7 @@ but can be changed per server or location.
 Use the
 .Ic no log
 directive to disable logging of any requests.
+Multiple options may be specified within curly braces.
 Valid options are:
 .Bl -tag -width Ds
 .It Ic access Ar name
@@ -450,7 +455,8 @@ The
 .Ar style
 can be
 .Cm common ,
-.Cm combined
+.Cm combined ,
+.Cm forwarded
 or
 .Cm connection .
 The styles
@@ -459,6 +465,14 @@ and
 .Cm combined
 write a log entry after each request similar to the standard Apache
 and nginx access log formats.
+The style
+.Cm forwarded
+extends the style
+.Cm combined
+by appending two fields containing the values of the headers
+.Ar X-Forwarded-For
+and
+.Ar X-Forwarded-Port .
 The style
 .Cm connection
 writes a summarized log entry after each connection,
@@ -478,6 +492,7 @@ Disable any previous
 in a location.
 .It Ic request Ar option
 Configure the options for the request path.
+Multiple options may be specified within curly braces.
 Valid options are:
 .Bl -tag -width Ds
 .It Oo Ic no Oc Ic rewrite Ar path
@@ -515,6 +530,7 @@ Enable or disable the specified TCP/IP options; see
 and
 .Xr ip 4
 for more information about the options.
+Multiple options may be specified within curly braces.
 Valid options are:
 .Bl -tag -width Ds
 .It Ic backlog Ar number
@@ -544,6 +560,7 @@ This will affect the TCP window size.
 .It Ic tls Ar option
 Set the TLS configuration for the server.
 These options are only used if TLS has been enabled via the listen directive.
+Multiple options may be specified within curly braces.
 Valid options are:
 .Bl -tag -width Ds
 .It Ic certificate Ar file
@@ -658,7 +675,8 @@ and
 .Pp
 The
 .Ic types
-section must include one or more lines of the following syntax:
+section must include one or more lines of the following syntax,
+enclosed in curly braces:
 .Bl -tag -width Ds
 .It Ar type/subtype Ar name Op Ar name ...
 Set the media
@@ -674,6 +692,15 @@ Include types definitions from an external file, for example
 .Pa /usr/share/misc/mime.types .
 .El
 .Sh EXAMPLES
+Example configuration files for
+.Nm
+and
+.Xr acme-client 1
+are provided in
+.Pa /etc/examples/httpd.conf
+and
+.Pa /etc/examples/acme-client.conf .
+.Pp
 The following example will start one server that is pre-forked two
 times and is listening on all local IP addresses.
 It additionally defines some media types overriding the defaults.
