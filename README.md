@@ -9,7 +9,11 @@ http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.sbin/httpd/
 ### Requirements
 * libressl
 
-`cd src/ && make && make install`
+```
+make
+cd src/regress/usr.sbin/httpd/tests/ && make
+cd - && make install
+```
 
 ## Usage
 
