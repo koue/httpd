@@ -1,3 +1,32 @@
+2019-10-22 09:31  florian
+
+	* usr.sbin/httpd/server_http.c: Do not log "(null)" in debug
+	  logging.  OK deraadt
+
+2019-10-14 11:07  florian
+
+	* usr.sbin/httpd/server.c: httpd(8) sent a 408 response every time
+	  a connection request timeout was reached. This is not what other
+	  servers are doing, it leads to ugly log messages and might
+	  confuse some clients.  benno@ analyzed that the correct behavior
+	  is (probably) to send a 408 when we are in the middle of
+	  receiving headers and time out there and just close the
+	  connection in all other cases.  In particular, if a connection
+	  gets opened and no request is received at all just close the
+	  connection. If a connection is set to keep-alive and a request
+	  was handled and no further request is coming in just close the
+	  connection. The later is the usual cause for spurious log
+	  messages and client confusion.
+
+	  Reported over the years by many.  Input, explanations and OK
+	  benno
+
+2019-07-12 19:31  bluhm
+
+	* regress/usr.sbin/httpd/tests/Makefile: Test should also run if
+	  there is no obj directory.  Name regress targets consistently
+	  with a run- prefix.
+
 2019-06-28 13:32  deraadt
 
 	* lib/libevent/evutil.c, usr.sbin/httpd/parse.y,
