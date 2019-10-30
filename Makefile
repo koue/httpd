@@ -1,3 +1,3 @@
-SUBDIR=	libimsg/src src
+SUBDIR=	libimsg/src libevent src
 
 .include <bsd.subdir.mk>

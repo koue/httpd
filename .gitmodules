@@ -2,3 +2,7 @@
 	path = libimsg
 	url = https://github.com/koue/libimsg
 	ignore = dirty
+[submodule "libevent"]
+	path = libevent
+	url = https://github.com/koue/libevent
+	ignore = dirty
