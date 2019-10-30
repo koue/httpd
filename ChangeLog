@@ -1,10 +1,3 @@
-2019-10-24 05:57  otto
-
-	* include/asr.h, lib/libc/asr/asr.c: Allow the caller of asr
-	  functions to create and use a specific context.  Diff from eric@
-	  and florian@, commiting on their behalf since they are absent and
-	  we want to ride the minor shlib bump.
-
 2019-10-22 09:31  florian
 
 	* usr.sbin/httpd/server_http.c: Do not log "(null)" in debug
@@ -36,12 +29,11 @@
 
 2019-06-28 13:32  deraadt
 
-	* lib/libevent/evutil.c, usr.sbin/httpd/parse.y,
-	  usr.sbin/httpd/server.c: When system calls indicate an error they
-	  return -1, not some arbitrary value < 0.  errno is only updated
-	  in this case.  Change all (most?) callers of syscalls to follow
-	  this better, and let's see if this strictness helps us in the
-	  future.
+	* usr.sbin/httpd/: parse.y, server.c: When system calls indicate an
+	  error they return -1, not some arbitrary value < 0.  errno is
+	  only updated in this case.  Change all (most?) callers of
+	  syscalls to follow this better, and let's see if this strictness
+	  helps us in the future.
 
 2019-06-17 17:20  espie
 
@@ -100,15 +92,6 @@
 	* usr.sbin/httpd/: config.c, httpd.h, parse.y, server_fcgi.c,
 	  server_http.c: spacing
 
-2019-05-08 17:33  tobias
-
-	* lib/libevent/kqueue.c: Fixed integer overflow with an excessively
-	  large amount of events.
-
-	  While at it: KNF and switch from reallocarray to recallocarray.
-
-	  ok tedu
-
 2019-05-03 17:16  tb
 
 	* usr.sbin/httpd/: httpd.conf.5, httpd.h, parse.y, server_http.c:
@@ -123,21 +106,6 @@
 
 	  ok benno, reyk
 
-2019-05-03 16:31  tobias
-
-	* lib/libevent/buffer.c: Fixed endless loop/ OOB write on 64 bit
-	  systems with large buffers.
-
-	  If a buffer exceeds UINT_MAX (which is only possible on 64 bit
-	  systems) an endless loop or OOB write can occur in
-	  buffer-specific readline functions.
-
-	  Switching variables in function scope to size_t solves these
-	  issue because relevant fields in struct buffer are already
-	  size_t.
-
-	  ok cheloha, deraadt, nicm, tedu
-
 2019-05-02 22:32  kn
 
 	* usr.sbin/httpd/logger.c: Avoid opening log files on "no log"
@@ -147,48 +115,6 @@
 	  directory is missing but logging is disabled anyway.
 
 	  OK aja solene reyk
-
-2019-05-01 19:14  jca
-
-	* lib/libevent/event.c: Tweaks previous: gettime() can be void, use
-	  TIMESPEC_TO_TIMEVAL
-
-	  ok nicm@ tobias@ cheloha@
-
-2019-05-01 19:12  jca
-
-	* lib/libevent/event.c: Require clock_gettime(CLOCK_MONOTONIC) and
-	  remove fallback code
-
-	  If clock_gettime(CLOCK_MONOTONIC) fails here, something is really
-	  wrong.  Lots of userland already require it anyway.  Removing the
-	  fallback code means less code, less global state and less
-	  fiddling with the timeheap internals.
-
-	  ok nicm@ tedu@ tobias@ cheloha@
-
-2019-04-29 17:11  tobias
-
-	* lib/libevent/: event.c, event.h, min_heap.h: Switched min_heap to
-	  size_t to prevent integer overflows.
-
-	  Also, as deraadt suggested, switched realloc to recallocarray to
-	  at least prevent uninitialized memory to be used as pointers in
-	  case of other programming errors. A proper solution (not using an
-	  array) needs more work.
-
-	  This change occured in sync with upstream libevent 2.2.
-
-	  with input by and ok bluhm, jca, tedu
-
-2019-04-20 23:22  tedu
-
-	* lib/libevent/min_heap.h: knf, ok bluhm
-
-2019-04-18 23:44  tedu
-
-	* lib/libevent/min_heap.h: unfold some compound operations to make
-	  this easier to follow
 
 2019-04-16 20:52  jmc
 
@@ -310,13 +236,6 @@
 
 	  OK florian@ deraadt@
 
-2018-10-22 17:31  krw
-
-	* lib/libc/asr/asr.c: More "explicitely" -> "explicitly" in various
-	  comments.
-
-	  ok guenther@ tb@ deraadt@
-
 2018-10-15 08:16  bentley
 
 	* usr.sbin/httpd/: server_fcgi.c, server_http.c: Omit HSTS headers
@@ -368,13 +287,6 @@
 	* share/mk/bsd.regress.mk: Add variables for setup and cleanup of
 	  regression tests.  OK anton@ jca@ tb@ benno@
 
-2018-09-23 08:56  anton
-
-	* lib/libevent/event.3: Document bufferevent_setwatermark().
-	  Initial diff from Geoff Hill on tech@ with some tweaks.
-
-	  With feedback and ok jmc@
-
 2018-09-09 21:06  bluhm
 
 	* usr.sbin/httpd/: httpd.c, httpd.h, proc.c: During the fork+exec
@@ -409,13 +321,6 @@
 	  too long" error.
 
 	  ok benno@ sthen@ tb@
-
-2018-07-26 12:50  rob
-
-	* lib/libevent/: evbuffer_new.3, event.3: Mention some missing
-	  libevent macros.
-
-	  ok jmc@, benno@, "yes" deraadt@
 
 2018-07-11 07:39  krw
 
@@ -585,14 +490,6 @@
 
 	  OK florian@ jmc@
 
-2018-04-28 15:16  schwarze
-
-	* lib/libc/asr/: asr.c, asr_private.h: To allow us to get rid of
-	  /etc/networks, make getnetby*(3) wrappers around
-	  gethostby*_async(3).	If you had anything of importance in
-	  /etc/networks, specify it in /etc/hosts instead.  Feedback and OK
-	  eric@, OK deraadt@
-
 2018-04-26 14:12  krw
 
 	* usr.sbin/httpd/parse.y: Plug leak in error case of the common
@@ -683,12 +580,6 @@
 	  actually useful.  With & OK deraadt input sthen looks better to
 	  beck OK benno
 
-2018-03-13 12:25  jca
-
-	* lib/libc/asr/asr.c: Fix comments
-
-	  ok eric@ a while ago
-
 2018-02-07 03:28  florian
 
 	* usr.sbin/httpd/: httpd.h, logger.c: NAME_MAX is the length of the
@@ -697,14 +588,6 @@
 	  Replace it with new defines or PATH_MAX.  It also makes the life
 	  easier for people auditing the tree for real usage of NAME_MAX.
 	  OK deraadt, benno
-
-2018-02-06 13:00  eric
-
-	* lib/libc/asr/asr.c: make sure that all error paths are correctly
-	  handled in asr_run_sync() and that the result is always properly
-	  set when the functions returns.  fix issues spotted by claudio@.
-
-	  ok claudio@
 
 2018-01-15 20:38  bluhm
 
@@ -771,12 +654,6 @@
 
 	  ok beck@
 
-2017-08-01 14:57  schwarze
-
-	* lib/libevent/evbuffer_new.3: add missing and correct misspelled
-	  names, most in NAME sections; found with
-	  regress/usr.bin/mandoc/db/dbm_dump; OK jmc@
-
 2017-07-31 08:02  ians
 
 	* usr.sbin/httpd/server_fcgi.c: Don't set HTTP date header if
@@ -812,12 +689,6 @@
 	  Limit debug output to one line per 1% of data.  Remove unused
 	  function http_server().  Fix whitespace.  Cleanup Makefile.
 
-2017-07-10 21:37  tedu
-
-	* lib/libevent/kqueue.c: if there are no changes for kevent, pass
-	  in NULL instead.  this has no effect except to make ktrace output
-	  prettier.  ok bluhm mpi
-
 2017-07-09 21:23  espie
 
 	* usr.bin/htpasswd/Makefile: remove redundant variable declarations
@@ -836,17 +707,6 @@
 	  uses it, set YFLAGS to nothing instead of CLEANFILES += y.tab.h
 
 	  okay millert@
-
-2017-06-29 01:25  dlg
-
-	* lib/libevent/event.3: take const off the timeval argument in the
-	  pending functions.
-
-	  event_pending, evtimer_pending, and signal_pending all write to
-	  the timeval because that's how they tell the caller when the
-	  event is meant to fire.
-
-	  ok deraadt@ millert@ jmc@ schwarze@
 
 2017-06-10 13:31  schwarze
 
@@ -934,12 +794,6 @@
 	  log_warn() to LOG_ERR and keep fatal() at LOG_CRIT.  OK reyk@
 	  florian@
 
-2017-03-18 01:48  deraadt
-
-	* lib/libevent/buffer.c: Use recallocarray() to avoid leaving
-	  detritus in memory when resizing the string buffer.  ok jsing
-	  millert
-
 2017-03-16 10:18  florian
 
 	* usr.sbin/httpd/: httpd.conf.5, server_http.c: Expand $HTTP_HOST
@@ -954,63 +808,6 @@
 	  Fix by Rivo Nurges, fixes a problem with Atlassian JIRA
 
 	  OK benno@
-
-2017-02-27 11:38  jca
-
-	* lib/libc/asr/asr_private.h: Add support for RES_USE_DNSSEC
-
-	  RES_USE_DNSSEC is implemented by setting the DNSSEC DO bit in
-	  outgoing queries.  The resolver is then supposed to set the AD
-	  bit in the reply if it managed to validate the answer through
-	  DNSSEC.  Useful when the application doesn't implement validation
-	  internally.  This scheme assumes that the validating resolver is
-	  trusted and that the communication channel between the validating
-	  resolver and and the client is secure.
-
-	  ok eric@ gilles@
-
-2017-02-27 11:31  jca
-
-	* lib/libc/asr/asr_private.h: Recognize and allow bits AD and CD in
-	  DNS replies.
-
-	  Needed for RES_USE_DNSSEC support.
-
-	  ok eric@ gilles@
-
-2017-02-27 10:44  jca
-
-	* lib/libc/asr/: asr.c, asr_private.h: Put a common flags field in
-	  the query struct, rather than in some elements of the union.
-
-	  This field is for internal asr flags.  The flags in "struct
-	  rrset" and "struct ni" are different kinds of flags.
-
-	  ok eric@
-
-2017-02-23 17:04  eric
-
-	* lib/libc/asr/: asr.c, asr_private.h: Put a common subq pointer in
-	  the query struct, rather than one in each element of the union.
-
-	  ok gilles@ millert@ krw@
-
-2017-02-18 19:23  jca
-
-	* lib/libc/asr/: asr.c, asr_private.h: Add EDNS0 support.
-
-	  EDNS allows for various DNS extensions, among which UDP DNS
-	  packets size bigger than 512 bytes.  The default is still to not
-	  advertize anything.
-
-	  ok eric@
-
-2017-02-17 22:24  eric
-
-	* lib/libc/asr/asr_private.h: use common errnos instead of random
-	  strings as error indicators in pack/unpack contexts.
-
-	  ok krw@ deraadt@
 
 2017-02-07 12:27  reyk
 
@@ -1251,15 +1048,6 @@
 
 	  ok bluhm@ otto@
 
-2016-12-18 01:34  krw
-
-	* lib/libc/asr/asr_private.h: Remove prototype for static function
-	  _asr_resolver. Eliminates gcc whining about undefined static in
-	  all the .c files that include asr_private.h. _asr_resolver() is
-	  defined and used in asr.c only.
-
-	  ok kettenis@
-
 2016-11-17 14:58  jsing
 
 	* usr.sbin/httpd/server.c: Check the return value of
@@ -1428,11 +1216,6 @@
 
 	  OK rzalamena@
 
-2016-09-03 11:31  nayden
-
-	* lib/libevent/: buffer.c, kqueue.c, poll.c, select.c: Remove NULL
-	  pointer checks before calls to free().  OK bluhm@ nicm@
-
 2016-09-03 10:02  reyk
 
 	* usr.sbin/httpd/proc.c: Use DPRINTF instead of #ifdef DEBUG +
@@ -1579,13 +1362,6 @@
 
 	  ok reyk@
 
-2016-08-20 19:08  jca
-
-	* lib/libc/asr/asr_private.h: Declare all _asr_* debug functions as
-	  hidden.
-
-	  Reported by & similar diff by guenther@ some time ago, ok eric@
-
 2016-08-16 18:41  tedu
 
 	* usr.sbin/httpd/: httpd.c, httpd.h, logger.c, server.c: stop
@@ -1649,13 +1425,6 @@
 
 	  Found and tested by Michael Lechtermann OK benno@
 
-2016-07-17 11:21  stefan
-
-	* lib/libevent/event.3: Talk about event API instead of libevent
-
-	  Avoids inconsistent capitalization of libevent at start of
-	  sentence suggested by and ok jmc@, ok bluhm@
-
 2016-07-13 16:35  jsing
 
 	* usr.sbin/httpd/httpd.h: Adjust existing tls_config_set_cipher()
@@ -1680,12 +1449,6 @@
 
 	  feedback from henning@, stsp@, deraadt@ ok florian@ mikeb@
 
-2016-06-18 15:25  reyk
-
-	* lib/libc/asr/asr.c: Remove duplicated line.
-
-	  OK eric@
-
 2016-06-10 18:32  jmc
 
 	* usr.sbin/httpd/httpd.8: grammar fix; from nick permyakov
@@ -1701,10 +1464,6 @@
 
 	  From Fabian Raetz <fabian dot raetz at gmail dot com>
 
-2016-05-27 11:25  sthen
-
-	* lib/libc/asr/asr.c: typo fixes; Anthony Coulter
-
 2016-05-27 11:24  krw
 
 	* usr.sbin/httpd/server_http.c: Return "400 Bad Request" instead of
@@ -1715,18 +1474,6 @@
 	  support HTTP v0.9 (circa 1991), when "GET <url>\r\n" was valid.
 
 	  ok millert@ florian@
-
-2016-05-26 06:59  jmatthew
-
-	* lib/libc/asr/asr.c: Calculate elapsed time in poll() and subtract
-	  that from the remaining time when restarting poll() after
-	  receiving a signal.
-
-	  The ruby runtime send signals to threads periodically, so without
-	  accounting for elapsed time, the timeout would never expire if we
-	  didn't get a response from a nameserver.
-
-	  ok deraadt@ eric@
 
 2016-05-22 19:20  jung
 
@@ -1819,42 +1566,11 @@
 
 	  ok reyk@
 
-2016-03-30 06:38  jmc
-
-	* lib/libevent/Makefile: for some time now mandoc has not required
-	  MLINKS to function correctly - logically complete that now by
-	  removing MLINKS from base;
-
-	  authors need only to ensure there is an entry in NAME for any
-	  function/ util being added. MLINKS will still work, and remain
-	  for perl to ease upgrades;
-
-	  ok nicm (curses) bcook (ssl) ok schwarze, who provided a lot of
-	  feedback and assistance ok tb natano jung
-
-2016-03-20 00:01  krw
-
-	* lib/libevent/evutil.c: Currently we have about a 50/50 split over
-	  fcntl(n, F_GETFL [,0]) idioms.
-
-	  Adopt the more concise fcntl(n, F_GETFL) over fcntl(n, F_GETFL,
-	  0) where it is obvious further investigation will not yield and
-	  even better way.
-
-	  Obviousness evaluation and ok guenther@
-
 2016-03-08 09:33  florian
 
 	* usr.sbin/httpd/: server_file.c, server_http.c: Set content
 	  charset for auto index generated page.  Pointed out and diff by
 	  dhill, thanks! Tweaks and same change for error documents by me.
-
-2016-02-24 20:52  eric
-
-	* lib/libc/asr/asr.c: Avoid a possible double-free if the "search"
-	  keyword is used multiple times.
-
-	  ok jca@ gilles@
 
 2016-02-14 18:20  semarie
 
@@ -1886,48 +1602,10 @@
 	  symlinking rc.d scripts to a new name. ok jung@ ajacoutot@, smtpd
 	  ok gilles@
 
-2015-12-25 17:10  tedu
-
-	* lib/libevent/kqueue.c: revert change to call kevent immediately.
-	  tcpbench (at a minimum) relies on the old behavior of changes all
-	  happening after all event handlers run. in particular, it resets
-	  the event for the listening socket *before* calling accept(),
-	  when it is still readable.  kevent then (correctly) says it is
-	  readable on the next go through the loop.  silly, subtle, and
-	  stupid.  problem reported by kettenis
-
-2015-12-16 20:12  tedu
-
-	* lib/libevent/kqueue.c: change the kqueue backend to call kevent()
-	  as events are added instead of deferring until the dispatch loop.
-	  kqueue support for various types of files and filesystems has
-	  been historically incomplete, and kevent handles this condition
-	  by returning an error. the libevent dispatch loop has no way to
-	  recover from this error and fails catastrophically, bringing down
-	  the entire process because one file went bad.  now, instead of
-	  all that happending, event_add will return an error. the
-	  application can choose to handle or ignore this error, but at
-	  least the band will play on.	ok nicm
-
-2015-12-16 16:32  deraadt
-
-	* lib/libc/asr/: asr.c, asr_private.h: Remove support for
-	  HOSTALIASES from the resolver.  This "open and parse any file
-	  indicated by an environment variable" feature inside the resolver
-	  is incompatible with what pledge "dns" is trying to be.  It is a
-	  misguided "feature" added way back in history which almost noone
-	  uses, but everyone has to assume the risk from.  ok eric florian
-	  kettenis
-
 2015-12-12 19:59  mmcc
 
 	* usr.sbin/httpd/patterns.h: Remove a needless inclusion of
 	  sys/cdefs.h. Inspired by reyk's recent commit doing the same.
-
-2015-12-11 18:49  nicm
-
-	* lib/libevent/log.c: Libraries should not print to stderr, ok tedu
-	  beck deraadt
 
 2015-12-07 20:30  mmcc
 
@@ -1973,15 +1651,6 @@
 
 	  OK jung@
 
-2015-11-23 18:04  deraadt
-
-	* lib/libc/asr/: asr.c, asr_private.h: Remove support for "lookup
-	  yp" in /etc/resolv.conf.  This historical wart is incompatible
-	  with pledge, because suddenly a "dns" operation needs "getpw"
-	  access to ypbind/ypserv, etc.  file + dns access is enough for
-	  everyone, sorry if you were using that old SunOS 4.x style
-	  mechanism, but it is now gone.  ok semarie millert florian
-
 2015-11-23 16:43  reyk
 
 	* usr.sbin/httpd/proc.c: Sync proc.c with iked.
@@ -2019,14 +1688,6 @@
 
 	  ok millert@
 
-2015-11-10 23:48  jmc
-
-	* lib/libevent/event.3: update NAME section to include all
-	  documented functions, or otherwise change Dt to reflect the name
-	  of an existing function;
-
-	  feedback/ok schwarze
-
 2015-11-05 20:07  florian
 
 	* usr.bin/htpasswd/htpasswd.c: Make our initial pledge stricter
@@ -2063,13 +1724,6 @@
 	* usr.sbin/httpd/httpd.c: revert -r1.42 as it breaks slowcgi and
 	  php-fpm setups as reported by jturner
 
-2015-10-28 21:38  eric
-
-	* lib/libc/asr/: asr.c, asr_private.h: We are always using
-	  _PATH_RESCONF, so no need to remember the path on the resolver.
-
-	  ok millert@ deraadt@
-
 2015-10-28 15:50  mmcc
 
 	* usr.sbin/httpd/httpd.c: Remove a few more NULL-checks before
@@ -2079,14 +1733,6 @@
 
 	* usr.sbin/httpd/httpd.c: While I'm in here, drop a NULL-check
 	  before free.
-
-2015-10-28 11:52  deraadt
-
-	* lib/libc/asr/asr.c: Remove support for [addr]:port syntax from
-	  the "nameserver" line.  This extension never made it to other
-	  systems.  (pledge is also happy with this.  The idea of DNS @ any
-	  port collides with pledge encouraring differentiation between DNS
-	  and non-DNS sockets) ok phessler jung sthen kettenis
 
 2015-10-26 11:03  jung
 
@@ -2134,47 +1780,11 @@
 
 	* usr.sbin/httpd/server_fcgi.c: fix a typo; from Carlin Bingham
 
-2015-10-07 13:59  deraadt
-
-	* lib/libc/asr/: asr.c, asr_private.h: getaddrinfo_async()
-	  shouldn't unconditionally intialize the resolver via
-	  _asr_use_resolver().	If the hint specifies for AI_NUMERICHOST,
-	  create a transient lookup context which won't try to open
-	  /etc/reslov.conf ok eric guenther
-
 2015-10-07 06:44  deraadt
 
 	* usr.bin/htpasswd/htpasswd.c: tame "stdio rpath wpath cpath
 	  tmppath tty".  "tty" is the important part here, permitting use
 	  of readpassphrase()
-
-2015-10-03 22:35  deraadt
-
-	* lib/libc/asr/: asr.c, asr_private.h: Initially eric developers
-	  asr as a side-load style library for async DNS.  When it was
-	  integrated as the main resolver, a bunch of strange
-	  initialization code remained.  Start whittling away at this,
-	  piece by piece, to make it more clear.  ok eric
-
-2015-10-03 09:57  eric
-
-	* lib/libc/asr/: asr.c, asr_private.h: missing asr* -> _asr* symbol
-	  rename for building with debug code
-
-	  ok jca@
-
-2015-09-20 14:19  eric
-
-	* lib/libc/asr/asr.c: remove bogus includes of err.h
-
-2015-09-20 12:50  eric
-
-	* lib/libc/asr/asr.c: use _PATH_RESCONF directly
-
-2015-09-14 11:52  guenther
-
-	* lib/libc/asr/asr.c: Wrap <asr.h> so internal calls go direct and
-	  all the symbols are weak
 
 2015-09-13 15:33  guenther
 
@@ -2194,14 +1804,6 @@
 
 	* lib/libc/gen/vis.c: Wrap <vis.h> so that calls go direct and the
 	  symbols are all weak
-
-2015-09-13 08:31  guenther
-
-	* lib/libc/stdlib/reallocarray.c: Wrap <stdlib.h> so that calls go
-	  direct and the symbols not in the C standard are all weak.  Apply
-	  __{BEGIN,END}_HIDDEN_DECLS to gdtoa{,imp}.h, hiding the
-	  arch-specific __strtorx, __ULtox_D2A, __strtorQ, __ULtoQ_D2A
-	  symbols.
 
 2015-09-12 14:56  guenther
 
@@ -2240,11 +1842,6 @@
 
 	  ok beck@
 
-2015-09-09 15:49  deraadt
-
-	* lib/libc/asr/: asr.c, asr_private.h: Hide all unnecessary asr /
-	  resolver related API with _ prefixes.  direction & ok guenther
-
 2015-09-07 14:46  reyk
 
 	* usr.sbin/httpd/: httpd.h, server.c, server_http.c: Fix a
@@ -2257,10 +1854,6 @@
 	  allocated here.
 
 	  OK jsing@
-
-2015-09-02 13:47  deraadt
-
-	* lib/libc/asr/asr.c: use _PATH_RESCONF
 
 2015-08-21 07:30  reyk
 
@@ -2737,16 +2330,6 @@
 
 	  OK Sebastien Marie
 
-2015-06-20 01:16  jca
-
-	* lib/libc/asr/asr_private.h: Rename print_sockaddr() to avoid
-	  symbol visibility problems
-
-	  print_sockaddr is internal to asr, and conflicts with
-	  ports/net/samba4.
-
-	  ok eric@
-
 2015-06-11 18:49  reyk
 
 	* usr.sbin/httpd/http.h: Use "compliant" header guards by avoiding
@@ -2762,26 +2345,11 @@
 
 	  ok claudio deraadt florian
 
-2015-06-04 19:23  eric
-
-	* lib/libc/asr/: asr.c, asr_private.h: make sure to check for
-	  resolv.conf update the first time the resolver is used after pid
-	  has changed.
-
-	  ok deraadt@
-
 2015-06-03 02:24  millert
 
 	* usr.sbin/httpd/httpd.c: Do not assume that asprintf() clears the
 	  pointer on failure, which is non-portable.  Also add missing
 	  asprintf() return value checks.  OK deraadt@ guenther@ doug@
-
-2015-05-29 08:49  eric
-
-	* lib/libc/asr/: asr.c, asr_private.h: fix a possible off-by-one
-	  when reading /etc/hosts if it doesn't end with a newline.
-
-	  ok jca@
 
 2015-05-28 19:29  jmc
 
@@ -2792,11 +2360,6 @@
 	* usr.sbin/httpd/: control.c, httpd.c: Do not try to unlink the
 	  control socket in an unprivileged child process on shutdown.
 	  Found while working on tame(2).  OK benno@
-
-2015-05-26 19:28  eric
-
-	* lib/libc/asr/: asr.c, asr_private.h: simply use _PATH_HOSTS where
-	  appropriate
 
 2015-05-20 09:28  kettenis
 
@@ -2888,21 +2451,6 @@
 	  EVBUFFER_EOL_CRLF_STRICT to avoid this.
 
 	  ok florian@
-
-2015-04-14 22:16  nicm
-
-	* lib/libevent/event.3: Another couple of commas in the wrong
-	  place, ok jmc
-
-2015-04-14 21:34  nicm
-
-	* lib/libevent/event.3: Remove an extra comma pointed out by jmc@.
-
-2015-04-14 21:25  nicm
-
-	* lib/libevent/: Makefile, event.3: Reorder prototypes to better
-	  match manpage layout and add some missing argument names, from
-	  Fabian Raetz. ok deraadt
 
 2015-04-11 14:52  jsing
 
@@ -3047,18 +2595,6 @@
 
 	* usr.sbin/httpd/httpd.conf.5: Document the tls protocols option.
 
-2015-02-14 20:15  jca
-
-	* lib/libc/asr/asr_private.h: Limit AI_ADDRCONFIG effects to DNS
-	  queries.
-
-	  This is what RFC 2553 initially described, sadly RFC 3493 stopped
-	  limiting scope to DNS.  This can result in nonsensical failures
-	  with loopback addresses, link-local addresses, raw addresses and
-	  /etc/hosts entries.
-
-	  with and ok eric@ sperreault@
-
 2015-02-12 10:05  reyk
 
 	* usr.sbin/httpd/: httpd.c, httpd.h, server_file.c: Rename
@@ -3148,11 +2684,6 @@
 
 	  Reported and tested by Markus Bergkvist OK florian@
 
-2015-02-05 12:59  millert
-
-	* lib/libevent/buffer.c: Include stdint.h, not limits.h to get
-	  SIZE_MAX.  OK guenther@
-
 2015-02-05 10:47  reyk
 
 	* usr.sbin/httpd/server_http.c: Fix potential NULL pointer
@@ -3240,11 +2771,6 @@
 	  improved soonish.  Based on a diff from Oscar Linderholm many
 	  months ago but turned into a complete rewrite.  input/OK reyk@
 
-2015-01-16 16:48  deraadt
-
-	* lib/libc/asr/asr.c: Move to the <limits.h> universe.	review by
-	  millert, binary checking process with doug, concept with guenther
-
 2015-01-16 06:40  deraadt
 
 	* usr.sbin/httpd/: httpd.c, httpd.h, logger.c, parse.y, server.c,
@@ -3284,16 +2810,6 @@
 	* lib/libc/crypt/bcrypt.c: rename blocks to words. bcrypt "blocks"
 	  are unrelated to blowfish blocks, nor are they the same size.
 
-2015-01-07 20:12  bluhm
-
-	* lib/libevent/buffer.c: Security fix for libevent 1.4
-	  CVE-2014-6272 in 5.5-stable.	OK deraadt@
-
-2015-01-07 20:05  bluhm
-
-	* lib/libevent/buffer.c: Security fix for libevent 1.4
-	  CVE-2014-6272 in 5.6-stable.	OK deraadt@
-
 2015-01-07 16:57  reyk
 
 	* usr.sbin/httpd/http.h: SVG is common enough to add it to the
@@ -3319,13 +2835,6 @@
 	  multi-line blocks for tls, root, tcp etc.
 
 	  Based on a diff from Nathanael Rensen.  OK florian@
-
-2015-01-06 23:11  bluhm
-
-	* lib/libevent/event.c: Backout revision 1.37.	Setting
-	  ev->ev_pncalls to NULL results in a use after free if the
-	  callback has freed the ev.  With F in malloc.conf both tmux and
-	  the regression tests triggered a segmentation fault.	OK nicm@
 
 2015-01-06 17:55  stsp
 
@@ -3362,36 +2871,6 @@
 	  "500 Internal Server Error" for unknown/invalid HTTP requests.
 
 	  From Fabian Raetz at gmail
-
-2015-01-06 11:42  bluhm
-
-	* lib/libevent/signal.c: Apply commit
-	  e0e6958aa074a7714cd7c4aa779a1dfede3a03b1 from upstream.  - Avoid
-	  deadlock when activating signals.  Fixes bug 3048812.    Based on
-	  patch by Nicholas Marriott.  The deadlock was ultimately fixed in
-	  a different way (by disabling reinit - see event.c r1.25).  Add
-	  it now for consistency but without the Windows compatibility
-	  code.  Convert the fnctl() calls to SOCK_CLOEXEC | SOCK_NONBLOCK
-	  to simplify the code.  OK nicm@
-
-2015-01-06 11:27  bluhm
-
-	* lib/libevent/event.c: Apply commit
-	  2d8cf0b720cdd5f9f292f174a10ff74e62a380ec from upstream.  -
-	  Defensive programming to prevent (hopefully impossible)
-	  stack-stomping OK nicm@
-
-2015-01-05 23:14  bluhm
-
-	* lib/libevent/: buffer.c, event.h: Fix CVE-2014-6272 in Libevent
-	  1.4 from upstream: -
-	  https://github.com/libevent/libevent/commit/7b21c4eabf1f3946d3f63cce1319c490caab8ecf
-	  - For this fix, we need to make sure that passing too-large
-	  inputs to   the evbuffer functions can't make us do bad things
-	  with the heap.  On top of that do: - Update libevent version to
-	  1.4.15-stable.  - Use SIZE_MAX from limits.h instead of a private
-	  define.  - Do not declare 'size_t need' twice to avoid a compiler
-	  warning.  OK sthen
 
 2015-01-05 13:10  tedu
 
@@ -3545,18 +3024,6 @@
 	  request answer.  From Bertrand Janin (b at janin dot com),
 	  thanks! OK reyk@
 
-2014-12-08 03:45  bcook
-
-	* lib/libc/stdlib/reallocarray.c: avoid left shift overflow in
-	  reallocarray.
-
-	  Some 64-bit platforms (e.g. Windows 64) have a 32-bit long. So,
-	  shifting 1UL 32-bits to the left causes an overflow. This
-	  replaces the constant 1UL with (size_t)1 so that we get the
-	  correct constant size for the platform.
-
-	  discussed with tedu@ & deraadt@
-
 2014-12-07 16:05  florian
 
 	* usr.sbin/httpd/config.c: Avoid NULL deref in error case; found
@@ -3593,42 +3060,12 @@
 	* lib/libc/crypt/cryptutil.c: Let crypt_checkpass() set EACCES
 	  after bcrypt_checkpass() failure; ok tedu@
 
-2014-11-21 07:44  dlg
-
-	* lib/libevent/buffer.c: libraries shouldnt print to stderr when
-	  things dont go their way.
-
-	  switch fprintf(stderr) over to event_warn() on malloc failure.
-	  fix up an errant newline in an existing event_warn while there.
-
-	  originally i just wanted to delete the fprintf diff from nicm@
-	  who is away from a keyboard right now so cant commit guenther@
-	  agrees with the idea
-
-2014-11-21 06:59  dlg
-
-	* lib/libevent/evbuffer_new.3: evbuffer_read will return 0 one an
-	  end of file condition.
-
 2014-11-21 05:13  tedu
 
 	* lib/libc/crypt/cryptutil.c: change prototype for crypt_newhash.
 	  the login_cap_t is a holdover from its pwd_gensalt origins, but a
 	  string argument works equally work and is more friendly to
 	  consumers beyond local user accounts.  ok deraadt
-
-2014-11-20 13:39  jmc
-
-	* lib/libevent/evbuffer_new.3: zap some stray commas;
-
-2014-11-20 13:35  jmc
-
-	* lib/libevent/evbuffer_new.3: add evbuffer_expand to NAME;
-
-2014-11-20 13:34  jmc
-
-	* lib/libevent/Makefile: put MLINKS in the order they appear in the
-	  man page, so i don;t go blind trying to check what's missing;
 
 2014-11-20 07:48  jasper
 
@@ -3649,83 +3086,6 @@
 	  embedded nul found with the afl fuzzer.
 
 	  pfctl parse.y patch from and ok deraadt@
-
-2014-11-20 01:49  dlg
-
-	* lib/libevent/evbuffer_new.3: document the only macro i find
-	  useful when working with evbuffers.
-
-2014-11-20 00:02  dlg
-
-	* lib/libevent/event.3: might help to Xr evbuffer_new 3
-
-2014-11-20 00:01  dlg
-
-	* lib/libevent/evbuffer_new.3: im not good at grammar things.
-
-	  from schwarze@
-
-2014-11-20 00:00  dlg
-
-	* lib/libevent/evbuffer_new.3: use .Va to say errno is a variable.
-
-	  from schwarze@
-
-2014-11-19 23:58  dlg
-
-	* lib/libevent/evbuffer_new.3: fix erroneous capitalisation of a
-	  word in the middle of a sentence.
-
-	  from schwarze again
-
-2014-11-19 23:57  dlg
-
-	* lib/libevent/evbuffer_new.3: less worse escapes for \ from ingo.
-	  im sure there's a much nicer way to represent newlines still.
-
-2014-11-19 23:55  dlg
-
-	* lib/libevent/: evbuffer_new.3, event.3: use .In to specify
-	  includes.
-
-2014-11-19 23:54  dlg
-
-	* lib/libevent/evbuffer_new.3: ingo also points out we're
-	  documenting things that work with evbuffers, not evbufbuffers.
-
-2014-11-19 23:53  dlg
-
-	* lib/libevent/evbuffer_new.3: ingo points out
-
-	  .Fo evbuffer_readln .Fa "struct evbuffer *buf" .Fa "size_t
-	  *read_out" .Fa "enum evbuffer_eol_style eol_style" .Fc
-
-	  is more readable mdoc for very long prototypes than lines like
-
-	  .Fn "evbuffer_readln" "struct evbuffer *buf" "size_t *read_out"
-	  "enum evbuffer_eol_style eol_style"
-
-2014-11-19 23:50  dlg
-
-	* lib/libevent/: Makefile, evbuffer_new.3, event.3: i got sick of
-	  having to read the source code to know what the evbuffer_foo
-	  functions do. reyk, nicm, jmc, and schwarze seem to support a
-	  manpage as a reasonable solution to this problem.
-
-	  im putting this in a separate manpage because i find they get too
-	  cumbersome when they get too big. ingo agrees (and suggests even
-	  this might be too big).
-
-	  the file is evbuffer_new.3 rather than evbuffer.3 because we
-	  document functions.
-
-	  ok reyk@ nicm@ jmc@ schwarze@ this is rough, everyone has tweaks
-	  coming.
-
-2014-11-19 20:29  jmc
-
-	* lib/libevent/event.3: BUGS is no longer relevant, according to
-	  nicm;
 
 2014-11-17 19:48  millert
 
@@ -3769,57 +3129,10 @@
 
 	  Fix a few format characters as well.	ok bluhm@
 
-2014-10-31 16:00  bluhm
-
-	* lib/libevent/event.h: Libevent has compatibilty wrappers in
-	  evutil.  OpenBSD does not use them anymore, but evutil is still
-	  part of libevent's interface.  Separate the API of evutil from
-	  libevent and do not include evutil.h from event.h automatically.
-	  A version bump is not necessary as the library itself does not
-	  change.  Bulk ports build done by landry@ had no fallout.  OK
-	  nicm@ deraadt@
-
 2014-10-31 13:49  jsing
 
 	* usr.sbin/httpd/: Makefile, httpd.h, server.c: Update httpd(8) to
 	  use libtls instead of libressl.
-
-2014-10-31 12:50  bluhm
-
-	* lib/libevent/Makefile: Use CDIAGFLAGS from bsd.own.mk and append
-	  additional warning flags.  All warnings have been fixed in
-	  libevent.  OK nicm@
-
-2014-10-30 16:45  bluhm
-
-	* lib/libevent/: buffer.c, evbuffer.c, event.c, event.h,
-	  event_tagging.c, kqueue.c, log.c, poll.c, signal.c: Fix
-	  whitespace errors in libevent.  OK nicm@
-
-2014-10-30 13:43  bluhm
-
-	* lib/libevent/select.c: The fdsz and n_events variables contain
-	  unsigned values that are derived from size_t and passed to
-	  functions as size_t parameters.  Change them from int to size_t
-	  to avoid compiler warnings.  OK doug@ nicm@
-
-2014-10-29 22:47  bluhm
-
-	* lib/libevent/: buffer.c, evbuffer.c, event.c, event_tagging.c,
-	  kqueue.c, log.c, min_heap.h, poll.c, select.c, signal.c: After
-	  removing all the #ifdef, the wrappers in evutil are rather
-	  useless.  Let libevent call the libc functions directly.  OK
-	  nicm@
-
-2014-10-29 22:38  bluhm
-
-	* lib/libevent/kqueue.c: Remove workaround for Mac OS X kqueue bug.
-	  OK nicm@
-
-2014-10-29 22:31  bluhm
-
-	* lib/libevent/event_tagging.c: Do not cast a (const void *)
-	  pointer to (void *) to avoid a warning.  OK nicm@
 
 2014-10-25 03:23  lteo
 
@@ -3846,74 +3159,6 @@
 	  the style a little bit but keep Comic Sans.
 
 	  With input from Jonas Lindemann and doug@
-
-2014-10-18 21:56  bluhm
-
-	* lib/libevent/: buffer.c, evutil.c, kqueue.c, select.c: Remove
-	  some #ifdef from libevent.  OK nicm@
-
-2014-10-18 16:48  bluhm
-
-	* lib/libevent/: Makefile, buffer.c, evutil.c, kqueue.c, select.c,
-	  signal.c: Remove the remaining #ifdef HAVE_ and the #define
-	  _GNU_SOURCE.	OK nicm@
-
-2014-10-17 22:59  bluhm
-
-	* lib/libevent/: Makefile, event.c: Remove #ifdef HAVE_backend and
-	  remove references to unimplemented backends.	OK nicm@
-
-2014-10-17 20:52  bluhm
-
-	* lib/libevent/: Makefile, event.c, evutil.c: Remove some #ifdef
-	  HAVE_syscall.  OK nicm@
-
-2014-10-17 19:16  bluhm
-
-	* lib/libevent/: Makefile, buffer.c, evbuffer.c, event.c,
-	  event_tagging.c, evutil.c, kqueue.c, log.c, poll.c, select.c,
-	  signal.c: Remove #ifdef HAVE_.*_H, just include the header files.
-	  Do not include sys/param.h.	OK nicm@
-
-2014-10-16 07:38  bluhm
-
-	* lib/libevent/: buffer.c, evbuffer.c, event.c, event_tagging.c,
-	  evutil.c, kqueue.c, log.c, poll.c, select.c, signal.c: Remove
-	  #ifdef HAVE_CONFIG_H, there is no config.h file.  OK nicm@
-
-2014-10-15 22:34  bluhm
-
-	* lib/libevent/: Makefile, event-internal.h: Remove #ifndef
-	  HAVE_TAILQFOREACH containing a private tailq implementation.	OK
-	  nicm@
-
-2014-10-11 04:07  doug
-
-	* lib/libevent/select.c: Userland reallocarray() audit.
-
-	  Avoid potential integer overflow in the size argument of malloc()
-	  and realloc() by using reallocarray() to avoid unchecked
-	  multiplication.
-
-	  ok deraadt@
-
-2014-10-08 20:14  bluhm
-
-	* lib/libevent/: buffer.c, evbuffer.c, event.c, event.h,
-	  event_tagging.c, evutil.c, log.c, signal.c: iRemove the #ifdef
-	  WIN32 implementation from libevent.  OK nicm@
-
-2014-10-08 05:41  deraadt
-
-	* lib/libevent/: kqueue.c, poll.c, signal.c: use reallocarray() to
-	  detect multiplicative integer overflow; obvious pattern.  This
-	  commit does not fix the non-obvious bloody horror of select.c.
-
-2014-10-06 21:16  bluhm
-
-	* lib/libevent/: Makefile, evsignal.h, signal.c: Remove the #ifdef
-	  HAVE_SIGACTION from libevent.  The struct evsignal_info does not
-	  change, so no library crank.	OK nicm@ deraadt@
 
 2014-10-03 13:41  jsing
 
@@ -3948,26 +3193,6 @@
 
 	* usr.sbin/httpd/server_http.c: Make the HTTP version mandatory and
 	  abort if it is missing in the request.
-
-2014-09-15 06:15  guenther
-
-	* lib/libc/asr/asr.c: When fopen()ing internal to libc (the API
-	  doesn't support the use of the resulting FILE *), then pass
-	  fopen() the 'e' mode letter to mark it close-on-exec.
-
-	  ok miod@
-
-2014-09-13 16:06  doug
-
-	* lib/libevent/event-internal.h: Replace all queue *_END macro
-	  calls except CIRCLEQ_END with NULL.
-
-	  CIRCLEQ_* is deprecated and not called in the tree.  The other
-	  queue types have *_END macros which were added for symmetry with
-	  CIRCLEQ_END.	They are defined as NULL.  There's no reason to
-	  keep the other *_END macro calls.
-
-	  ok millert@
 
 2014-09-10 15:39  reyk
 
@@ -4018,12 +3243,6 @@
 	  cases.
 
 	  OK florian@
-
-2014-09-01 13:26  bluhm
-
-	* lib/libevent/event.c: The libevent event_log() function called by
-	  event_msgx() adds a new line itself.	Do not print a double new
-	  line when EVENT_SHOW_METHOD is set.  OK nicm@
 
 2014-09-01 12:28  reyk
 
