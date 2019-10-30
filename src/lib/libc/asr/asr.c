@@ -132,7 +132,6 @@ _asr_resolver_done(void *arg)
 	_asr_ctx_unref(asr->a_ctx);
 	free(asr);
 }
-#endif /* __OpenBSD__ */
 
 void *
 asr_resolver_from_string(const char *str)
@@ -150,13 +149,16 @@ asr_resolver_from_string(const char *str)
 	return ac;
 }
 DEF_WEAK(asr_resolver_from_string);
+#endif
 
 void
 asr_resolver_free(void *arg)
 {
 	_asr_ctx_unref(arg);
 }
+#ifdef __OpenBSD__
 DEF_WEAK(asr_resolver_free);
+#endif
 
 /*
  * Cancel an async query.

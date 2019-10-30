@@ -19,15 +19,6 @@ SRCS+=	vis.c
 SRCS+=	bcrypt.c \
 	cryptutil.c
 
-### libimsg
-.PATH:	${.CURDIR}/../../../libimsg/src/lib/libc/stdlib
-SRCS+=	recallocarray.c
-
-.PATH:	${.CURDIR}/../../../libimsg/src/lib/libutil
-SRCS+=	getdtablecount.c \
-	imsg-buffer.c \
-	imsg.c
-
 ### libevent
 
 .PATH:  ${.CURDIR}/../../lib/libevent
@@ -43,7 +34,7 @@ SRCS+=  buffer.c \
 
 MAN=		httpd.8 httpd.conf.5
 
-LDADD=		${LIBEVENT} -ltls -lssl -lcrypto -lcrypt -lprocstat
+LDADD=		${LIBEVENT} -ltls -lssl -lcrypto -lcrypt -lprocstat -limsg
 SRCS+=		patterns.c
 MAN+=		patterns.7
 
@@ -60,7 +51,8 @@ CFLAGS+=	-I${.CURDIR}/../../lib/libevent \
 		-I ${LOCALBASE}/include
 CFLAGS+=	-D__dead='' \
 		-DHAVE_CONFIG_H
-LDFLAGS+=	-L ${LOCALBASE}/lib
+LDFLAGS+=	-L ${LOCALBASE}/lib \
+		-L${.CURDIR}/../../../libimsg/src/lib/libutil
 CLEANFILES+=	y.tab.h
 YFLAGS=
 

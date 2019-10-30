@@ -1,3 +1,3 @@
-SUBDIR=	src
+SUBDIR=	libimsg/src src
 
 .include <bsd.subdir.mk>
