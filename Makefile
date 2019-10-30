@@ -1,3 +1,3 @@
-SUBDIR=	src/
+SUBDIR=	src
 
 .include <bsd.subdir.mk>
