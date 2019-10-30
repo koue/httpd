@@ -1,3 +1,10 @@
+2019-10-24 05:57  otto
+
+	* include/asr.h, lib/libc/asr/asr.c: Allow the caller of asr
+	  functions to create and use a specific context.  Diff from eric@
+	  and florian@, commiting on their behalf since they are absent and
+	  we want to ride the minor shlib bump.
+
 2019-10-22 09:31  florian
 
 	* usr.sbin/httpd/server_http.c: Do not log "(null)" in debug
@@ -236,13 +243,6 @@
 	  sockets.  Prompted by a mail from Daniel Gracia ( paladdin AT
 	  gmail ) pointing out that we are not documenting TCP support at
 	  all, thanks! Prodding by and with jmc@
-
-2019-01-20 02:50  bcook
-
-	* lib/libutil/: imsg-buffer.c, imsg.h: Change imsg header
-	  definitions to use standard types.
-
-	  ok deraadt@ claudio@
 
 2019-01-08 18:35  florian
 
@@ -726,14 +726,6 @@
 	* usr.sbin/httpd/server_http.c: set Location header for 307 and 308
 	  status codes ok sthen@ phessler@
 
-2017-12-14 09:27  kettenis
-
-	* lib/libutil/: imsg-buffer.c, imsg.c: Make a few internal symbols
-	  static and add a Symbols.map version script to control which
-	  symbols are exported from the shared library.
-
-	  ok guenther@, deraadt@, jca@
-
 2017-11-29 16:55  beck
 
 	* usr.sbin/httpd/: httpd.conf.5, server.c: Don't do OCSP stapling
@@ -914,20 +906,6 @@
 
 	  ok florian@ benno@ millert@
 
-2017-04-11 09:57  reyk
-
-	* lib/libutil/: imsg-buffer.c, imsg.c: Use freezero(3) for the imsg
-	  framework in imsg_free(3) and ibuf_free(3).
-
-	  In our privsep model, imsg is often used to transport sensitive
-	  information between processes.  But a process might free an imsg,
-	  and reuse the memory for a different thing.  iked uses some
-	  explicit_bzero() to clean imsg-buffer but doing it in the library
-	  with the freezero() is less error-prone and also benefits other
-	  daemons.
-
-	  OK deraadt@ jsing@ claudio@
-
 2017-04-09 09:13  florian
 
 	* usr.sbin/httpd/httpd.conf.5: image/svg+xml is a default inbuilt
@@ -949,14 +927,6 @@
 	  a 2h ticket lifetime.  Rekeying happens after a quarter of that
 	  time.  OK reky@ and bob@
 
-2017-03-24 09:34  nicm
-
-	* lib/libutil/: imsg.c, imsg.h: Use C99 types (uint32_t) instead of
-	  BSD (u_int32_t) - the former are more portable. Add stdint.h to
-	  the headers in imsg_init(3).
-
-	  No objections from millert@.
-
 2017-03-21 12:06  bluhm
 
 	* usr.sbin/httpd/log.c: From a syslog perspective it does not make
@@ -969,15 +939,6 @@
 	* lib/libevent/buffer.c: Use recallocarray() to avoid leaving
 	  detritus in memory when resizing the string buffer.  ok jsing
 	  millert
-
-2017-03-17 14:51  deraadt
-
-	* lib/libutil/imsg-buffer.c: Grow buffers using recallocarray, to
-	  avoid the potential dribble that the standard realloc*()
-	  functions can leave behind.  imsg buffers are sometimes used in
-	  protocol stacks which require some secrecy, and layering
-	  violations would be needed to resolve this issue otherwise.
-	  Discussed with many.
 
 2017-03-16 10:18  florian
 
@@ -993,13 +954,6 @@
 	  Fix by Rivo Nurges, fixes a problem with Atlassian JIRA
 
 	  OK benno@
-
-2017-03-06 18:44  otto
-
-	* lib/libc/stdlib/recallocarray.c: Introducing recallocarray(3), a
-	  blend of calloc(3) and reallocarray(3) with the added feature
-	  that released memory is cleared. Much input from various
-	  developers. ok deraadt@ tom@
 
 2017-02-27 11:38  jca
 
@@ -1932,12 +1886,6 @@
 	  symlinking rc.d scripts to a new name. ok jung@ ajacoutot@, smtpd
 	  ok gilles@
 
-2015-12-29 18:05  benno
-
-	* lib/libutil/imsg-buffer.c: check for NULL in ibuf_free().  ok and
-	  slight improvement, mmcco@ ok semarie@ and encouragement tedu@
-	  krw@
-
 2015-12-25 17:10  tedu
 
 	* lib/libevent/kqueue.c: revert change to call kevent immediately.
@@ -1981,11 +1929,6 @@
 	* lib/libevent/log.c: Libraries should not print to stderr, ok tedu
 	  beck deraadt
 
-2015-12-09 11:54  tb
-
-	* lib/libutil/imsg.c: Add a cast to silence a compiler warning by
-	  clang on FreeBSD.  From Craig Rodrigues.  ok tedu@
-
 2015-12-07 20:30  mmcc
 
 	* usr.sbin/httpd/server_http.c: No need to check for NULL before
@@ -2005,13 +1948,6 @@
 	* usr.sbin/httpd/: control.c, proc.c: EAGAIN handling for
 	  imsg_read. OK henning@ benno@
 
-2015-12-05 13:06  claudio
-
-	* lib/libutil/imsg.c: Do not loop on EAGAIN in imsg_read(). Better
-	  to return the error to the caller and let him do another poll
-	  loop. This fixes spinning relayd processes seen on busy TLS
-	  relays. OK benno@ henning@
-
 2015-12-03 11:46  reyk
 
 	* usr.sbin/httpd/: httpd.c, server_http.c: Remove unnecessary NULL
@@ -2028,11 +1964,6 @@
 
 	* usr.sbin/httpd/: config.c, httpd.c, httpd.h, logger.c, proc.c,
 	  server.c: sync with relayd, use proc_compose()
-
-2015-11-27 01:57  mmcc
-
-	* lib/libutil/imsg.c: Remove three NULL-checks before free().	ok
-	  millert@
 
 2015-11-23 20:56  reyk
 
@@ -2455,12 +2386,6 @@
 
 	  ok florian@
 
-2015-07-19 07:18  nicm
-
-	* lib/libutil/imsg.c: Handle malloc(0) returning NULL (which can
-	  happen on some other platforms) by explicitly making imsg->data =
-	  NULL when there is no data. ok deraadt
-
 2015-07-19 05:17  reyk
 
 	* usr.sbin/httpd/: config.c, httpd.conf.5, httpd.h, parse.y,
@@ -2702,20 +2627,6 @@
 
 	  ok reyk@
 
-2015-07-12 18:40  nicm
-
-	* lib/libutil/: imsg-buffer.c, imsg.c: Use memset instead of bzero
-	  for better portability.
-
-	  ok gilles claudio doug
-
-2015-07-03 14:50  brynet
-
-	* lib/libutil/: imsg-buffer.c, imsg.c: bzero cmsgbuf before using
-	  it, silences valgrind warnings.
-
-	  henning@ "sure"
-
 2015-06-30 19:01  jmc
 
 	* usr.sbin/httpd/patterns.7: new sentence, new line; my apologies
@@ -2835,16 +2746,6 @@
 	  ports/net/samba4.
 
 	  ok eric@
-
-2015-06-11 19:25  reyk
-
-	* lib/libutil/imsg.c: The correct semantic is to check
-	  msgbuf_write() for <= 0, not just < 0.  Fix one occurence in
-	  imsg_flush() and clarify it the man page.
-
-	  Discussed with at least blambert@ jsg@ yasuoka@.
-
-	  OK gilles@
 
 2015-06-11 18:49  reyk
 
@@ -3574,14 +3475,6 @@
 	  "listen on egress" to "listen on *".	Listening on the egress
 	  group only works if you have a default route; this confused some
 	  people.
-
-2014-12-25 22:20  benno
-
-	* lib/libutil/imsg-buffer.c: return ERANGE instead of ENOMEM, so
-	  callers can differentiate real oom from this case where we have a
-	  static buffer and cant realloc.
-
-	  ok phessler, claudio, reyk
 
 2014-12-24 22:10  tedu
 
