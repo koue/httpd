@@ -9,6 +9,7 @@
 *.req
 *.srl
 md5-*
+src/regress/usr.sbin/httpd/patterns/patterns-tester
 src/regress/usr.sbin/httpd/tests/htdocs
 src/regress/usr.sbin/httpd/tests/httpd.conf
 src/usr.bin/htpasswd/htpasswd

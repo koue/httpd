@@ -22,7 +22,9 @@
 
 #include "patterns.h"
 
+#ifdef __OpenBSD__
 extern char *	malloc_options;
+#endif
 
 static void read_string(char *, size_t);
 static void read_string_stop(void);
@@ -63,7 +65,9 @@ main(int argc, char *argv[])
 	size_t i;
 
 	/* configure malloc */
+#ifdef __OpenBSD__
 	malloc_options = "S";
+#endif
 
 	/* read testcase */
 	if (argc != 3) {
