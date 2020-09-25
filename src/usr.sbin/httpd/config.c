@@ -1,4 +1,4 @@
-/*	$OpenBSD: config.c,v 1.57 2019/05/08 19:57:45 reyk Exp $	*/
+/*	$OpenBSD: config.c,v 1.61 2020/09/21 09:42:07 tobhe Exp $	*/
 
 /*
  * Copyright (c) 2011 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -18,6 +18,8 @@
 
 #include <sys/types.h>
 #include <sys/queue.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <sys/tree.h>
 #include <sys/time.h>
 #include <sys/uio.h>
@@ -135,9 +137,7 @@ config_getreset(struct httpd *env, struct imsg *imsg)
 int
 config_getcfg(struct httpd *env, struct imsg *imsg)
 {
-	struct privsep		*ps = env->sc_ps;
 	struct ctl_flags	 cf;
-	unsigned int		 what;
 
 	if (IMSG_DATA_SIZE(imsg) != sizeof(cf))
 		return (0); /* ignore */
@@ -147,8 +147,6 @@ config_getcfg(struct httpd *env, struct imsg *imsg)
 	env->sc_opts = cf.cf_opts;
 	env->sc_flags = cf.cf_flags;
 	memcpy(env->sc_tls_sid, cf.cf_tls_sid, sizeof(env->sc_tls_sid));
-
-	what = ps->ps_what[privsep_process];
 
 	if (privsep_process != PROC_PARENT)
 		proc_compose(env->sc_ps, PROC_PARENT,
@@ -387,8 +385,10 @@ config_setserver_fcgiparams(struct httpd *env, struct server *srv)
 	if (proc_composev(ps, PROC_SERVER, IMSG_CFG_FCGI, iov, c) != 0) {
 		log_warn("%s: failed to compose IMSG_CFG_FCGI imsg for "
 		    "`%s'", __func__, srv_conf->name);
+		free(iov);
 		return (-1);
 	}
+	free(iov);
 
 	return (0);
 }
@@ -497,13 +497,6 @@ config_getserver_config(struct httpd *env, struct server *srv,
 		f = SRVFLAG_AUTO_INDEX|SRVFLAG_NO_AUTO_INDEX;
 		if ((srv_conf->flags & f) == 0)
 			srv_conf->flags |= parent->flags & f;
-
-		f = SRVFLAG_SOCKET|SRVFLAG_FCGI;
-		if ((srv_conf->flags & f) == SRVFLAG_FCGI) {
-			srv_conf->flags |= f;
-			(void)strlcpy(srv_conf->socket, HTTPD_FCGI_SOCKET,
-			    sizeof(srv_conf->socket));
-		}
 
 		f = SRVFLAG_ROOT;
 		if ((srv_conf->flags & f) == 0) {
@@ -683,7 +676,6 @@ config_getserver(struct httpd *env, struct imsg *imsg)
 		if ((srv->srv_conf.return_uri = get_data(p + s,
 		    srv->srv_conf.return_uri_len)) == NULL)
 			goto fail;
-		s += srv->srv_conf.return_uri_len;
 	}
 
 	return (0);

@@ -1,4 +1,4 @@
-/*	$OpenBSD: parse.y,v 1.113 2019/06/28 13:32:47 deraadt Exp $	*/
+/*	$OpenBSD: parse.y,v 1.117 2020/08/26 06:50:20 florian Exp $	*/
 
 /*
  * Copyright (c) 2007 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -27,6 +27,7 @@
 %{
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <sys/stat.h>
 #include <sys/queue.h>
 #include <sys/tree.h>
@@ -120,6 +121,7 @@ struct server	*server_inherit(struct server *, struct server_config *,
 int		 listen_on(const char *, int, struct portrange *);
 int		 getservice(char *);
 int		 is_if_in_group(const char *, const char *);
+int		 get_fastcgi_dest(struct server_config *, const char *, char *);
 
 typedef struct {
 	union {
@@ -148,6 +150,7 @@ typedef struct {
 %token	<v.string>	STRING
 %token  <v.number>	NUMBER
 %type	<v.port>	port
+%type	<v.string>	fcgiport
 %type	<v.number>	opttls optmatch
 %type	<v.tv>		timeout
 %type	<v.string>	numberstring optstring
@@ -225,7 +228,8 @@ main		: PREFORK NUMBER	{
 		;
 
 server		: SERVER optmatch STRING	{
-			struct server	*s;
+			struct server		*s;
+			struct sockaddr_un	*sun;
 
 			if (!loadcfg) {
 				free($3);
@@ -281,6 +285,12 @@ server		: SERVER optmatch STRING	{
 			strlcpy(s->srv_conf.tls_ecdhe_curves,
 			    HTTPD_TLS_ECDHE_CURVES,
 			    sizeof(s->srv_conf.tls_ecdhe_curves));
+
+			sun = (struct sockaddr_un *)&s->srv_conf.fastcgi_ss;
+			sun->sun_family = AF_UNIX;
+			(void)strlcpy(sun->sun_path, HTTPD_FCGI_SOCKET,
+			    sizeof(sun->sun_path));
+			sun->sun_len = sizeof(struct sockaddr_un);
 
 			s->srv_conf.hsts_max_age = SERVER_HSTS_DEFAULT_AGE;
 
@@ -501,7 +511,8 @@ serveroptsl	: LISTEN ON STRING opttls port	{
 		| authenticate
 		| filter
 		| LOCATION optmatch STRING	{
-			struct server	*s;
+			struct server		*s;
+			struct sockaddr_un	*sun;
 
 			if (srv->srv_conf.ss.ss_family == AF_UNSPEC) {
 				yyerror("listen address not specified");
@@ -540,6 +551,12 @@ serveroptsl	: LISTEN ON STRING opttls port	{
 				free(s);
 				YYERROR;
 			}
+
+			sun = (struct sockaddr_un *)&s->srv_conf.fastcgi_ss;
+			sun->sun_family = AF_UNIX;
+			(void)strlcpy(sun->sun_path, HTTPD_FCGI_SOCKET,
+			    sizeof(sun->sun_path));
+			sun->sun_len = sizeof(struct sockaddr_un);
 
 			s->srv_conf.id = ++last_server_id;
 			/* A location entry uses the parent id */
@@ -652,16 +669,37 @@ fcgiflags_l	: fcgiflags optcommanl fcgiflags_l
 		| fcgiflags optnl
 		;
 
-fcgiflags	: SOCKET STRING		{
-			if (strlcpy(srv_conf->socket, $2,
-			    sizeof(srv_conf->socket)) >=
-			    sizeof(srv_conf->socket)) {
-				yyerror("fastcgi socket too long");
+fcgiflags	: SOCKET STRING {
+			struct sockaddr_un *sun;
+			sun = (struct sockaddr_un *)&srv_conf->fastcgi_ss;
+			memset(sun, 0, sizeof(*sun));
+			sun->sun_family = AF_UNIX;
+			if (strlcpy(sun->sun_path, $2, sizeof(sun->sun_path))
+			    >= sizeof(sun->sun_path)) {
+				yyerror("socket path too long");
 				free($2);
 				YYERROR;
 			}
+			srv_conf->fastcgi_ss.ss_len =
+			    sizeof(struct sockaddr_un);
 			free($2);
-			srv_conf->flags |= SRVFLAG_SOCKET;
+		}
+		| SOCKET TCP STRING {
+			if (get_fastcgi_dest(srv_conf, $3, FCGI_DEFAULT_PORT)
+			    == -1) {
+				free($3);
+				YYERROR;
+			}
+			free($3);
+		}
+		| SOCKET TCP STRING fcgiport {
+			if (get_fastcgi_dest(srv_conf, $3, $4) == -1) {
+				free($3);
+				free($4);
+				YYERROR;
+			}
+			free($3);
+			free($4);
 		}
 		| PARAM STRING STRING	{
 			struct fastcgi_param	*param;
@@ -692,6 +730,13 @@ fcgiflags	: SOCKET STRING		{
 			    srv_conf->location, srv_conf->name, srv_conf->id,
 			    param->name, param->value);
 			TAILQ_INSERT_HEAD(&srv_conf->fcgiparams, param, entry);
+		}
+		| STRIP NUMBER			{
+			if ($2 < 0 || $2 > INT_MAX) {
+				yyerror("invalid fastcgi strip number");
+				YYERROR;
+			}
+			srv_conf->fcgistrip = $2;
 		}
 		;
 
@@ -1081,6 +1126,27 @@ optmatch	: /* empty */		{ $$ = 0; }
 
 optstring	: /* empty */		{ $$ = NULL; }
 		| STRING		{ $$ = $1; }
+		;
+
+fcgiport	: NUMBER		{
+			if ($1 <= 0 || $1 > (int)USHRT_MAX) {
+				yyerror("invalid port: %lld", $1);
+				YYERROR;
+			}
+			if (asprintf(&$$, "%lld", $1) == -1) {
+				yyerror("out of memory");
+				YYERROR;
+			}
+		}
+		| STRING		{
+			if (getservice($1) <= 0) {
+				yyerror("invalid port: %s", $1);
+				free($1);
+				YYERROR;
+			}
+
+			$$ = $1;
+		}
 		;
 
 tcpip		: TCP '{' optnl tcpflags_l '}'
@@ -2327,10 +2393,8 @@ getservice(char *n)
 		s = getservbyname(n, "tcp");
 		if (s == NULL)
 			s = getservbyname(n, "udp");
-		if (s == NULL) {
-			yyerror("unknown port %s", n);
+		if (s == NULL)
 			return (-1);
-		}
 		return (s->s_port);
 	}
 
@@ -2379,4 +2443,27 @@ is_if_in_group(const char *ifname, const char *groupname)
 end:
 	close(s);
 	return (ret);
+}
+
+int
+get_fastcgi_dest(struct server_config *xsrv_conf, const char *node, char *port)
+{
+	struct addrinfo		 hints, *res;
+	int			 s;
+
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+
+	if ((s = getaddrinfo(node, port, &hints, &res)) != 0) {
+		yyerror("getaddrinfo: %s\n", gai_strerror(s));
+		return -1;
+	}
+
+	memset(&(xsrv_conf)->fastcgi_ss, 0, sizeof(xsrv_conf->fastcgi_ss));
+	memcpy(&(xsrv_conf)->fastcgi_ss, res->ai_addr, res->ai_addrlen);
+
+	freeaddrinfo(res);
+
+	return (0);
 }
