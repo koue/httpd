@@ -1,4 +1,4 @@
-.\"	$OpenBSD: httpd.conf.5,v 1.107 2019/05/08 21:46:56 tb Exp $
+.\"	$OpenBSD: httpd.conf.5,v 1.113 2020/09/05 11:49:38 tb Exp $
 .\"
 .\" Copyright (c) 2014, 2015 Reyk Floeter <reyk@openbsd.org>
 .\"
@@ -14,7 +14,7 @@
 .\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 .\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 .\"
-.Dd $Mdocdate: May 8 2019 $
+.Dd $Mdocdate: September 5 2020 $
 .Dt HTTPD.CONF 5
 .Os
 .Sh NAME
@@ -217,6 +217,8 @@ The IP address of the connected client.
 The TCP source port of the connected client.
 .It Ic $REMOTE_USER
 The remote user for HTTP authentication.
+.It Ic $REQUEST_SCHEME
+The request scheme (http or https).
 .It Ic $REQUEST_URI
 The request path and optional query string.
 .It Ic $SERVER_ADDR
@@ -282,12 +284,13 @@ will neither display nor generate a directory index.
 Enable FastCGI instead of serving files.
 Valid options are:
 .Bl -tag -width Ds
-.It Ic socket Ar socket
+.It Ic socket Oo Cm tcp Oc Ar socket Oo Ar port Oc
 .Nm httpd
 passes HTTP requests to a FastCGI handler listening on the socket
 .Ar socket .
-The socket can either be a UNIX domain socket or a TCP socket listening
-on localhost (127.0.0.1).
+The
+.Ar socket
+can either be a UNIX domain socket or a TCP socket.
 If the FastCGI handler is listening on a UNIX domain socket,
 .Ar socket
 is a local path name within the
@@ -299,7 +302,16 @@ and defaults to
 Alternatively if
 the FastCGI handler is listening on a TCP socket,
 .Ar socket
-starts with a colon followed by the TCP port number.
+is a hostname or an IP address.
+If the
+.Ar port
+is not specified, it defaults to port 9000.
+.It Ic strip Ar number
+Strip
+.Ar number
+path components from the beginning of DOCUMENT_ROOT and
+SCRIPT_FILENAME before sending them to the FastCGI server.
+This allows FastCGI server chroot to be a directory under httpd chroot.
 .It Ic param Ar variable value
 Sets a variable that will be sent to the FastCGI server.
 Each statement defines one variable.
@@ -637,13 +649,11 @@ is empty, OCSP stapling will not be used.
 The default is to not use OCSP stapling.
 .It Ic protocols Ar string
 Specify the TLS protocols to enable for this server.
-If not specified, the value
-.Qq default
-will be used (secure protocols; TLSv1.2-only).
 Refer to the
 .Xr tls_config_parse_protocols 3
-function for other valid protocol string values.
-.It Ic ticket Ic lifetime Ar seconds
+function for valid protocol string values.
+By default, TLSv1.3 and TLSv1.2 will be used.
+.It Ic ticket lifetime Ar seconds
 Enable TLS session tickets with a
 .Ar seconds
 session lifetime.
@@ -690,6 +700,11 @@ Each line may end with an optional semicolon.
 .It Ic include Ar file
 Include types definitions from an external file, for example
 .Pa /usr/share/misc/mime.types .
+.El
+.Sh FILES
+.Bl -tag -width /etc/examples/httpd.conf -compact
+.It Pa /etc/examples/httpd.conf
+Example configuration file.
 .El
 .Sh EXAMPLES
 Example configuration files for
@@ -768,11 +783,13 @@ directive:
 .Bd -literal -offset indent
 server "example.com" {
 	listen on 10.0.0.1 port 80
-	block return 301 "http://www.example.com$REQUEST_URI"
+	listen on 10.0.0.1 tls port 443
+	block return 301 "$REQUEST_SCHEME://www.example.com$REQUEST_URI"
 }
 
 server "www.example.com" {
 	listen on 10.0.0.1 port 80
+	listen on 10.0.0.1 tls port 443
 }
 .Ed
 The request can also be rewritten with the

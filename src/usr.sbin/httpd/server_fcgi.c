@@ -1,4 +1,4 @@
-/*	$OpenBSD: server_fcgi.c,v 1.80 2019/05/08 21:41:06 tb Exp $	*/
+/*	$OpenBSD: server_fcgi.c,v 1.84 2020/09/12 07:34:17 yasuoka Exp $	*/
 
 /*
  * Copyright (c) 2014 Florian Obser <florian@openbsd.org>
@@ -97,44 +97,15 @@ server_fcgi(struct httpd *env, struct client *clt)
 	size_t				 scriptlen;
 	int				 pathlen;
 	int				 fd = -1, ret;
-	const char			*stripped, *p, *alias, *errstr = NULL;
+	const char			*stripped, *alias, *errstr = NULL;
 	char				*query_alias, *str, *script = NULL;
 
-	if (srv_conf->socket[0] == ':') {
-		struct sockaddr_storage	 ss;
-		in_port_t		 port;
-
-		p = srv_conf->socket + 1;
-
-		port = strtonum(p, 0, 0xffff, &errstr);
-		if (errstr != NULL) {
-			log_warn("%s: strtonum %s, %s", __func__, p, errstr);
-			goto fail;
-		}
-		memset(&ss, 0, sizeof(ss));
-		ss.ss_family = AF_INET;
-		((struct sockaddr_in *)
-		    &ss)->sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-		port = htons(port);
-
-		if ((fd = server_socket_connect(&ss, port, srv_conf)) == -1)
-			goto fail;
-	} else {
-		struct sockaddr_un	 sun;
-
-		if ((fd = socket(AF_UNIX,
-		    SOCK_STREAM | SOCK_NONBLOCK, 0)) == -1)
-			goto fail;
-
-		memset(&sun, 0, sizeof(sun));
-		sun.sun_family = AF_UNIX;
-		if (strlcpy(sun.sun_path, srv_conf->socket,
-		    sizeof(sun.sun_path)) >= sizeof(sun.sun_path)) {
-			errstr = "socket path to long";
-			goto fail;
-		}
-
-		if (connect(fd, (struct sockaddr *)&sun, sizeof(sun)) == -1)
+	if ((fd = socket(srv_conf->fastcgi_ss.ss_family,
+	    SOCK_STREAM | SOCK_NONBLOCK, 0)) == -1)
+		goto fail;
+	if ((connect(fd, (struct sockaddr *) &srv_conf->fastcgi_ss,
+	    srv_conf->fastcgi_ss.ss_len)) == -1) {
+		if (errno != EINPROGRESS)
 			goto fail;
 	}
 
@@ -241,7 +212,8 @@ server_fcgi(struct httpd *env, struct client *clt)
 		errstr = "failed to encode param";
 		goto fail;
 	}
-	if (fcgi_add_param(&param, "SCRIPT_FILENAME", script, clt) == -1) {
+	if (fcgi_add_param(&param, "SCRIPT_FILENAME", server_root_strip(script,
+	    srv_conf->fcgistrip), clt) == -1) {
 		errstr = "failed to encode param";
 		goto fail;
 	}
@@ -257,8 +229,8 @@ server_fcgi(struct httpd *env, struct client *clt)
 		goto fail;
 	}
 
-	if (fcgi_add_param(&param, "DOCUMENT_ROOT", srv_conf->root,
-	    clt) == -1) {
+	if (fcgi_add_param(&param, "DOCUMENT_ROOT", server_root_strip(
+	    srv_conf->root, srv_conf->fcgistrip), clt) == -1) {
 		errstr = "failed to encode param";
 		goto fail;
 	}
@@ -327,13 +299,13 @@ server_fcgi(struct httpd *env, struct client *clt)
 	}
 
 	if (!desc->http_query) {
-		if (fcgi_add_param(&param, "REQUEST_URI", desc->http_path,
+		if (fcgi_add_param(&param, "REQUEST_URI", desc->http_path_orig,
 		    clt) == -1) {
 			errstr = "failed to encode param";
 			goto fail;
 		}
 	} else {
-		if (asprintf(&str, "%s?%s", desc->http_path,
+		if (asprintf(&str, "%s?%s", desc->http_path_orig,
 		    desc->http_query) == -1) {
 			errstr = "failed to encode param";
 			goto fail;
@@ -683,7 +655,7 @@ server_fcgi_header(struct client *clt, unsigned int code)
 
 	/* Date header is mandatory and should be added as late as possible */
 	key.kv_key = "Date";
-	if ((kv = kv_find(&resp->http_headers, &key)) == NULL &&
+	if (kv_find(&resp->http_headers, &key) == NULL &&
 	    (server_http_time(time(NULL), tmbuf, sizeof(tmbuf)) <= 0 ||
 	    kv_add(&resp->http_headers, "Date", tmbuf) == NULL))
 		return (-1);

@@ -1,4 +1,4 @@
-/*	$OpenBSD: httpd.c,v 1.68 2018/09/09 21:06:51 bluhm Exp $	*/
+/*	$OpenBSD: httpd.c,v 1.70 2020/08/03 11:05:24 benno Exp $	*/
 
 /*
  * Copyright (c) 2014 Reyk Floeter <reyk@openbsd.org>
@@ -552,59 +552,6 @@ expand_string(char *label, size_t len, const char *srch, const char *repl)
 }
 
 const char *
-canonicalize_host(const char *host, char *name, size_t len)
-{
-	struct sockaddr_in	 sin4;
-	struct sockaddr_in6	 sin6;
-	size_t			 i, j;
-	size_t			 plen;
-	char			 c;
-
-	if (len < 2)
-		goto fail;
-
-	/*
-	 * Canonicalize an IPv4/6 address
-	 */
-	if (inet_pton(AF_INET, host, &sin4) == 1)
-		return (inet_ntop(AF_INET, &sin4, name, len));
-	if (inet_pton(AF_INET6, host, &sin6) == 1)
-		return (inet_ntop(AF_INET6, &sin6, name, len));
-
-	/*
-	 * Canonicalize a hostname
-	 */
-
-	/* 1. remove repeated dots and convert upper case to lower case */
-	plen = strlen(host);
-	memset(name, 0, len);
-	for (i = j = 0; i < plen; i++) {
-		if (j >= (len - 1))
-			goto fail;
-		c = tolower((unsigned char)host[i]);
-		if ((c == '.') && (j == 0 || name[j - 1] == '.'))
-			continue;
-		name[j++] = c;
-	}
-
-	/* 2. remove trailing dots */
-	for (i = j; i > 0; i--) {
-		if (name[i - 1] != '.')
-			break;
-		name[i - 1] = '\0';
-		j--;
-	}
-	if (j <= 0)
-		goto fail;
-
-	return (name);
-
- fail:
-	errno = EINVAL;
-	return (NULL);
-}
-
-const char *
 url_decode(char *url)
 {
 	char		*p, *q;
@@ -1112,50 +1059,6 @@ kv_free(struct kv *kv)
 }
 
 struct kv *
-kv_inherit(struct kv *dst, struct kv *src)
-{
-	memset(dst, 0, sizeof(*dst));
-	memcpy(dst, src, sizeof(*dst));
-	TAILQ_INIT(&dst->kv_children);
-
-	if (src->kv_key != NULL) {
-		if ((dst->kv_key = strdup(src->kv_key)) == NULL) {
-			kv_free(dst);
-			return (NULL);
-		}
-	}
-	if (src->kv_value != NULL) {
-		if ((dst->kv_value = strdup(src->kv_value)) == NULL) {
-			kv_free(dst);
-			return (NULL);
-		}
-	}
-
-	return (dst);
-}
-
-int
-kv_log(struct evbuffer *log, struct kv *kv)
-{
-	char	*msg;
-
-	if (log == NULL)
-		return (0);
-	if (asprintf(&msg, " [%s%s%s]",
-	    kv->kv_key == NULL ? "(unknown)" : kv->kv_key,
-	    kv->kv_value == NULL ? "" : ": ",
-	    kv->kv_value == NULL ? "" : kv->kv_value) == -1)
-		return (-1);
-	if (evbuffer_add(log, msg, strlen(msg)) == -1) {
-		free(msg);
-		return (-1);
-	}
-	free(msg);
-
-	return (0);
-}
-
-struct kv *
 kv_find(struct kvtree *keys, struct kv *kv)
 {
 	struct kv	*match;
@@ -1323,22 +1226,6 @@ print_host(struct sockaddr_storage *ss, char *buf, size_t len)
 		buf[0] = '\0';
 		return (NULL);
 	}
-	return (buf);
-}
-
-const char *
-print_time(struct timeval *a, struct timeval *b, char *buf, size_t len)
-{
-	struct timeval		tv;
-	unsigned long		h, sec, min;
-
-	timerclear(&tv);
-	timersub(a, b, &tv);
-	sec = tv.tv_sec % 60;
-	min = tv.tv_sec / 60 % 60;
-	h = tv.tv_sec / 60 / 60;
-
-	snprintf(buf, len, "%.2lu:%.2lu:%.2lu", h, min, sec);
 	return (buf);
 }
 
