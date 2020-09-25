@@ -257,9 +257,17 @@ _bcrypt_autorounds(void)
 	char buf[_PASSWORD_LEN];
 	int duration;
 
+#ifdef __OpenBSD__
 	WRAP(clock_gettime)(CLOCK_THREAD_CPUTIME_ID, &before);
+#else
+	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &before);
+#endif
 	bcrypt_newhash("testpassword", r, buf, sizeof(buf));
+#ifdef __OpenBSD__
 	WRAP(clock_gettime)(CLOCK_THREAD_CPUTIME_ID, &after);
+#else
+	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &after);
+#endif
 
 	duration = after.tv_sec - before.tv_sec;
 	duration *= 1000000;
