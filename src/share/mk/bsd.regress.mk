@@ -1,4 +1,4 @@
-# $OpenBSD: bsd.regress.mk,v 1.21 2019/06/17 17:20:24 espie Exp $
+# $OpenBSD: bsd.regress.mk,v 1.23 2020/12/17 14:54:15 bluhm Exp $
 # Documented in bsd.regress.mk(5)
 
 # No man pages for regression tests.
@@ -75,15 +75,19 @@ ${REGRESS_TARGETS}: ${REGRESS_SETUP}
 CLEANFILES+=${REGRESS_SETUP_ONCE:S/^/stamp-/}
 ${REGRESS_TARGETS}: ${REGRESS_SETUP_ONCE:S/^/stamp-/}
 ${REGRESS_SETUP_ONCE:S/^/stamp-/}: .SILENT
+	echo '==== ${@:S/^stamp-//} ===='
 	${MAKE} -C ${.CURDIR} ${@:S/^stamp-//}
 	date >$@
+	echo
 .endif
 
 regress: .SILENT
 .if !empty(REGRESS_SETUP_ONCE)
 	rm -f ${REGRESS_SETUP_ONCE:S/^/stamp-/}
+	${MAKE} -C ${.CURDIR} ${REGRESS_SETUP_ONCE:S/^/stamp-/}
 .endif
 .for RT in ${REGRESS_TARGETS}
+	echo '==== ${RT} ===='
 .  if ${REGRESS_SKIP_TARGETS:M${RT}}
 	echo -n "SKIP " ${_REGRESS_OUT}
 	echo SKIPPED
@@ -106,9 +110,12 @@ regress: .SILENT
 	fi
 .  endif
 	echo ${_REGRESS_NAME}/${RT:S/^run-regress-//} ${_REGRESS_OUT}
+	echo
 .endfor
 .for RT in ${REGRESS_CLEANUP}
+	echo '==== ${RT} ===='
 	${MAKE} -C ${.CURDIR} ${RT}
+	echo
 .endfor
 	rm -f ${REGRESS_SETUP_ONCE:S/^/stamp-/}
 

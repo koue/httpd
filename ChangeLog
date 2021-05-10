@@ -1,3 +1,218 @@
+2021-04-29 18:23  dv
+
+	* usr.sbin/httpd/server_file.c: Use relative reference URIs in
+	  Location header on directory redirects.
+
+	  This adds support for front-ending httpd(8) with a
+	  TLS-terminating gateway like relayd(8) that forwards unencrypted
+	  http traffic.
+
+	  Previously httpd(8) would use a full URL in the Location header
+	  in 301 redirects when a user-agent requests a directory but
+	  without the trailing '/'. If the user-agent originally connected
+	  with https, this caused the redirected url to be http.
+
+	  This change conforms to RFC7231 section 7.1.2.
+
+	  Reported by Vincent Lee.
+
+	  OK claudio@
+
+2021-04-20 21:11  dv
+
+	* usr.sbin/httpd/: control.c, httpd.h, proc.c: Move TAILQ
+	  initialization to files where they are used.
+
+	  These priv-sep daemons all follow a similar design and use TAILQs
+	  for tracking control process connections. In most cases, the
+	  TAILQs are initialized separate from where they are used. Since
+	  the scope of use is generally confined to a specific control
+	  process file, this commit also removes any extern definitions and
+	  exposing the TAILQ structures to other compilation units.
+
+	  ok bluhm@, tb@
+
+2021-04-10 10:10  claudio
+
+	* usr.sbin/httpd/: httpd.h, parse.y, server.c: Do not compare TLS
+	  config params for non-TLS servers. This allows to mix 'listen *
+	  port 80' and 'listen * tls port 443' in one server block.  Also
+	  the last argument of server_tls_cmp - match_keypair - is always 0
+	  so remove this code.	OK florian@ tb@ some long time ago
+
+2021-04-06 06:28  jmc
+
+	* usr.sbin/httpd/httpd.conf.5: use "braces" consistenly; fastcgi
+	  can take multiple options; original issue and text from laurence
+	  tratt, with updates from raf czlonka
+
+2021-03-16 06:44  otto
+
+	* usr.sbin/httpd/server_file.c: A socket buffer is not the best
+	  size to read from a disk.  Use st_blksize to set high water mark;
+	  florian@
+
+2021-01-27 07:21  deraadt
+
+	* usr.sbin/httpd/: httpd.c, httpd.h, logger.c: these programs (with
+	  common ancestry) had a -fno-common problem related to
+	  privsep_procid.  ok mortimer
+
+2021-01-22 13:07  benno
+
+	* usr.sbin/httpd/parse.y: fix a memory leak, found by rob@ in
+	  relayd.
+
+	  ok tb@
+
+2021-01-18 18:47  tb
+
+	* usr.sbin/httpd/parse.y: Fix httpd example config
+
+	  A server configuration yields multiple struct server_config in
+	  the env->sc_servers queue: an actual server ("parent") and one
+	  for each location directive in httpd.conf.  In
+	  parent_configure(), the parents are configured first, then the
+	  corresponding locations.
+
+	  parse.y r1.118 kills the parent if an error is encountered on
+	  loading the TLS keypairs but leaves the locations in the
+	  sc_servers queue.  When running the default config without TLS
+	  keys already in place, this then leads to the self-explanatory
+	  "invalid location" error message. Its intention is to indicates
+	  the unexpected situation that config_setserver() encounters a
+	  location without an associated server.
+
+	  Fix this by not only destroying the parent but also removing all
+	  of its locations.
+
+	  ok jsing
+
+2021-01-05 19:56  tb
+
+	* usr.sbin/httpd/server_http.c: unwrap a line
+
+2021-01-02 18:35  tb
+
+	* usr.sbin/httpd/server.c: Pull tls_close() and tls_free() further
+	  up, so tls_free() will already be in the right spot once
+	  tls_close() is handled by libevent.
+
+	  suggested by jsing
+
+2021-01-02 18:31  tb
+
+	* usr.sbin/httpd/server.c: Call tls_close() before closing the
+	  underlying socket
+
+	  In order to end a TLS connection regularly, an implementation
+	  MUST send a close_notify alert.  libtls does this in tls_close()
+	  via SSL_shutdown(), so the socket had better still be open.
+
+	  The incorrect order in server_close() caused a leak on each tls
+	  connection due to a bug in libssl (fixed in tls_record_layer.c
+	  r1.56).
+
+	  As pointed out by claudio, tls_close() should really be handled
+	  from the main event loop. This will be addressed in a later
+	  commit.
+
+	  ok claudio florian jsing
+
+2020-12-31 14:17  tb
+
+	* usr.sbin/httpd/server.c: Don't leak the log message in
+	  server_sendlog
+
+	  While there, use the length calculated by vasprintf() instead of
+	  using strlen needlessly.
+
+	  ok claudio florian
+
+2020-12-31 14:15  tb
+
+	* usr.sbin/httpd/logger.c: Don't leak access.log and error.log on
+	  reload.
+
+	  ok florian
+
+2020-12-30 18:40  benno
+
+	* usr.sbin/httpd/parse.y: getifaddrs() can return entries where
+	  ifa_addr is NULL. Check for this before accessing anything in
+	  ifa_addr.  ok claudio@
+
+2020-12-17 14:54  bluhm
+
+	* share/mk/bsd.regress.mk: Run setup_once targets in a sepearate
+	  block with headline before all other targets.  OK tb@
+
+2020-12-17 00:51  bluhm
+
+	* regress/usr.sbin/httpd/tests/Makefile: Remove echo headlines.
+
+2020-12-16 16:53  bluhm
+
+	* share/mk/bsd.regress.mk: When debugging tests, it is useful to
+	  see the target name and which output belongs to it.  Echo
+	  headline with regress target and empty line afterwards.  OK
+	  sthen@ tb@ OK claudio@
+
+2020-11-20 20:39  jung
+
+	* usr.sbin/httpd/parse.y: remove an unused struct
+
+	  from Edgar Pettijohn
+
+	  ok kn
+
+2020-11-04 10:34  denis
+
+	* etc/examples/httpd.conf: Back out last commit.
+
+	  Some devs are not convinced.
+
+2020-11-02 20:30  denis
+
+	* etc/examples/httpd.conf: acme response challenge location to
+	  issue better error code
+
+	  Notified to me by jmc@
+
+	  Diff by Matthias Pressfreund <mpfr @ fn de>, thanks
+
+2020-10-29 12:30  denis
+
+	* usr.sbin/httpd/: httpd.conf.5, httpd.h, parse.y, server_http.c:
+	  Add location (found|not found) option to test for resource path
+	  existence.
+
+	  Diff by Matthias Pressfreund <mpfr @ fn de>. Thanks.
+
+2020-10-26 19:31  denis
+
+	* usr.sbin/httpd/parse.y: Do not allow duplicate "location"
+	  directive.
+
+	  Found and fix by Matthias Pressfreund <mpfr @ fn de>. Thanks.
+
+2020-10-11 03:21  tb
+
+	* usr.sbin/httpd/: parse.y, server.c: Handle absence of TLS certs
+	  while parsing the config
+
+	  There is a soft fail mechanism to handle missing certs for
+	  seamless interaction with acme-client. Move this to the config
+	  parser. This is simpler than server.c r1.117 and avoids a crash
+	  due to listening on port 443 without having set up the TLS
+	  context first. More precisely, the crash happens if a server with
+	  missing certificate is visited via https in a configuration where
+	  there is a second server with valid certificate and key.
+
+	  From Joshua Sing (joshua at hypera dot dev)
+
+	  ok benno
+
 2020-09-21 09:42  tobhe
 
 	* usr.sbin/httpd/config.c: Fix memory leak in "iov".

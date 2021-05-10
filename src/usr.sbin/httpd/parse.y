@@ -1,6 +1,7 @@
-/*	$OpenBSD: parse.y,v 1.117 2020/08/26 06:50:20 florian Exp $	*/
+/*	$OpenBSD: parse.y,v 1.125 2021/04/10 10:10:07 claudio Exp $	*/
 
 /*
+ * Copyright (c) 2020 Matthias Pressfreund <mpfr@fn.de>
  * Copyright (c) 2007 - 2015 Reyk Floeter <reyk@openbsd.org>
  * Copyright (c) 2008 Gilles Chehade <gilles@openbsd.org>
  * Copyright (c) 2006 Pierre-Yves Ritschard <pyr@openbsd.org>
@@ -122,6 +123,7 @@ int		 listen_on(const char *, int, struct portrange *);
 int		 getservice(char *);
 int		 is_if_in_group(const char *, const char *);
 int		 get_fastcgi_dest(struct server_config *, const char *, char *);
+void		 remove_locations(struct server_config *);
 
 typedef struct {
 	union {
@@ -130,10 +132,6 @@ typedef struct {
 		struct timeval		 tv;
 		struct portrange	 port;
 		struct auth		 auth;
-		struct {
-			struct sockaddr_storage	 ss;
-			char			 name[HOST_NAME_MAX+1];
-		}			 addr;
 	} v;
 	int lineno;
 } YYSTYPE;
@@ -146,12 +144,12 @@ typedef struct {
 %token	PROTOCOLS REQUESTS ROOT SACK SERVER SOCKET STRIP STYLE SYSLOG TCP TICKET
 %token	TIMEOUT TLS TYPE TYPES HSTS MAXAGE SUBDOMAINS DEFAULT PRELOAD REQUEST
 %token	ERROR INCLUDE AUTHENTICATE WITH BLOCK DROP RETURN PASS REWRITE
-%token	CA CLIENT CRL OPTIONAL PARAM FORWARDED
+%token	CA CLIENT CRL OPTIONAL PARAM FORWARDED FOUND NOT
 %token	<v.string>	STRING
 %token  <v.number>	NUMBER
 %type	<v.port>	port
 %type	<v.string>	fcgiport
-%type	<v.number>	opttls optmatch
+%type	<v.number>	opttls optmatch optfound
 %type	<v.tv>		timeout
 %type	<v.string>	numberstring optstring
 %type	<v.auth>	authopts
@@ -339,7 +337,8 @@ server		: SERVER optmatch STRING	{
 					free(srv);
 					YYERROR;
 				}
-				if (server_tls_cmp(s, srv, 0) != 0) {
+				if (srv->srv_conf.flags & SRVFLAG_TLS &&
+				    server_tls_cmp(s, srv) != 0) {
 					yyerror("server \"%s\": tls "
 					    "configuration mismatch on same "
 					    "address/port",
@@ -359,10 +358,19 @@ server		: SERVER optmatch STRING	{
 				YYERROR;
 			}
 
-			if (server_tls_load_keypair(srv) == -1)
+			if (server_tls_load_keypair(srv) == -1) {
+				/* Soft fail as there may be no certificate. */
 				log_warnx("%s:%d: server \"%s\": failed to "
 				    "load public/private keys", file->name,
 				    yylval.lineno, srv->srv_conf.name);
+
+				remove_locations(srv_conf);
+				serverconfig_free(srv_conf);
+				srv_conf = NULL;
+				free(srv);
+				srv = NULL;
+				break;
+			}
 
 			if (server_tls_load_ca(srv) == -1) {
 				yyerror("server \"%s\": failed to load "
@@ -510,39 +518,39 @@ serveroptsl	: LISTEN ON STRING opttls port	{
 		| fastcgi
 		| authenticate
 		| filter
-		| LOCATION optmatch STRING	{
+		| LOCATION optfound optmatch STRING	{
 			struct server		*s;
 			struct sockaddr_un	*sun;
 
 			if (srv->srv_conf.ss.ss_family == AF_UNSPEC) {
 				yyerror("listen address not specified");
-				free($3);
+				free($4);
 				YYERROR;
 			}
 
 			if (parentsrv != NULL) {
-				yyerror("location %s inside location", $3);
-				free($3);
+				yyerror("location %s inside location", $4);
+				free($4);
 				YYERROR;
 			}
 
 			if (!loadcfg) {
-				free($3);
+				free($4);
 				YYACCEPT;
 			}
 
 			if ((s = calloc(1, sizeof (*s))) == NULL)
 				fatal("out of memory");
 
-			if (strlcpy(s->srv_conf.location, $3,
+			if (strlcpy(s->srv_conf.location, $4,
 			    sizeof(s->srv_conf.location)) >=
 			    sizeof(s->srv_conf.location)) {
 				yyerror("server location truncated");
-				free($3);
+				free($4);
 				free(s);
 				YYERROR;
 			}
-			free($3);
+			free($4);
 
 			if (strlcpy(s->srv_conf.name, srv->srv_conf.name,
 			    sizeof(s->srv_conf.name)) >=
@@ -562,7 +570,18 @@ serveroptsl	: LISTEN ON STRING opttls port	{
 			/* A location entry uses the parent id */
 			s->srv_conf.parent_id = srv->srv_conf.id;
 			s->srv_conf.flags = SRVFLAG_LOCATION;
-			if ($2)
+			if ($2 == 1) {
+				s->srv_conf.flags &=
+				    ~SRVFLAG_LOCATION_NOT_FOUND;
+				s->srv_conf.flags |=
+				    SRVFLAG_LOCATION_FOUND;
+			} else if ($2 == -1) {
+				s->srv_conf.flags &=
+				    ~SRVFLAG_LOCATION_FOUND;
+				s->srv_conf.flags |=
+				    SRVFLAG_LOCATION_NOT_FOUND;
+			}
+			if ($3)
 				s->srv_conf.flags |= SRVFLAG_LOCATION_MATCH;
 			s->srv_s = -1;
 			memcpy(&s->srv_conf.ss, &srv->srv_conf.ss,
@@ -582,10 +601,18 @@ serveroptsl	: LISTEN ON STRING opttls port	{
 			SPLAY_INIT(&srv->srv_clients);
 		} '{' optnl serveropts_l '}'	{
 			struct server	*s = NULL;
+			uint32_t	 f;
+
+			f = SRVFLAG_LOCATION_FOUND |
+			    SRVFLAG_LOCATION_NOT_FOUND;
 
 			TAILQ_FOREACH(s, conf->sc_servers, srv_entry) {
+				/* Compare locations of same parent server */
 				if ((s->srv_conf.flags & SRVFLAG_LOCATION) &&
-				    s->srv_conf.id == srv_conf->id &&
+				    s->srv_conf.parent_id ==
+				    srv_conf->parent_id &&
+				    (s->srv_conf.flags & f) ==
+				    (srv_conf->flags & f) &&
 				    strcmp(s->srv_conf.location,
 				    srv_conf->location) == 0)
 					break;
@@ -621,6 +648,11 @@ serveroptsl	: LISTEN ON STRING opttls port	{
 			}
 			srv->srv_conf.flags |= SRVFLAG_SERVER_HSTS;
 		}
+		;
+
+optfound	: /* empty */	{ $$ = 0; }
+		| FOUND		{ $$ = 1; }
+		| NOT FOUND	{ $$ = -1; }
 		;
 
 hsts		: HSTS '{' optnl hstsflags_l '}'
@@ -1371,6 +1403,7 @@ lookup(char *s)
 		{ "error",		ERR },
 		{ "fastcgi",		FCGI },
 		{ "forwarded",		FORWARDED },
+		{ "found",		FOUND },
 		{ "hsts",		HSTS },
 		{ "include",		INCLUDE },
 		{ "index",		INDEX },
@@ -1386,6 +1419,7 @@ lookup(char *s)
 		{ "max-age",		MAXAGE },
 		{ "no",			NO },
 		{ "nodelay",		NODELAY },
+		{ "not",		NOT },
 		{ "ocsp",		OCSP },
 		{ "on",			ON },
 		{ "optional",		OPTIONAL },
@@ -2102,7 +2136,8 @@ host_if(const char *s, struct addresslist *al, int max,
 
  nextaf:
 	for (p = ifap; p != NULL && cnt < max; p = p->ifa_next) {
-		if (p->ifa_addr->sa_family != af ||
+		if (p->ifa_addr == NULL ||
+		    p->ifa_addr->sa_family != af ||
 		    (strcmp(s, p->ifa_name) != 0 &&
 		    !is_if_in_group(p->ifa_name, s)))
 			continue;
@@ -2117,6 +2152,7 @@ host_if(const char *s, struct addresslist *al, int max,
 				log_warnx("%s: interface name truncated",
 				    __func__);
 			freeifaddrs(ifap);
+			free(h);
 			return (-1);
 		}
 		if (ipproto != -1)
@@ -2466,4 +2502,19 @@ get_fastcgi_dest(struct server_config *xsrv_conf, const char *node, char *port)
 	freeaddrinfo(res);
 
 	return (0);
+}
+
+void
+remove_locations(struct server_config *xsrv_conf)
+{
+	struct server *s, *next;
+
+	TAILQ_FOREACH_SAFE(s, conf->sc_servers, srv_entry, next) {
+		if (!(s->srv_conf.flags & SRVFLAG_LOCATION &&
+		    s->srv_conf.parent_id == xsrv_conf->parent_id))
+			continue;
+		TAILQ_REMOVE(conf->sc_servers, s, srv_entry);
+		serverconfig_free(&s->srv_conf);
+		free(s);
+	}
 }

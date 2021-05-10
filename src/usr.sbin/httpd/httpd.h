@@ -1,4 +1,4 @@
-/*	$OpenBSD: httpd.h,v 1.152 2020/08/29 07:53:48 florian Exp $	*/
+/*	$OpenBSD: httpd.h,v 1.156 2021/04/20 21:11:56 dv Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -172,7 +172,7 @@ struct control_sock {
 };
 TAILQ_HEAD(control_socks, control_sock);
 
-struct {
+extern struct {
 	struct event	 ev;
 	int		 fd;
 } control_state;
@@ -234,7 +234,8 @@ enum privsep_procid {
 	PROC_SERVER,
 	PROC_LOGGER,
 	PROC_MAX
-} privsep_process;
+};
+extern enum privsep_procid privsep_process;
 
 /* Attach the control socket to the following process */
 #define PROC_CONTROL	PROC_LOGGER
@@ -395,13 +396,16 @@ SPLAY_HEAD(client_tree, client);
 #define SRVFLAG_DEFAULT_TYPE	0x00800000
 #define SRVFLAG_PATH_REWRITE	0x01000000
 #define SRVFLAG_NO_PATH_REWRITE	0x02000000
+#define SRVFLAG_LOCATION_FOUND	0x40000000
+#define SRVFLAG_LOCATION_NOT_FOUND 0x80000000
 
 #define SRVFLAG_BITS							\
 	"\10\01INDEX\02NO_INDEX\03AUTO_INDEX\04NO_AUTO_INDEX"		\
 	"\05ROOT\06LOCATION\07FCGI\10NO_FCGI\11LOG\12NO_LOG"		\
 	"\14SYSLOG\15NO_SYSLOG\16TLS\17ACCESS_LOG\20ERROR_LOG"		\
 	"\21AUTH\22NO_AUTH\23BLOCK\24NO_BLOCK\25LOCATION_MATCH"		\
-	"\26SERVER_MATCH\27SERVER_HSTS\30DEFAULT_TYPE\31PATH\32NO_PATH"
+	"\26SERVER_MATCH\27SERVER_HSTS\30DEFAULT_TYPE\31PATH\32NO_PATH" \
+	"\37LOCATION_FOUND\40LOCATION_NOT_FOUND"
 
 #define TCPFLAG_NODELAY		0x01
 #define TCPFLAG_NNODELAY	0x02
@@ -439,7 +443,7 @@ struct log_file {
 	uint32_t		log_id;
 	TAILQ_ENTRY(log_file)	log_entry;
 };
-TAILQ_HEAD(log_files, log_file) log_files;
+extern TAILQ_HEAD(log_files, log_file) log_files;
 
 struct media_type {
 	char			 media_name[MEDIATYPE_NAMEMAX];
@@ -613,8 +617,6 @@ void	 control_imsg_forward(struct privsep *, struct imsg *);
 struct ctl_conn	*
 	 control_connbyfd(int);
 
-extern  struct ctl_connlist ctl_conns;
-
 /* parse.y */
 int	 parse_config(const char *, struct httpd *);
 int	 load_config(const char *, struct httpd *);
@@ -622,7 +624,7 @@ int	 cmdline_symset(char *);
 
 /* server.c */
 void	 server(struct privsep *, struct privsep_proc *);
-int	 server_tls_cmp(struct server *, struct server *, int);
+int	 server_tls_cmp(struct server *, struct server *);
 int	 server_tls_load_ca(struct server *);
 int	 server_tls_load_crl(struct server *);
 int	 server_tls_load_keypair(struct server *);
@@ -694,6 +696,7 @@ const char *
 	 server_root_strip(const char *, int);
 struct server_config *
 	 server_getlocation(struct client *, const char *);
+int	 server_locationaccesstest(struct server_config *, const char *);
 const char *
 	 server_http_host(struct sockaddr_storage *, char *, size_t);
 char	*server_http_parsehost(char *, char *, size_t, int *);
