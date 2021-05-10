@@ -1,4 +1,4 @@
-/*	$OpenBSD: server_file.c,v 1.68 2020/05/22 07:18:17 bentley Exp $	*/
+/*	$OpenBSD: server_file.c,v 1.70 2021/04/29 18:23:07 dv Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2017 Reyk Floeter <reyk@openbsd.org>
@@ -85,9 +85,7 @@ server_file_access(struct httpd *env, struct client *clt,
 		if (path[strlen(path) - 1] != '/') {
 			if ((encodedpath = url_encode(desc->http_path)) == NULL)
 				return (500);
-			if (asprintf(&newpath, "http%s://%s%s/",
-			    srv_conf->flags & SRVFLAG_TLS ? "s" : "",
-			    desc->http_host, encodedpath) == -1) {
+			if (asprintf(&newpath, "%s/", encodedpath) == -1) {
 				free(encodedpath);
 				return (500);
 			}
@@ -224,6 +222,7 @@ server_file_request(struct httpd *env, struct client *clt, char *path,
 	struct media_type	*media;
 	const char		*errstr = NULL;
 	int			 fd = -1, ret, code = 500;
+	size_t			 bufsiz;
 
 	if ((ret = server_file_method(clt)) != 0) {
 		code = ret;
@@ -269,9 +268,10 @@ server_file_request(struct httpd *env, struct client *clt, char *path,
 		goto fail;
 	}
 
-	/* Adjust read watermark to the socket output buffer size */
+	/* Adjust read watermark to the optimal file io size */
+	bufsiz = MAXIMUM(st->st_blksize, 64 * 1024);
 	bufferevent_setwatermark(clt->clt_srvbev, EV_READ, 0,
-	    clt->clt_sndbufsiz);
+	    bufsiz);
 
 	bufferevent_settimeout(clt->clt_srvbev,
 	    srv_conf->timeout.tv_sec, srv_conf->timeout.tv_sec);
@@ -304,7 +304,7 @@ server_partial_file_request(struct httpd *env, struct client *clt, char *path,
 	struct media_type	*media, multipart_media;
 	struct range_data	*r = &clt->clt_ranges;
 	struct range		*range;
-	size_t			 content_length = 0;
+	size_t			 content_length = 0, bufsiz;
 	int			 code = 500, fd = -1, i, nranges, ret;
 	char			 content_range[64];
 	const char		*errstr = NULL;
@@ -403,9 +403,10 @@ server_partial_file_request(struct httpd *env, struct client *clt, char *path,
 		goto fail;
 	}
 
-	/* Adjust read watermark to the socket output buffer size */
+	/* Adjust read watermark to the optimal file io size */
+	bufsiz = MAXIMUM(st->st_blksize, 64 * 1024);
 	bufferevent_setwatermark(clt->clt_srvbev, EV_READ, 0,
-	    clt->clt_sndbufsiz);
+	    bufsiz);
 
 	bufferevent_settimeout(clt->clt_srvbev,
 	    srv_conf->timeout.tv_sec, srv_conf->timeout.tv_sec);
