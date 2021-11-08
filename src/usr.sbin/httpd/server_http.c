@@ -1,4 +1,4 @@
-/*	$OpenBSD: server_http.c,v 1.143 2021/01/05 19:56:11 tb Exp $	*/
+/*	$OpenBSD: server_http.c,v 1.148 2021/11/05 19:01:02 benno Exp $	*/
 
 /*
  * Copyright (c) 2020 Matthias Pressfreund <mpfr@fn.de>
@@ -54,8 +54,11 @@ static int	 server_httperror_cmp(const void *, const void *);
 void		 server_httpdesc_free(struct http_descriptor *);
 int		 server_http_authenticate(struct server_config *,
 		    struct client *);
+static int	 http_version_num(char *);
 char		*server_expand_http(struct client *, const char *,
 		    char *, size_t);
+char		*replace_var(char *, const char *, const char *);
+char		*read_errdoc(const char *, const char *);
 
 static struct http_method	 http_methods[] = HTTP_METHODS;
 static struct http_error	 http_errors[] = HTTP_ERRORS;
@@ -203,6 +206,25 @@ done:
 	return (ret);
 }
 
+static int
+http_version_num(char *version)
+{
+	if (strlen(version) != 8 || strncmp(version, "HTTP/", 5) != 0
+	    || !isdigit((unsigned char)version[5]) || version[6] != '.'
+	    || !isdigit((unsigned char)version[7]))
+		return (-1);
+	if (version[5] == '0' && version[7] == '9')
+		return (9);
+	if (version[5] == '1') {
+		if (version[7] == '0')
+			return (10);
+		else
+			/* any other version 1.x gets downgraded to 1.1 */
+			return (11);
+	}
+	return (0);
+}
+
 void
 server_read_http(struct bufferevent *bev, void *arg)
 {
@@ -211,7 +233,9 @@ server_read_http(struct bufferevent *bev, void *arg)
 	struct evbuffer		*src = EVBUFFER_INPUT(bev);
 	char			*line = NULL, *key, *value;
 	const char		*errstr;
+	char			*http_version;
 	size_t			 size, linelen;
+	int			 version;
 	struct kv		*hdr = NULL;
 
 	getmonotime(&clt->clt_tv_last);
@@ -273,8 +297,14 @@ server_read_http(struct bufferevent *bev, void *arg)
 		else if (*key == ' ' || *key == '\t')
 			/* Multiline headers wrap with a space or tab */
 			value = NULL;
-		else
+		else {
+			/* Not a multiline header, should have a : */
 			value = strchr(key, ':');
+			if (value == NULL) {
+				server_abort_http(clt, 400, "malformed");
+				goto abort;
+			}
+		}
 		if (value == NULL) {
 			if (clt->clt_line == 1) {
 				server_abort_http(clt, 400, "malformed");
@@ -316,24 +346,42 @@ server_read_http(struct bufferevent *bev, void *arg)
 			if (desc->http_path == NULL)
 				goto fail;
 
-			desc->http_version = strchr(desc->http_path, ' ');
-			if (desc->http_version == NULL) {
+			http_version = strchr(desc->http_path, ' ');
+			if (http_version == NULL) {
 				server_abort_http(clt, 400, "malformed");
 				goto abort;
 			}
 
-			*desc->http_version++ = '\0';
+			*http_version++ = '\0';
 			desc->http_query = strchr(desc->http_path, '?');
 			if (desc->http_query != NULL)
 				*desc->http_query++ = '\0';
 
 			/*
-			 * Have to allocate the strings because they could
+			 * We have to allocate the strings because they could
 			 * be changed independently by the filters later.
+			 * Allow HTTP version 0.9 to 1.1.
+			 * Downgrade http version > 1.1 <= 1.9 to version 1.1.
+			 * Return HTTP Version Not Supported for anything else.
 			 */
-			if ((desc->http_version =
-			    strdup(desc->http_version)) == NULL)
-				goto fail;
+
+			version = http_version_num(http_version);
+
+			if (version == -1) {
+				server_abort_http(clt, 400, "malformed");
+				goto abort;
+			} else if (version == 0) {
+				server_abort_http(clt, 505, "bad http version");
+				goto abort;
+			} else if (version == 11) {
+				if ((desc->http_version =
+				    strdup("HTTP/1.1")) == NULL)
+					goto fail;
+			} else {
+				if ((desc->http_version =
+				    strdup(http_version)) == NULL)
+					goto fail;
+			}
 
 			if (desc->http_query != NULL &&
 			    (desc->http_query =
@@ -852,7 +900,8 @@ server_abort_http(struct client *clt, unsigned int code, const char *msg)
 	char			*clenheader = NULL;
 	char			 buf[IBUF_READ_SIZE];
 	char			*escapedmsg = NULL;
-	int			 bodylen;
+	char			 cstr[5];
+	ssize_t			 bodylen;
 
 	if (code == 0) {
 		server_close(clt, "dropped");
@@ -932,6 +981,23 @@ server_abort_http(struct client *clt, unsigned int code, const char *msg)
 
 	free(escapedmsg);
 
+	if ((srv_conf->flags & SRVFLAG_ERRDOCS) == 0)
+		goto builtin; /* errdocs not enabled */
+	if ((size_t)snprintf(cstr, sizeof(cstr), "%03u", code) >= sizeof(cstr))
+		goto builtin;
+
+	if ((body = read_errdoc(srv_conf->errdocroot, cstr)) == NULL &&
+	    (body = read_errdoc(srv_conf->errdocroot, HTTPD_ERRDOCTEMPLATE))
+	    == NULL)
+		goto builtin;
+
+	body = replace_var(body, "$HTTP_ERROR", httperr);
+	body = replace_var(body, "$RESPONSE_CODE", cstr);
+	body = replace_var(body, "$SERVER_SOFTWARE", HTTPD_SERVERNAME);
+	bodylen = strlen(body);
+	goto send;
+
+ builtin:
 	/* A CSS stylesheet allows minimal customization by the user */
 	style = "body { background-color: white; color: black; font-family: "
 	    "'Comic Sans MS', 'Chalkboard SE', 'Comic Neue', sans-serif; }\n"
@@ -959,6 +1025,7 @@ server_abort_http(struct client *clt, unsigned int code, const char *msg)
 		goto done;
 	}
 
+ send:
 	if (srv_conf->flags & SRVFLAG_SERVER_HSTS &&
 	    srv_conf->flags & SRVFLAG_TLS) {
 		if (asprintf(&hstsheader, "Strict-Transport-Security: "
@@ -976,7 +1043,7 @@ server_abort_http(struct client *clt, unsigned int code, const char *msg)
 		clenheader = NULL;
 	else {
 		if (asprintf(&clenheader,
-		    "Content-Length: %d\r\n", bodylen) == -1) {
+		    "Content-Length: %zd\r\n", bodylen) == -1) {
 			clenheader = NULL;
 			goto done;
 		}
@@ -1377,7 +1444,7 @@ server_response(struct httpd *httpd, struct client *clt)
 
 	if (clt->clt_toread > 0 && (size_t)clt->clt_toread >
 	    srv_conf->maxrequestbody) {
-		server_abort_http(clt, 413, NULL);
+		server_abort_http(clt, 413, "request body too large");
 		return (-1);
 	}
 
@@ -1698,6 +1765,64 @@ server_httperror_cmp(const void *a, const void *b)
 	const struct http_error *ea = a;
 	const struct http_error *eb = b;
 	return (ea->error_code - eb->error_code);
+}
+
+/*
+ * return -1 on failure, strlen() of read file otherwise.
+ * body is NULL on failure, contents of file with trailing \0 otherwise.
+ */
+char *
+read_errdoc(const char *root, const char *file)
+{
+	struct stat	 sb;
+	char		*path;
+	int	 	 fd;
+	char	 	*ret = NULL;
+
+	if (asprintf(&path, "%s/%s.html", root, file) == -1)
+		fatal("asprintf");
+	if ((fd = open(path, O_RDONLY)) == -1) {
+		free(path);
+		log_warn("%s: open", __func__);
+		return (NULL);
+	}
+	free(path);
+	if (fstat(fd, &sb) < 0) {
+		log_warn("%s: stat", __func__);
+		return (NULL);
+	}
+
+	if ((ret = calloc(1, sb.st_size + 1)) == NULL)
+		fatal("calloc");
+	if (sb.st_size == 0)
+		return (ret);
+	if (read(fd, ret, sb.st_size) != sb.st_size) {
+		log_warn("%s: read", __func__);
+		close(fd);
+		free(ret);
+		ret = NULL;
+		return (ret);
+	}
+	close(fd);
+
+	return (ret);
+}
+
+char *
+replace_var(char *str, const char *var, const char *repl)
+{
+	char	*iv, *r;
+	size_t	 vlen;
+
+	vlen = strlen(var);
+	while ((iv = strstr(str, var)) != NULL) {
+		*iv = '\0';
+		if (asprintf(&r, "%s%s%s", str, repl, &iv[vlen]) == -1)
+			fatal("asprintf");
+		free(str);
+		str = r;
+	}
+	return (str);
 }
 
 int

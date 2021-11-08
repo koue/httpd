@@ -1,4 +1,4 @@
-/*	$OpenBSD: server_fcgi.c,v 1.84 2020/09/12 07:34:17 yasuoka Exp $	*/
+/*	$OpenBSD: server_fcgi.c,v 1.89 2021/10/23 15:52:44 benno Exp $	*/
 
 /*
  * Copyright (c) 2014 Florian Obser <florian@openbsd.org>
@@ -115,6 +115,7 @@ server_fcgi(struct httpd *env, struct client *clt)
 	clt->clt_fcgi.toread = sizeof(struct fcgi_record_header);
 	clt->clt_fcgi.status = 200;
 	clt->clt_fcgi.headersdone = 0;
+	clt->clt_fcgi.headerssent = 0;
 
 	if (clt->clt_srvevb != NULL)
 		evbuffer_free(clt->clt_srvevb);
@@ -545,22 +546,26 @@ server_fcgi_read(struct bufferevent *bev, void *arg)
 				if (!clt->clt_fcgi.headersdone) {
 					clt->clt_fcgi.headersdone =
 					    server_fcgi_getheaders(clt);
-					if (clt->clt_fcgi.headersdone) {
-						if (server_fcgi_header(clt,
-						    clt->clt_fcgi.status)
-						    == -1) {
-							server_abort_http(clt,
-							    500,
-							    "malformed fcgi "
-							    "headers");
-							return;
-						}
-					}
 					if (!EVBUFFER_LENGTH(clt->clt_srvevb))
 						break;
 				}
 				/* FALLTHROUGH */
 			case FCGI_END_REQUEST:
+				if (clt->clt_fcgi.headersdone &&
+				    !clt->clt_fcgi.headerssent) {
+					if (server_fcgi_header(clt,
+					    clt->clt_fcgi.status) == -1) {
+						server_abort_http(clt, 500,
+						    "malformed fcgi headers");
+						return;
+					}
+				}
+				/* Don't send content for HEAD requests */
+				if (clt->clt_fcgi.headerssent &&
+				    ((struct http_descriptor *)
+				    clt->clt_descreq)->http_method
+				    == HTTP_METHOD_HEAD)
+					return;
 				if (server_fcgi_writechunk(clt) == -1) {
 					server_abort_http(clt, 500,
 					    "encoding error");
@@ -601,6 +606,8 @@ server_fcgi_header(struct client *clt, unsigned int code)
 	char			 tmbuf[32];
 	struct kv		*kv, *cl, key;
 
+	clt->clt_fcgi.headerssent = 1;
+
 	if (desc == NULL || (error = server_httperror_byid(code)) == NULL)
 		return (-1);
 
@@ -616,20 +623,38 @@ server_fcgi_header(struct client *clt, unsigned int code)
 	if (kv_add(&resp->http_headers, "Server", HTTPD_SERVERNAME) == NULL)
 		return (-1);
 
-	/* Set chunked encoding */
-	if (clt->clt_fcgi.chunked) {
-		/* XXX Should we keep and handle Content-Length instead? */
-		key.kv_key = "Content-Length";
-		if ((kv = kv_find(&resp->http_headers, &key)) != NULL)
-			kv_delete(&resp->http_headers, kv);
+	if (clt->clt_fcgi.type == FCGI_END_REQUEST ||
+	    EVBUFFER_LENGTH(clt->clt_srvevb) == 0) {
+		/* Can't chunk encode an empty body. */
+		clt->clt_fcgi.chunked = 0;
 
-		/*
-		 * XXX What if the FastCGI added some kind of Transfer-Encoding?
-		 * XXX like gzip, deflate or even "chunked"?
-		 */
-		if (kv_add(&resp->http_headers,
-		    "Transfer-Encoding", "chunked") == NULL)
-			return (-1);
+		/* But then we need a Content-Length unless method is HEAD... */
+		if (desc->http_method != HTTP_METHOD_HEAD) {
+			key.kv_key = "Content-Length";
+			if ((kv = kv_find(&resp->http_headers, &key)) == NULL) {
+				if (kv_add(&resp->http_headers,
+				    "Content-Length", "0") == NULL)
+					return (-1);
+			}
+		}
+	}
+
+	/* Send chunked encoding header */
+	if (clt->clt_fcgi.chunked) {
+		/* but only if no Content-Length header is supplied */
+		key.kv_key = "Content-Length";
+		if ((kv = kv_find(&resp->http_headers, &key)) != NULL) {
+			clt->clt_fcgi.chunked = 0;
+		} else {
+			/*
+			 * XXX What if the FastCGI added some kind of
+			 * Transfer-Encoding, like gzip, deflate or even
+			 * "chunked"?
+			 */
+			if (kv_add(&resp->http_headers,
+			    "Transfer-Encoding", "chunked") == NULL)
+				return (-1);
+		}
 	}
 
 	/* Is it a persistent connection? */
@@ -661,7 +686,6 @@ server_fcgi_header(struct client *clt, unsigned int code)
 	    kv_add(&resp->http_headers, "Date", tmbuf) == NULL))
 		return (-1);
 
-	/* Write initial header (fcgi might append more) */
 	if (server_writeresponse_http(clt) == -1 ||
 	    server_bufferevent_print(clt, "\r\n") == -1 ||
 	    server_headers(clt, resp, server_writeheader_http, NULL) == -1 ||

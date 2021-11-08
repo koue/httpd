@@ -1,3 +1,159 @@
+2021-11-05 19:01  benno
+
+	* usr.sbin/httpd/server_http.c: Perform stricter checking on the
+	  version string (which RFC 7230 says must be "HTTP" "/" DIGIT "."
+	  DIGIT), and answer 505 version not supported when the number is
+	  outside of what we support, and 400 bad request when the version
+	  format is wrong.  from Ross L Richardson, thanks! ok claudio@
+
+2021-10-24 16:01  ian
+
+	* usr.sbin/httpd/: config.c, httpd.conf.5, httpd.h, parse.y,
+	  server_http.c: Add httpd custom error page facility. Adapted by
+	  me from https://github.com/mpfr/httpd-plus.  Improvements from &
+	  (earlier version) reads fine to tracey@; improvements & OK this
+	  version benno@, florian@. Thanks.
+
+2021-10-23 15:52  benno
+
+	* usr.sbin/httpd/server_fcgi.c: * stop sending the content for head
+	  requests, even when its supplied by the   fcgi. Required by RFC
+	  7231 and RFC 3875 section 4.3.2.  * If the client sends an empty
+	  body without a Content-Lenght:   do not add the Content-Lenght if
+	  it's a HEAD request.	  If it's a HEAD request, the
+	  Content-Lenght should show the size of the	equivalent GET
+	  request, but we don't know how much that will be so	 don't lie.
+
+	  found by and fix suggested by Ross L Richardson, Thanks!
+
+	  Additionally:
+
+	  * when the fcgi supplies a Content-Length header, do not remove
+	  it and   set Transfer-Encoding: chunked. Instead, leave the
+	  Content-Lenght   header in place, as obviously the fcgi knows how
+	  much data will come.
+
+	  ok claudio@
+
+2021-10-23 15:30  benno
+
+	* usr.sbin/httpd/server_http.c: annotate a 413 error with "request
+	  body too large" in the error log.  ok claudio@
+
+2021-10-22 08:51  benno
+
+	* usr.sbin/httpd/server_http.c: return unsupported version for
+	  version less than HTTP/0.9 and higher than HTTP/1.9. Downgrade
+	  version >= HTTP/1.2++ to 1.1.
+
+	  Found by "J. K." (openbsd DOT list AT krottmayer DOT com) ok
+	  claudio@
+
+2021-10-21 11:48  benno
+
+	* usr.sbin/httpd/server_http.c: when a client sends header lines
+	  without a colon, respond with 400 Bad Request instead of 500
+	  Internal Server Error.  ok claudio@
+
+2021-10-15 15:01  naddy
+
+	* usr.sbin/httpd/parse.y: Don't declare variables as "unsigned char
+	  *" that are passed to functions that take "char *" arguments.
+	  Where such chars are assigned to int or passed to ctype
+	  functions, explicitly cast them to unsigned char.
+
+	  For OpenBSD's clang, -Wpointer-sign has been disabled by default,
+	  but when the parse.y code was built elsewhere, the compiler would
+	  complain.
+
+	  With help from millert@ ok benno@ deraadt@
+
+2021-10-05 17:40  anton
+
+	* regress/usr.sbin/httpd/tests/: Httpd.pm, Makefile, Proc.pm: add
+	  missing sudo and handle arguments
+
+2021-08-31 23:33  bluhm
+
+	* share/mk/bsd.regress.mk: Make include bsd.prog.mk is supporting
+	  PROGS for a while.  Allow multiple programs also in
+	  bsd.regress.mk for consistency.  OK anton@
+
+2021-07-14 13:33  kn
+
+	* usr.sbin/httpd/server.c: Remove unneeded calls to tls_init(3)
+
+	  As per the manual and lib/libtls/tls.c revision 1.79 from 2018
+	  "Automatically handle library initialisation for libtls."
+	  initialisation is handled automatically by other tls_*(3)
+	  functions.
+
+	  Remove explicit tls_init() calls from base to not give the
+	  impression of it being needed.
+
+	  Feedback tb OK Tests mestre
+
+2021-07-12 15:09  beck
+
+	* usr.bin/htpasswd/htpasswd.c: Change the error reporting pattern
+	  throughout the tree when unveil fails to report the path that the
+	  failure occured on. Suggested by deraadt@ after some tech
+	  discussion.
+
+	  Work done and verified by Ashton Fagg <ashton@fagg.id.au>
+
+	  ok deraadt@ semarie@ claudio@
+
+2021-06-07 10:53  tb
+
+	* usr.sbin/httpd/httpd.conf.5: tweak previous: avoid markup and
+	  refer to an HTTP header only by its name as is done elsewhere on
+	  this page.
+
+	  pointed out by jmc
+
+2021-06-06 22:00  tb
+
+	* usr.sbin/httpd/httpd.conf.5: appease mandoc -Tlint
+
+2021-06-06 21:59  tb
+
+	* usr.sbin/httpd/httpd.conf.5: Add .Pp for consistency with all
+	  other config blocks.
+
+2021-05-20 15:12  florian
+
+	* usr.sbin/httpd/server_fcgi.c: Fix previous.  Only set
+	  Content-Length when we no the body is empty and we disable
+	  chunked encoding. Otherwise we break the nextcloud app again :/
+	  Pointed out by Matthias Pressfreund, thanks!
+
+2021-05-19 19:42  florian
+
+	* usr.sbin/httpd/server_fcgi.c: When we disable "Transfer-Encoding:
+	  chunked" in the fastcgi backend because we are going to send an
+	  empty body we have to provide "Content-Length: 0" otherwise some
+	  browsers (Firefox, Safari) just hang until httpd(8) closes the
+	  connection.  Problem reported by Matthias Pressfreund, debugged
+	  with weerd@ who pointed out that the problem is browser
+	  dependent.  OK tracey
+
+2021-05-17 09:26  florian
+
+	* usr.sbin/httpd/: httpd.h, server_fcgi.c: Do not try to chunk
+	  encode an empty http body coming from an fcgi upstream.
+
+	  Found the hard way by Chris Narkiewicz who tracked failing
+	  uploads in the nextcloud mobile app down to httpd(8) trying to
+	  chunk encode a "204 No Content" resonse.
+
+	  Testing by Steve Williams Testing & OK stsp
+
+2021-05-15 15:08  florian
+
+	* usr.sbin/httpd/server_fcgi.c: Remove outdated comment. We got all
+	  httpd headers from the fcgi server at this point.
+
 2021-04-29 18:23  dv
 
 	* usr.sbin/httpd/server_file.c: Use relative reference URIs in
