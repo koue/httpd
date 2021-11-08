@@ -1,6 +1,7 @@
 #	$OpenBSD: Makefile,v 1.30 2017/07/03 22:21:47 espie Exp $
 
 LOCALBASE?=	/usr/local
+BINDIR?=	${LOCALBASE}/sbin
 PROG=		httpd
 SRCS=		parse.y
 SRCS+=		config.c control.c httpd.c log.c logger.c proc.c server.c

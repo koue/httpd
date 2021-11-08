@@ -1,5 +1,6 @@
 #	$OpenBSD: Makefile,v 1.4 2017/07/09 21:23:19 espie Exp $
 LOCALBASE?=	/usr/local
+BINDIR?=	${LOCALBASE}/bin
 
 PROG=		htpasswd
 SRCS=		htpasswd.c

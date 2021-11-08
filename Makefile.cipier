@@ -31,7 +31,7 @@ CFLAGS+=	-Wall \
 LDFLAGS+=	-L${WRKSRC_libimsg}/src/lib/libutil \
 		-L${WRKSRC_libevent}/src/lib/libevent
 
-MAKE_ARGS+=	BINDIR=${PREFIX}/sbin MANDIR=${PREFIX}/man/man
+MAKE_ARGS+=	MANDIR=${PREFIX}/man/man
 
 USERS=		www
 GROUPS=		www
