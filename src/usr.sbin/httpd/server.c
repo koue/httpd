@@ -958,12 +958,6 @@ server_write(struct bufferevent *bev, void *arg)
 
 	if (clt->clt_done)
 		goto done;
-#ifndef __OpenBSD__
-	/*
-	  On FreeBSD lots of 'buffer event timeout' if buffer event not enabled
-	*/
-	bufferevent_enable(bev, EV_READ);
-#endif
 
 	if (clt->clt_srvbev && clt->clt_srvbev_throttled) {
 		bufferevent_enable(clt->clt_srvbev, EV_READ);
