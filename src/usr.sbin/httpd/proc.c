@@ -787,20 +787,6 @@ proc_composev_imsg(struct privsep *ps, enum privsep_procid id, int n,
     uint16_t type, uint32_t peerid, int fd, const struct iovec *iov, int iovcnt)
 {
 	int	 m;
-#ifndef __OpenBSD__
-	/*
-	   Note: Nikola Kolev <koue@chaosophia.net>
-
-	   Delay 'IMSG_CFG_SERVER' events by second to dispatch the child
-	   processes first otherwise httpd will fail to start.
-
-	   Info:
-	   https://lists.freebsd.org/pipermail/freebsd-net/2017-March/047317.html
-	*/
-	if (type == IMSG_CFG_SERVER) {
-		sleep(1);
-	}
-#endif
 
 	proc_range(ps, id, &n, &m);
 	for (; n < m; n++)
