@@ -8,8 +8,12 @@ http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.sbin/httpd/
 
 ### Requirements
 * libressl
+* libimsg
+* libevent
 
 ```
+pkg install libressl-devel
+git submodule update --init
 make
 cd src/regress/usr.sbin/httpd/tests/ && make
 cd - && make install
