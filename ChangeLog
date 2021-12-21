@@ -1,3 +1,36 @@
+2021-12-04 06:52  florian
+
+	* usr.sbin/httpd/proc.c: Do not setup pipes between SERVER
+	  processes, they don't talk to each other. Since this generates a
+	  full mesh, the amount of filedescriptors needed grows
+	  quadratically with the amount of configured prefork processes.
+
+	  Might fix an out of filedescriptor bug that beck is seeing.  OK
+	  benno
+
+2021-12-02 17:10  kn
+
+	* regress/usr.sbin/httpd/tests/Makefile: Tell testers which
+	  packages to install right away (and why)
+
+	  Other regress tests do it differently;  just fix/thouch those
+	  that did not mention any package name at all.
+
+	  This helps grepping logs for SKIPPED to find instructions for the
+	  next run.
+
+2021-11-29 01:04  djm
+
+	* include/blf.h, lib/libc/crypt/blowfish.c: Niels agreed to remove
+	  the advertising clause; switching these to 3-term BSD license.
+
+2021-11-11 15:52  claudio
+
+	* usr.sbin/httpd/server_http.c: Move the assignment of http_query
+	  down. Also do not assign a non-malloced string to it since the
+	  code assumes it can call free on it.	Fixes crashes noticed by
+	  tobhe@ and florian@ OK otto@ tobhe@
+
 2021-11-05 19:01  benno
 
 	* usr.sbin/httpd/server_http.c: Perform stricter checking on the
