@@ -23,7 +23,10 @@ GH_TAGNAME=	${LIBIMSG_VERSION}:libimsg \
 USE_RC_SUBR=	obhttpd
 USES=		uidfix
 
-CFLAGS+=	-Wall -fPIC \
+# XXX Static libraries with PIE are currently unsupported.
+MAKE_ARGS+=	WITHOUT_PIE=true
+
+CFLAGS+=	-Wall -fcommon \
 		-I${WRKDIR}/libressl-${SSL_VERSION}/include \
 		-I${WRKSRC_libimsg}/src/lib/libutil \
 		-I${WRKSRC_libevent}/src/lib/libevent
