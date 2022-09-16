@@ -1,4 +1,4 @@
-/*	$OpenBSD: parse.y,v 1.127 2021/10/24 16:01:04 ian Exp $	*/
+/*	$OpenBSD: parse.y,v 1.128 2022/02/27 20:30:30 bluhm Exp $	*/
 
 /*
  * Copyright (c) 2020 Matthias Pressfreund <mpfr@fn.de>
@@ -145,7 +145,7 @@ typedef struct {
 %token	TIMEOUT TLS TYPE TYPES HSTS MAXAGE SUBDOMAINS DEFAULT PRELOAD REQUEST
 %token	ERROR INCLUDE AUTHENTICATE WITH BLOCK DROP RETURN PASS REWRITE
 %token	CA CLIENT CRL OPTIONAL PARAM FORWARDED FOUND NOT
-%token	ERRDOCS
+%token	ERRDOCS GZIPSTATIC
 %token	<v.string>	STRING
 %token  <v.number>	NUMBER
 %type	<v.port>	port
@@ -557,6 +557,7 @@ serveroptsl	: LISTEN ON STRING opttls port	{
 		| logformat
 		| fastcgi
 		| authenticate
+		| gzip_static
 		| filter
 		| LOCATION optfound optmatch STRING	{
 			struct server		*s;
@@ -1221,6 +1222,14 @@ fcgiport	: NUMBER		{
 		}
 		;
 
+gzip_static	: NO GZIPSTATIC		{
+			srv->srv_conf.flags &= ~SRVFLAG_GZIP_STATIC;
+		}
+		| GZIPSTATIC		{
+			srv->srv_conf.flags |= SRVFLAG_GZIP_STATIC;
+		}
+		;
+
 tcpip		: TCP '{' optnl tcpflags_l '}'
 		| TCP tcpflags
 		;
@@ -1445,6 +1454,7 @@ lookup(char *s)
 		{ "fastcgi",		FCGI },
 		{ "forwarded",		FORWARDED },
 		{ "found",		FOUND },
+		{ "gzip-static",	GZIPSTATIC },
 		{ "hsts",		HSTS },
 		{ "include",		INCLUDE },
 		{ "index",		INDEX },

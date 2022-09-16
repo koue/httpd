@@ -1,4 +1,4 @@
-/*	$OpenBSD: server_fcgi.c,v 1.89 2021/10/23 15:52:44 benno Exp $	*/
+/*	$OpenBSD: server_fcgi.c,v 1.95 2022/08/15 12:29:17 claudio Exp $	*/
 
 /*
  * Copyright (c) 2014 Florian Obser <florian@openbsd.org>
@@ -78,6 +78,7 @@ struct server_fcgi_param {
 };
 
 int	server_fcgi_header(struct client *, unsigned int);
+void	server_fcgi_error(struct bufferevent *, short, void *);
 void	server_fcgi_read(struct bufferevent *, void *);
 int	server_fcgi_writeheader(struct client *, struct kv *, void *);
 int	server_fcgi_writechunk(struct client *);
@@ -134,7 +135,7 @@ server_fcgi(struct httpd *env, struct client *clt)
 
 	clt->clt_srvbev_throttled = 0;
 	clt->clt_srvbev = bufferevent_new(fd, server_fcgi_read,
-	    NULL, server_file_error, clt);
+	    NULL, server_fcgi_error, clt);
 	if (clt->clt_srvbev == NULL) {
 		errstr = "failed to allocate fcgi buffer event";
 		goto fail;
@@ -483,6 +484,25 @@ fcgi_add_param(struct server_fcgi_param *p, const char *key,
 }
 
 void
+server_fcgi_error(struct bufferevent *bev, short error, void *arg)
+{
+	struct client		*clt = arg;
+	struct http_descriptor	*desc = clt->clt_descreq;
+
+	if ((error & EVBUFFER_EOF) && !clt->clt_fcgi.headersdone) {
+		server_abort_http(clt, 500, "malformed or no headers");
+		return;
+	}
+
+	/* send the end marker if not already */
+	if (desc->http_method != HTTP_METHOD_HEAD && clt->clt_fcgi.chunked &&
+	    !clt->clt_fcgi.end++)
+		server_bufferevent_print(clt, "0\r\n\r\n");
+
+	server_file_error(bev, error, arg);
+}
+
+void
 server_fcgi_read(struct bufferevent *bev, void *arg)
 {
 	uint8_t				 buf[FCGI_RECORD_SIZE];
@@ -562,14 +582,25 @@ server_fcgi_read(struct bufferevent *bev, void *arg)
 				}
 				/* Don't send content for HEAD requests */
 				if (clt->clt_fcgi.headerssent &&
-				    ((struct http_descriptor *)
-				    clt->clt_descreq)->http_method
+				    clt->clt_descreq->http_method
 				    == HTTP_METHOD_HEAD)
-					return;
-				if (server_fcgi_writechunk(clt) == -1) {
+					/* nothing */ ;
+				else if (server_fcgi_writechunk(clt) == -1) {
 					server_abort_http(clt, 500,
 					    "encoding error");
 					return;
+				}
+				if (clt->clt_fcgi.type == FCGI_END_REQUEST) {
+					bufferevent_enable(clt->clt_bev,
+					    EV_READ|EV_WRITE);
+					if (clt->clt_persist)
+						clt->clt_toread =
+						    TOREAD_HTTP_HEADER;
+					else
+						clt->clt_toread =
+						    TOREAD_HTTP_NONE;
+					clt->clt_done = 0;
+					server_reset_http(clt);
 				}
 				break;
 			}
@@ -702,9 +733,6 @@ server_fcgi_writeheader(struct client *clt, struct kv *hdr, void *arg)
 	char				*val, *name, *p;
 	const char			*key;
 	int				 ret;
-
-	if (hdr->kv_flags & KV_FLAG_INVALID)
-		return (0);
 
 	/* The key might have been updated in the parent */
 	if (hdr->kv_parent != NULL && hdr->kv_parent->kv_key != NULL)

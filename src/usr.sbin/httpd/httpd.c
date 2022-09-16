@@ -1,4 +1,4 @@
-/*	$OpenBSD: httpd.c,v 1.71 2021/01/27 07:21:52 deraadt Exp $	*/
+/*	$OpenBSD: httpd.c,v 1.73 2022/09/02 07:38:14 benno Exp $	*/
 
 /*
  * Copyright (c) 2014 Reyk Floeter <reyk@openbsd.org>
@@ -1067,22 +1067,7 @@ kv_free(struct kv *kv)
 struct kv *
 kv_find(struct kvtree *keys, struct kv *kv)
 {
-	struct kv	*match;
-	const char	*key;
-
-	if (kv->kv_flags & KV_FLAG_GLOBBING) {
-		/* Test header key using shell globbing rules */
-		key = kv->kv_key == NULL ? "" : kv->kv_key;
-		RB_FOREACH(match, kvtree, keys) {
-			if (fnmatch(key, match->kv_key, FNM_CASEFOLD) == 0)
-				break;
-		}
-	} else {
-		/* Fast tree-based lookup only works without globbing */
-		match = RB_FIND(kvtree, keys, kv);
-	}
-
-	return (match);
+	return (RB_FIND(kvtree, keys, kv));
 }
 
 int
@@ -1099,9 +1084,9 @@ media_add(struct mediatypes *types, struct media_type *media)
 	struct media_type	*entry;
 
 	if ((entry = RB_FIND(mediatypes, types, media)) != NULL) {
-		log_debug("%s: duplicated entry for \"%s\"", __func__,
+		log_debug("%s: entry overwritten for \"%s\"", __func__,
 		    media->media_name);
-		return (NULL);
+		media_delete(types, entry);
 	}
 
 	if ((entry = malloc(sizeof(*media))) == NULL)

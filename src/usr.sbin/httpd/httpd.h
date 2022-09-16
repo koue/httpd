@@ -1,4 +1,4 @@
-/*	$OpenBSD: httpd.h,v 1.158 2021/10/24 16:01:04 ian Exp $	*/
+/*	$OpenBSD: httpd.h,v 1.161 2022/08/15 12:29:17 claudio Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -134,10 +134,6 @@ RB_HEAD(kvtree, kv);
 struct kv {
 	char			*kv_key;
 	char			*kv_value;
-
-#define KV_FLAG_INVALID		 0x01
-#define KV_FLAG_GLOBBING	 0x02
-	uint8_t			 kv_flags;
 
 	struct kvlist		 kv_children;
 	struct kv		*kv_parent;
@@ -340,8 +336,8 @@ struct client {
 	struct bufferevent	*clt_bev;
 	struct evbuffer		*clt_output;
 	struct event		 clt_ev;
-	void			*clt_descreq;
-	void			*clt_descresp;
+	struct http_descriptor	*clt_descreq;
+	struct http_descriptor	*clt_descresp;
 	int			 clt_sndbufsiz;
 	uint64_t		 clt_boundary;
 
@@ -400,6 +396,7 @@ SPLAY_HEAD(client_tree, client);
 #define SRVFLAG_DEFAULT_TYPE	0x00800000
 #define SRVFLAG_PATH_REWRITE	0x01000000
 #define SRVFLAG_NO_PATH_REWRITE	0x02000000
+#define SRVFLAG_GZIP_STATIC	0x04000000
 #define SRVFLAG_LOCATION_FOUND	0x40000000
 #define SRVFLAG_LOCATION_NOT_FOUND 0x80000000
 
