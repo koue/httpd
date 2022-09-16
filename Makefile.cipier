@@ -9,7 +9,7 @@ COMMENT=	OpenBSD http server
 
 LICENSE=	BSD3CLAUSE
 
-SSL_VERSION=	3.4.1
+SSL_VERSION=	3.5.3
 LIBEVENT_VERSION=	6.6.20191030
 LIBIMSG_VERSION=6.9.20210510
 USE_GITHUB=	yes
@@ -23,7 +23,7 @@ GH_TAGNAME=	${LIBIMSG_VERSION}:libimsg \
 USE_RC_SUBR=	obhttpd
 USES=		uidfix
 
-CFLAGS+=	-Wall \
+CFLAGS+=	-Wall -fPIC \
 		-I${WRKDIR}/libressl-${SSL_VERSION}/include \
 		-I${WRKSRC_libimsg}/src/lib/libutil \
 		-I${WRKSRC_libevent}/src/lib/libevent
