@@ -1,4 +1,4 @@
-/*	$OpenBSD: server_file.c,v 1.70 2021/04/29 18:23:07 dv Exp $	*/
+/*	$OpenBSD: server_file.c,v 1.75 2022/08/15 09:40:14 op Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2017 Reyk Floeter <reyk@openbsd.org>
@@ -40,13 +40,12 @@
 int		 server_file_access(struct httpd *, struct client *,
 		    char *, size_t);
 int		 server_file_request(struct httpd *, struct client *,
-		    char *, struct stat *);
+		    char *, struct timespec *);
 int		 server_partial_file_request(struct httpd *, struct client *,
-		    char *, struct stat *, char *);
-int		 server_file_index(struct httpd *, struct client *,
-		    struct stat *);
+		    char *, struct timespec *, char *);
+int		 server_file_index(struct httpd *, struct client *);
 int		 server_file_modified_since(struct http_descriptor *,
-		    struct stat *);
+		    struct timespec *);
 int		 server_file_method(struct client *);
 int		 parse_range_spec(char *, size_t, struct range *);
 int		 parse_ranges(struct client *, char *, size_t);
@@ -64,9 +63,7 @@ server_file_access(struct httpd *env, struct client *clt,
 
 	errno = 0;
 
-	if (access(path, R_OK) == -1) {
-		goto fail;
-	} else if (stat(path, &st) == -1) {
+	if (stat(path, &st) == -1) {
 		goto fail;
 	} else if (S_ISDIR(st.st_mode)) {
 		/* Deny access if directory indexing is disabled */
@@ -127,7 +124,7 @@ server_file_access(struct httpd *env, struct client *clt,
 				goto fail;
 			}
 
-			return (server_file_index(env, clt, &st));
+			return (server_file_index(env, clt));
 		}
 		return (ret);
 	} else if (!S_ISREG(st.st_mode)) {
@@ -139,10 +136,10 @@ server_file_access(struct httpd *env, struct client *clt,
 	key.kv_key = "Range";
 	r = kv_find(&desc->http_headers, &key);
 	if (r != NULL)
-		return (server_partial_file_request(env, clt, path, &st,
-		    r->kv_value));
+		return (server_partial_file_request(env, clt, path,
+		    &st.st_mtim, r->kv_value));
 	else
-		return (server_file_request(env, clt, path, &st));
+		return (server_file_request(env, clt, path, &st.st_mtim));
 
  fail:
 	switch (errno) {
@@ -216,35 +213,72 @@ server_file_method(struct client *clt)
 
 int
 server_file_request(struct httpd *env, struct client *clt, char *path,
-    struct stat *st)
+    struct timespec *mtim)
 {
 	struct server_config	*srv_conf = clt->clt_srv_conf;
 	struct media_type	*media;
 	const char		*errstr = NULL;
 	int			 fd = -1, ret, code = 500;
+	struct stat		 st;
 	size_t			 bufsiz;
+	char			 gzpath[PATH_MAX];
 
 	if ((ret = server_file_method(clt)) != 0) {
 		code = ret;
 		goto abort;
 	}
 
-	if ((ret = server_file_modified_since(clt->clt_descreq, st)) != -1) {
+	media = media_find_config(env, srv_conf, path);
+	if ((ret = server_file_modified_since(clt->clt_descreq, mtim)) != -1) {
 		/* send the header without a body */
-		media = media_find_config(env, srv_conf, path);
 		if ((ret = server_response_http(clt, ret, media, -1,
-		    MINIMUM(time(NULL), st->st_mtim.tv_sec))) == -1)
+		    MINIMUM(time(NULL), mtim->tv_sec))) == -1)
 			goto fail;
 		goto done;
 	}
 
-	/* Now open the file, should be readable or we have another problem */
-	if ((fd = open(path, O_RDONLY)) == -1)
-		goto abort;
+	/* change path to path.gz if necessary. */
+	if (srv_conf->flags & SRVFLAG_GZIP_STATIC) {
+		struct http_descriptor	*req = clt->clt_descreq;
+		struct http_descriptor	*resp = clt->clt_descresp;
+		struct kv		*r, key;
 
-	media = media_find_config(env, srv_conf, path);
-	ret = server_response_http(clt, 200, media, st->st_size,
-	    MINIMUM(time(NULL), st->st_mtim.tv_sec));
+		/* check Accept-Encoding header */
+		key.kv_key = "Accept-Encoding";
+		r = kv_find(&req->http_headers, &key);
+
+		if (r != NULL && strstr(r->kv_value, "gzip") != NULL) {
+			/* append ".gz" to path and check existence */
+			ret = snprintf(gzpath, sizeof(gzpath), "%s.gz", path);
+			if (ret < 0 || (size_t)ret >= sizeof(gzpath))
+				goto abort;
+			if ((fd = open(gzpath, O_RDONLY)) != -1) {
+				/* .gz must be a file, and not older */
+				if (fstat(fd, &st) != -1 &&
+				    S_ISREG(st.st_mode) &&
+				    timespeccmp(&st.st_mtim, mtim, >=)) {
+					kv_add(&resp->http_headers,
+					    "Content-Encoding", "gzip");
+					/* Use original file timestamp */
+					st.st_mtim = *mtim;
+				} else {
+					close(fd);
+					fd = -1;
+				}
+			}
+		}
+	}
+
+	/* Now open the file, should be readable or we have another problem */
+	if (fd == -1) {
+		if ((fd = open(path, O_RDONLY)) == -1)
+			goto abort;
+		if (fstat(fd, &st) == -1)
+			goto abort;
+	}
+
+	ret = server_response_http(clt, 200, media, st.st_size,
+	    MINIMUM(time(NULL), st.st_mtim.tv_sec));
 	switch (ret) {
 	case -1:
 		goto fail;
@@ -269,7 +303,7 @@ server_file_request(struct httpd *env, struct client *clt, char *path,
 	}
 
 	/* Adjust read watermark to the optimal file io size */
-	bufsiz = MAXIMUM(st->st_blksize, 64 * 1024);
+	bufsiz = MAXIMUM(st.st_blksize, 64 * 1024);
 	bufferevent_setwatermark(clt->clt_srvbev, EV_READ, 0,
 	    bufsiz);
 
@@ -296,7 +330,7 @@ server_file_request(struct httpd *env, struct client *clt, char *path,
 
 int
 server_partial_file_request(struct httpd *env, struct client *clt, char *path,
-    struct stat *st, char *range_str)
+    struct timespec *mtim, char *range_str)
 {
 	struct server_config	*srv_conf = clt->clt_srv_conf;
 	struct http_descriptor	*resp = clt->clt_descresp;
@@ -305,25 +339,28 @@ server_partial_file_request(struct httpd *env, struct client *clt, char *path,
 	struct range_data	*r = &clt->clt_ranges;
 	struct range		*range;
 	size_t			 content_length = 0, bufsiz;
+	struct stat		 st;
 	int			 code = 500, fd = -1, i, nranges, ret;
 	char			 content_range[64];
 	const char		*errstr = NULL;
 
 	/* Ignore range request for methods other than GET */
 	if (desc->http_method != HTTP_METHOD_GET)
-		return server_file_request(env, clt, path, st);
-
-	if ((nranges = parse_ranges(clt, range_str, st->st_size)) < 1) {
-		code = 416;
-		(void)snprintf(content_range, sizeof(content_range),
-		    "bytes */%lld", st->st_size);
-		errstr = content_range;
-		goto abort;
-	}
+		return server_file_request(env, clt, path, mtim);
 
 	/* Now open the file, should be readable or we have another problem */
 	if ((fd = open(path, O_RDONLY)) == -1)
 		goto abort;
+	if (fstat(fd, &st) == -1)
+		goto abort;
+
+	if ((nranges = parse_ranges(clt, range_str, st.st_size)) < 1) {
+		code = 416;
+		(void)snprintf(content_range, sizeof(content_range),
+		    "bytes */%lld", st.st_size);
+		errstr = content_range;
+		goto abort;
+	}
 
 	media = media_find_config(env, srv_conf, path);
 	r->range_media = media;
@@ -332,7 +369,7 @@ server_partial_file_request(struct httpd *env, struct client *clt, char *path,
 		range = &r->range[0];
 		(void)snprintf(content_range, sizeof(content_range),
 		    "bytes %lld-%lld/%lld", range->start, range->end,
-		    st->st_size);
+		    st.st_size);
 		if (kv_add(&resp->http_headers, "Content-Range",
 		    content_range) == NULL)
 			goto abort;
@@ -354,7 +391,7 @@ server_partial_file_request(struct httpd *env, struct client *clt, char *path,
 			    "Content-Range: bytes %lld-%lld/%lld\r\n\r\n",
 			    clt->clt_boundary,
 			    media->media_type, media->media_subtype,
-			    range->start, range->end, st->st_size)) < 0)
+			    range->start, range->end, st.st_size)) < 0)
 				goto abort;
 
 			/* Add data length */
@@ -379,7 +416,7 @@ server_partial_file_request(struct httpd *env, struct client *clt, char *path,
 	r->range_toread = TOREAD_HTTP_RANGE;
 
 	ret = server_response_http(clt, 206, media, content_length,
-	    MINIMUM(time(NULL), st->st_mtim.tv_sec));
+	    MINIMUM(time(NULL), st.st_mtim.tv_sec));
 	switch (ret) {
 	case -1:
 		goto fail;
@@ -404,7 +441,7 @@ server_partial_file_request(struct httpd *env, struct client *clt, char *path,
 	}
 
 	/* Adjust read watermark to the optimal file io size */
-	bufsiz = MAXIMUM(st->st_blksize, 64 * 1024);
+	bufsiz = MAXIMUM(st.st_blksize, 64 * 1024);
 	bufferevent_setwatermark(clt->clt_srvbev, EV_READ, 0,
 	    bufsiz);
 
@@ -430,7 +467,7 @@ server_partial_file_request(struct httpd *env, struct client *clt, char *path,
 }
 
 int
-server_file_index(struct httpd *env, struct client *clt, struct stat *st)
+server_file_index(struct httpd *env, struct client *clt)
 {
 	char			  path[PATH_MAX];
 	char			  tmstr[21];
@@ -444,6 +481,7 @@ server_file_index(struct httpd *env, struct client *clt, struct stat *st)
 	const char		 *stripped, *style;
 	char			 *escapeduri, *escapedhtml, *escapedpath;
 	struct tm		  tm;
+	struct stat		  st;
 	time_t			  t, dir_mtime;
 
 	if ((ret = server_file_method(clt)) != 0) {
@@ -460,21 +498,17 @@ server_file_index(struct httpd *env, struct client *clt, struct stat *st)
 	/* Now open the file, should be readable or we have another problem */
 	if ((fd = open(path, O_RDONLY)) == -1)
 		goto abort;
+	if (fstat(fd, &st) == -1)
+		goto abort;
 
 	/* Save last modification time */
-	dir_mtime = MINIMUM(time(NULL), st->st_mtim.tv_sec);
+	dir_mtime = MINIMUM(time(NULL), st.st_mtim.tv_sec);
 
 	if ((evb = evbuffer_new()) == NULL)
 		goto abort;
 
-	if ((namesize = scandir(path, &namelist, NULL, alphasort)) == -1)
-		goto abort;
-
-	/* Indicate failure but continue going through the list */
-	skip = 0;
-
 	if ((escapedpath = escape_html(desc->http_path)) == NULL)
-		goto fail;
+		goto abort;
 
 	/* A CSS stylesheet allows minimal customization by the user */
 	style = "body { background-color: white; color: black; font-family: "
@@ -495,34 +529,51 @@ server_file_index(struct httpd *env, struct client *clt, struct stat *st)
 	    "<body>\n"
 	    "<h1>Index of %s</h1>\n"
 	    "<hr>\n<pre>\n",
-	    escapedpath, style, escapedpath) == -1)
-		skip = 1;
+	    escapedpath, style, escapedpath) == -1) {
+		free(escapedpath);
+		goto abort;
+	}
 
 	free(escapedpath);
 
+	if ((namesize = scandir(path, &namelist, NULL, alphasort)) == -1)
+		goto abort;
+
+	/* Indicate failure but continue going through the list */
+	skip = 0;
+
 	for (i = 0; i < namesize; i++) {
+		struct stat subst;
+
 		dp = namelist[i];
 
 		if (skip ||
-		    fstatat(fd, dp->d_name, st, 0) == -1) {
+		    fstatat(fd, dp->d_name, &subst, 0) == -1) {
 			free(dp);
 			continue;
 		}
 
-		t = st->st_mtime;
+		t = subst.st_mtime;
 		localtime_r(&t, &tm);
 		strftime(tmstr, sizeof(tmstr), "%d-%h-%Y %R", &tm);
 		namewidth = 51 - strlen(dp->d_name);
 
-		if ((escapeduri = url_encode(dp->d_name)) == NULL)
-			goto fail;
-		if ((escapedhtml = escape_html(dp->d_name)) == NULL)
-			goto fail;
+		if ((escapeduri = url_encode(dp->d_name)) == NULL) {
+			skip = 1;
+			free(dp);
+			continue;
+		}
+		if ((escapedhtml = escape_html(dp->d_name)) == NULL) {
+			skip = 1;
+			free(escapeduri);
+			free(dp);
+			continue;
+		}
 
 		if (dp->d_name[0] == '.' &&
 		    !(dp->d_name[1] == '.' && dp->d_name[2] == '\0')) {
 			/* ignore hidden files starting with a dot */
-		} else if (S_ISDIR(st->st_mode)) {
+		} else if (S_ISDIR(subst.st_mode)) {
 			namewidth -= 1; /* trailing slash */
 			if (evbuffer_add_printf(evb,
 			    "<a href=\"%s%s/\">%s/</a>%*s%s%20s\n",
@@ -530,13 +581,13 @@ server_file_index(struct httpd *env, struct client *clt, struct stat *st)
 			    escapeduri, escapedhtml,
 			    MAXIMUM(namewidth, 0), " ", tmstr, "-") == -1)
 				skip = 1;
-		} else if (S_ISREG(st->st_mode)) {
+		} else if (S_ISREG(subst.st_mode)) {
 			if (evbuffer_add_printf(evb,
 			    "<a href=\"%s%s\">%s</a>%*s%s%20llu\n",
 			    strchr(escapeduri, ':') != NULL ? "./" : "",
 			    escapeduri, escapedhtml,
 			    MAXIMUM(namewidth, 0), " ",
-			    tmstr, st->st_size) == -1)
+			    tmstr, subst.st_size) == -1)
 				skip = 1;
 		}
 		free(escapeduri);
@@ -656,7 +707,7 @@ server_file_error(struct bufferevent *bev, short error, void *arg)
 }
 
 int
-server_file_modified_since(struct http_descriptor *desc, struct stat *st)
+server_file_modified_since(struct http_descriptor *desc, struct timespec *mtim)
 {
 	struct kv	 key, *since;
 	struct tm	 tm;
@@ -672,7 +723,7 @@ server_file_modified_since(struct http_descriptor *desc, struct stat *st)
 		 */
 		if (strptime(since->kv_value,
 		    "%a, %d %h %Y %T %Z", &tm) != NULL &&
-		    timegm(&tm) >= st->st_mtim.tv_sec)
+		    timegm(&tm) >= mtim->tv_sec)
 			return (304);
 	}
 

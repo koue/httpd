@@ -1,4 +1,4 @@
-/*	$OpenBSD: server_http.c,v 1.148 2021/11/05 19:01:02 benno Exp $	*/
+/*	$OpenBSD: server_http.c,v 1.152 2022/09/01 20:36:25 tb Exp $	*/
 
 /*
  * Copyright (c) 2020 Matthias Pressfreund <mpfr@fn.de>
@@ -228,7 +228,7 @@ server_read_http(struct bufferevent *bev, void *arg)
 	struct evbuffer		*src = EVBUFFER_INPUT(bev);
 	char			*line = NULL, *key, *value;
 	const char		*errstr;
-	char			*http_version;
+	char			*http_version, *query;
 	size_t			 size, linelen;
 	int			 version;
 	struct kv		*hdr = NULL;
@@ -348,9 +348,6 @@ server_read_http(struct bufferevent *bev, void *arg)
 			}
 
 			*http_version++ = '\0';
-			desc->http_query = strchr(desc->http_path, '?');
-			if (desc->http_query != NULL)
-				*desc->http_query++ = '\0';
 
 			/*
 			 * We have to allocate the strings because they could
@@ -378,10 +375,13 @@ server_read_http(struct bufferevent *bev, void *arg)
 					goto fail;
 			}
 
-			if (desc->http_query != NULL &&
-			    (desc->http_query =
-			    strdup(desc->http_query)) == NULL)
-				goto fail;
+			query = strchr(desc->http_path, '?');
+			if (query != NULL) {
+				*query++ = '\0';
+
+				if ((desc->http_query = strdup(query)) == NULL)
+					goto fail;
+			}
 
 		} else if (desc->http_method != HTTP_METHOD_NONE &&
 		    strcasecmp("Content-Length", key) == 0) {
@@ -1647,9 +1647,6 @@ server_writeheader_http(struct client *clt, struct kv *hdr, void *arg)
 	char			*ptr;
 	const char		*key;
 
-	if (hdr->kv_flags & KV_FLAG_INVALID)
-		return (0);
-
 	/* The key might have been updated in the parent */
 	if (hdr->kv_parent != NULL && hdr->kv_parent->kv_key != NULL)
 		key = hdr->kv_parent->kv_key;
@@ -1767,8 +1764,8 @@ read_errdoc(const char *root, const char *file)
 {
 	struct stat	 sb;
 	char		*path;
-	int	 	 fd;
-	char	 	*ret = NULL;
+	int		 fd;
+	char		*ret = NULL;
 
 	if (asprintf(&path, "%s/%s.html", root, file) == -1)
 		fatal("asprintf");
@@ -1780,13 +1777,16 @@ read_errdoc(const char *root, const char *file)
 	free(path);
 	if (fstat(fd, &sb) < 0) {
 		log_warn("%s: stat", __func__);
+		close(fd);
 		return (NULL);
 	}
 
 	if ((ret = calloc(1, sb.st_size + 1)) == NULL)
 		fatal("calloc");
-	if (sb.st_size == 0)
+	if (sb.st_size == 0) {
+		close(fd);
 		return (ret);
+	}
 	if (read(fd, ret, sb.st_size) != sb.st_size) {
 		log_warn("%s: read", __func__);
 		close(fd);

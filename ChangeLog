@@ -1,3 +1,195 @@
+2022-09-02 07:38  benno
+
+	* usr.sbin/httpd/: httpd.c, httpd.conf.5: Make newer mime type
+	  definitions take precedence over existing ones.
+
+	  Patch from Ben Fuller <ben -AT- bvnf -DOT- space>, helped along
+	  by florian@ ok florian@ and some mumblings from claudio who does
+	  not want okays in httpd.
+
+2022-09-01 20:36  tb
+
+	* usr.sbin/httpd/server_http.c: ugly whitespace
+
+2022-08-28 11:11  jsg
+
+	* lib/libc/crypt/blowfish.c: remove unused blowfish inline defines
+	  inline use was removed in 1998
+
+2022-08-15 12:29  claudio
+
+	* usr.sbin/httpd/: httpd.h, server_fcgi.c: Neither clt_descreq nor
+	  clt_descresp in struct client need to be void *.  They both are
+	  only used as struct http_descriptor.	OK tb@
+
+2022-08-15 10:29  claudio
+
+	* usr.sbin/httpd/server_fcgi.c: For FCGI_END_REQUEST reset the clt
+	  struct similar to what is done in the file and other cases.
+	  Especially when the session uses keep-alive it is important to
+	  set TOREAD_HTTP_HEADER so that the state machine knows what's
+	  next.  OK op@
+
+2022-08-15 09:40  op
+
+	* usr.sbin/httpd/server_file.c: plug some memory leaks in
+	  server_file_index when failures occur
+
+	  namelist and its entries are not freed if escape_html fails or if
+	  we fail in the inner loop.  Move scandir later so it's closer to
+	  the for loop and handle escape_html and url_encode failures.
+
+	  With lots of help from tb, thanks!
+
+	  ok tb@
+
+2022-08-15 09:36  op
+
+	* usr.sbin/httpd/server_http.c: plug a fd leak in read_errdoc if
+	  fstat fails or if the file is empty
+
+	  tweak/ok tb@
+
+2022-08-12 08:40  claudio
+
+	* usr.sbin/httpd/server_fcgi.c: Use break instead of return so that
+	  a HEAD request still consumes all data.  OK op@
+
+2022-08-12 06:41  op
+
+	* usr.sbin/httpd/server_fcgi.c: fix regression introduced in
+	  previous commit.  HEAD replies don't have a body so
+	  server_fcgi_error shouldn't print the end marker.
+
+	  OK claudio@
+
+2022-08-11 14:25  op
+
+	* usr.sbin/httpd/server_fcgi.c: correctly handle an abnormal
+	  fastcgi termination.	httpd handles the disconnection from the
+	  fastcgi application via server_file_error which assumes that the
+	  reply was completey done.  However, if the fastcgi reply wasn't
+	  complete (e.g. because slowcgi hit the timeout) the HTTP client
+	  are left "hanging" and waiting for a reply until they give up.
+
+	  This adds a server_fcgi_error callback to handle the "no headers"
+	  and "incomplete data" cases and properly close the reply before
+	  falling back to server_file_error.
+
+	  OK claudio@
+
+2022-05-04 18:57  deraadt
+
+	* lib/libc/gen/vis.c: Found two multiple evaluation macros. One of
+	  them so long and scary it too many people to unravel correctly
+	  and place into a static function.  While here, move the flags
+	  bits into local variables, which reduces the amount of () in the
+	  checks.  help from millert, miod, tedu
+
+2022-03-31 17:27  naddy
+
+	* usr.bin/htpasswd/htpasswd.1: man pages: add missing commas
+	  between subordinate and main clauses
+
+	  jmc@ dislikes a comma before "then" in a conditional, so leave
+	  those untouched.
+
+	  ok jmc@
+
+2022-03-09 13:50  jsg
+
+	* usr.sbin/httpd/httpd.conf.5: bandwith -> bandwidth
+
+2022-03-04 01:46  deraadt
+
+	* usr.sbin/httpd/server_file.c: Only provide the .gz file if
+	  timestamp is >= the non-gzip file.  Make sure it is a regular
+	  file.  Use the timestamp of the non-gzip file as the
+	  last-modified timestamp, as proposed by claudio.  ok claudio
+	  bluhm millert
+
+2022-03-02 23:27  deraadt
+
+	* usr.sbin/httpd/server_file.c: struct stat from early file
+	  inspection was being used after actual file open() which means
+	  the stat could refer to the wrong file.  Mostly this relates to
+	  st_size use.	This bug could mean that httpd sends new files
+	  truncated to the old length, saying "I am sure you have the
+	  correct file now"? Could have other bad effects.  ok tb millert
+	  bluhm
+
+2022-03-02 19:52  tb
+
+	* usr.sbin/httpd/server_file.c: Simplify .gz handling a bit
+
+	  Combine strlcpy + strlcat into a single snprintf and remove a few
+	  unnecessary parentheses.
+
+	  ok deraadt millert
+
+2022-03-02 11:10  florian
+
+	* usr.sbin/httpd/: httpd.c, httpd.h, server_fcgi.c, server_http.c:
+	  Nothing uses kv_flags.
+
+	  John (j AT bitminer.ca) pointed out that we didn't correctly
+	  initialize struct kv and might use slower KV_FLAG_GLOBBING path
+	  in kv_find depending on stack garbage. Instead of fixing the
+	  initialization just delete kv_flags from struct kv.
+
+	  OK claudio, tb
+
+2022-02-27 20:30  bluhm
+
+	* usr.sbin/httpd/: httpd.conf.5, httpd.h, parse.y, server_file.c:
+	  Add gzip-static option to httpd.  This allows to deliver
+	  precompressed files with content-encoding gzip.  from prx at si3t
+	  dot ch; OK tracey@
+
+2022-02-18 10:24  jsg
+
+	* usr.sbin/httpd/patterns.7: prefer https links in man pages ok
+	  gnezdo@ miod@ jmc@
+
+2021-12-22 15:54  bluhm
+
+	* regress/usr.sbin/httpd/tests/: Client.pm, LICENSE, Makefile,
+	  funcs.pl: Replace deprecated IO::Socket::INET6 with
+	  IO::Socket::IP.
+
+2021-12-04 06:52  florian
+
+	* usr.sbin/httpd/proc.c: Do not setup pipes between SERVER
+	  processes, they don't talk to each other. Since this generates a
+	  full mesh, the amount of filedescriptors needed grows
+	  quadratically with the amount of configured prefork processes.
+
+	  Might fix an out of filedescriptor bug that beck is seeing.  OK
+	  benno
+
+2021-12-02 17:10  kn
+
+	* regress/usr.sbin/httpd/tests/Makefile: Tell testers which
+	  packages to install right away (and why)
+
+	  Other regress tests do it differently;  just fix/thouch those
+	  that did not mention any package name at all.
+
+	  This helps grepping logs for SKIPPED to find instructions for the
+	  next run.
+
+2021-11-29 01:04  djm
+
+	* include/blf.h, lib/libc/crypt/blowfish.c: Niels agreed to remove
+	  the advertising clause; switching these to 3-term BSD license.
+
+2021-11-11 15:52  claudio
+
+	* usr.sbin/httpd/server_http.c: Move the assignment of http_query
+	  down. Also do not assign a non-malloced string to it since the
+	  code assumes it can call free on it.	Fixes crashes noticed by
+	  tobhe@ and florian@ OK otto@ tobhe@
+
 2021-11-05 19:01  benno
 
 	* usr.sbin/httpd/server_http.c: Perform stricter checking on the
