@@ -56,7 +56,11 @@ isvisible(int c, int flag)
 	int vis_nl = flag & VIS_NL;
 	int vis_safe = flag & VIS_SAFE;
 	int vis_glob = flag & VIS_GLOB;
+#ifdef __OpenBSD__
 	int vis_all = flag & VIS_ALL;
+#else
+    int vis_all = flag & VIS_HTTP1866;
+#endif
 	u_char uc = c;
 
 	if (c == '\\' || !vis_all) {
