@@ -1,3 +1,10 @@
+2022-09-21 05:55  yasuoka
+
+	* usr.sbin/httpd/server_http.c: Default request message body size
+	  should be 0.
+
+	  ok claudio
+
 2022-09-02 07:38  benno
 
 	* usr.sbin/httpd/: httpd.c, httpd.conf.5: Make newer mime type
