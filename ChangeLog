@@ -1,3 +1,82 @@
+2023-07-12 12:46  tb
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_fcgi.c: Work around
+	  use after free in httpd(8)
+
+	  A malformed HTTP request can cause httpd in fastcgi mode to crash
+	  due to a use-after-free. This is an awful hack, but it's good
+	  enough until someone figures out the correct way of dealing with
+	  server_close() here.
+
+	  Reported by Jesper Wallin <jesper () ifconfig.se>
+
+	  "this will do the trick for now" claudio ok beck deraadt
+
+	  This is errata/7.2/029_httpd.patch.sig
+
+2023-07-12 12:46  tb
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_fcgi.c: Work around
+	  use after free in httpd(8)
+
+	  A malformed HTTP request can cause httpd in fastcgi mode to crash
+	  due to a use-after-free. This is an awful hack, but it's good
+	  enough until someone figures out the correct way of dealing with
+	  server_close() here.
+
+	  Reported by Jesper Wallin <jesper () ifconfig.se>
+
+	  "this will do the trick for now" claudio ok beck deraadt
+
+2023-07-12 12:37  tb
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_fcgi.c: Work around
+	  use after free in httpd(8)
+
+	  A malformed HTTP request can cause httpd in fastcgi mode to crash
+	  due to a use-after-free. This is an awful hack, but it's good
+	  enough until someone figures out the correct way of dealing with
+	  server_close() here.
+
+	  "this will do the trick for now" claudio ok beck deraadt
+
+2023-03-08 04:43  guenther
+
+	* usr.sbin/httpd/control.c: Delete obsolete /* ARGSUSED */ lint
+	  comments.
+
+	  ok miod@ millert@
+
+2023-02-15 20:44  tobhe
+
+	* usr.sbin/httpd/proc.c: proc_ispeer() is not used anywhere anymore
+	  so remove it everywhere.
+
+	  ok florian@ bluhm@ ok for vmd mlarkin@
+
+2022-12-28 21:30  jmc
+
+	* usr.sbin/httpd/config.c: spelling fixes; from paul tagliamonte
+	  any parts of his diff not taken are noted on tech
+
+2022-12-09 09:30  tb
+
+	* share/mk/bsd.regress.mk: Allow overriding default run-regress-*
+	  targets
+
+	  Overriding a default run-regress-* target with custom commands is
+	  already possible and done by many tests. The fact that it
+	  currently works depends on behavior in the BUGs section of
+	  make.1, however. The fix is not to add commands if the target is
+	  already defined with commands.
+
+	  tested by anton correct fix from espie, ok anton
+
+2022-10-24 15:02  jmc
+
+	* usr.sbin/httpd/: httpd.8, httpd.h: remove unused references to
+	  httpd.sock; found by dante catalfamo ok florian
+
 2022-09-21 05:55  yasuoka
 
 	* usr.sbin/httpd/server_http.c: Default request message body size
