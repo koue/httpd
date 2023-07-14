@@ -360,8 +360,13 @@ server_tls_init(struct server *srv)
 
 	/* We're now done with the public/private key & ca/crl... */
 	tls_config_clear_keys(srv->srv_tls_config);
+#ifdef __OpenBSD__
 	freezero(srv->srv_conf.tls_cert, srv->srv_conf.tls_cert_len);
 	freezero(srv->srv_conf.tls_key, srv->srv_conf.tls_key_len);
+#else
+	free(srv->srv_conf.tls_cert);
+	free(srv->srv_conf.tls_key);
+#endif
 	free(srv->srv_conf.tls_ca);
 	free(srv->srv_conf.tls_crl);
 	srv->srv_conf.tls_ca = NULL;
@@ -488,8 +493,13 @@ serverconfig_free(struct server_config *srv_conf)
 	free(srv_conf->tls_key_file);
 	free(srv_conf->tls_ocsp_staple_file);
 	free(srv_conf->tls_ocsp_staple);
+#ifdef __OpenBSD__
 	freezero(srv_conf->tls_cert, srv_conf->tls_cert_len);
 	freezero(srv_conf->tls_key, srv_conf->tls_key_len);
+#else
+	free(srv_conf->tls_cert);
+	free(srv_conf->tls_key);
+#endif
 
 	TAILQ_FOREACH_SAFE(param, &srv_conf->fcgiparams, entry, tparam)
 		free(param);
