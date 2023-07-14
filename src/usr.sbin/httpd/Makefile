@@ -16,7 +16,12 @@ SRCS+=	bcrypt.c \
 
 MAN=		httpd.8 httpd.conf.5
 
-LDADD=		-levent -ltls -lssl -lcrypto -lcrypt -lprocstat -limsg
+LDADD=		../../../libevent/src/lib/libevent/libevent.a \
+		../../../libimsg/src/lib/libutil/libimsg.a
+LDADD+= 	/usr/local/lib/libtls.a \
+		/usr/local/lib/libssl.a \
+		/usr/local/lib/libcrypto.a
+LDADD+= 	-lcrypt -lprocstat
 SRCS+=		patterns.c
 MAN+=		patterns.7
 
@@ -30,12 +35,9 @@ CFLAGS+=	-Wsign-compare -Wcast-qual
 CFLAGS+=	-I${.CURDIR}/../../../libevent/src/lib/libevent \
 		-I${.CURDIR}/../../../libimsg/src/lib/libutil \
 		-I${.CURDIR}/../../include \
-		-I ${LOCALBASE}/include
+		-I${LOCALBASE}/include
 CFLAGS+=	-D__dead='' \
 		-DHAVE_CONFIG_H
-LDFLAGS+=	-L ${LOCALBASE}/lib \
-		-L${.CURDIR}/../../../libimsg/src/lib/libutil \
-		-L${.CURDIR}/../../../libevent/src/lib/libevent
 CLEANFILES+=	y.tab.h
 YFLAGS=
 
