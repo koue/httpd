@@ -1,5 +1,5 @@
 PORTNAME=	obhttpd
-PORTVERSION=	7.0.20211108
+PORTVERSION=	7.3.20230714
 CATEGORIES=	www
 MASTER_SITES=	OPENBSD/LibreSSL:libressl
 DISTFILES=	libressl-${SSL_VERSION}.tar.gz:libressl
@@ -9,9 +9,9 @@ COMMENT=	OpenBSD http server
 
 LICENSE=	BSD3CLAUSE
 
-SSL_VERSION=	3.5.3
-LIBEVENT_VERSION=	7.1.20220916
-LIBIMSG_VERSION=7.1.20220916
+SSL_VERSION=	3.8.0
+LIBEVENT_VERSION=	7.3.20230714
+LIBIMSG_VERSION=7.3.20230714
 USE_GITHUB=	yes
 GH_ACCOUNT=	koue
 GH_PROJECT=	httpd \
@@ -60,13 +60,17 @@ pre-configure:
 	@(cd ${WRKSRC_libevent} && ${SETENV} ${MAKE_ENV} ${MAKE})
 
 post-configure:
-	${REINPLACE_CMD} 's|-ltls|${WRKDIR}/libressl-${SSL_VERSION}/tls/.libs/libtls.a|g' \
+	${REINPLACE_CMD} 's|../../../libevent/src/lib/libevent/libevent.a|${WRKSRC_libevent}/src/lib/libevent/libevent.a|g' \
 		${WRKSRC}/src/usr.sbin/httpd/Makefile
-	${REINPLACE_CMD} 's|-lssl|${WRKDIR}/libressl-${SSL_VERSION}/ssl/.libs/libssl.a|g' \
+	${REINPLACE_CMD} 's|../../../libimsg/src/lib/libutil/libimsg.a|${WRKSRC_libimsg}/src/lib/libutil/libimsg.a|g' \
 		${WRKSRC}/src/usr.sbin/httpd/Makefile
-	${REINPLACE_CMD} 's|-lcrypto|${WRKDIR}/libressl-${SSL_VERSION}/crypto/.libs/libcrypto.a|g' \
+	${REINPLACE_CMD} 's|/usr/local/lib/libtls.a|${WRKDIR}/libressl-${SSL_VERSION}/tls/.libs/libtls.a|g' \
 		${WRKSRC}/src/usr.sbin/httpd/Makefile
-	${REINPLACE_CMD} 's|-lcrypto|${WRKDIR}/libressl-${SSL_VERSION}/crypto/.libs/libcrypto.a|g' \
+	${REINPLACE_CMD} 's|/usr/local/lib/libssl.a|${WRKDIR}/libressl-${SSL_VERSION}/ssl/.libs/libssl.a|g' \
+		${WRKSRC}/src/usr.sbin/httpd/Makefile
+	${REINPLACE_CMD} 's|/usr/local/lib/libcrypto.a|${WRKDIR}/libressl-${SSL_VERSION}/crypto/.libs/libcrypto.a|g' \
+		${WRKSRC}/src/usr.sbin/httpd/Makefile
+	${REINPLACE_CMD} 's|/usr/local/lib/libcrypto.a|${WRKDIR}/libressl-${SSL_VERSION}/crypto/.libs/libcrypto.a|g' \
 		${WRKSRC}/src/usr.bin/htpasswd/Makefile
 
 post-install:
