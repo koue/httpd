@@ -10,7 +10,7 @@ SRCS+=	bcrypt.c \
 	blowfish.c \
 	cryptutil.c
 
-LDADD=		-lcrypto
+LDADD=		/usr/local/lib/libcrypto.a
 
 DPADD=		${LIBCRYPTO}
 
@@ -19,8 +19,7 @@ CFLAGS+=	-Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations
 CFLAGS+=	-Wshadow -Wpointer-arith -Wcast-qual -Wsign-compare
 CFLAGS+=	-I${.CURDIR}/../../usr.sbin/httpd \
 		-I${.CURDIR}/../../include \
-		-I ${LOCALBASE}/include
+		-I${LOCALBASE}/include
 CFLAGS+=	-D__dead=''
-LDFLAGS+=	-L ${LOCALBASE}/lib
 
 .include <bsd.prog.mk>
