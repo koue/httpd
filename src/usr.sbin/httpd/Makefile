@@ -21,7 +21,7 @@ LDADD=		../../../libevent/src/lib/libevent/libevent.a \
 LDADD+= 	/usr/local/lib/libtls.a \
 		/usr/local/lib/libssl.a \
 		/usr/local/lib/libcrypto.a
-LDADD+= 	-lcrypt -lprocstat
+LDADD+= 	-lcrypt -lprocstat -pthread
 SRCS+=		patterns.c
 MAN+=		patterns.7
 
