@@ -1,3 +1,119 @@
+2023-11-20 18:17  bluhm
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_fcgi.c: Avoid a NULL
+	  dereference when handling a malformed fastcgi request.
+
+	  Rework the hack to avoid a use-after-free in the fastcgi code.
+	  Since server_fcgi() can be called by server_read_httpcontent() we
+	  can't set clt_fcgi_error to NULL.  Instead, we implement a simple
+	  reference count to track when a fastcgi session is in progress to
+	  avoid closing the http session prematurely on fastcgi error.
+	  Based on a diff from and OK by tb@.  Reported by Ben Kallus.
+	  from millert@
+
+	  this is errata/7.3/020_httpd.patch.sig
+
+2023-11-20 18:14  bluhm
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_fcgi.c: Avoid a NULL
+	  dereference when handling a malformed fastcgi request.
+
+	  Rework the hack to avoid a use-after-free in the fastcgi code.
+	  Since server_fcgi() can be called by server_read_httpcontent() we
+	  can't set clt_fcgi_error to NULL.  Instead, we implement a simple
+	  reference count to track when a fastcgi session is in progress to
+	  avoid closing the http session prematurely on fastcgi error.
+	  Based on a diff from and OK by tb@.  Reported by Ben Kallus.
+	  from millert@
+
+	  this is errata/7.4/006_httpd.patch.sig
+
+2023-11-08 19:19  millert
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_fcgi.c: Avoid a NULL
+	  dereference when handling a malformed fastcgi request.
+
+	  Rework the hack to avoid a use-after-free in the fastcgi code.
+	  Since server_fcgi() can be called by server_read_httpcontent() we
+	  can't set clt_fcgi_error to NULL.  Instead, we implement a simple
+	  reference count to track when a fastcgi session is in progress to
+	  avoid closing the http session prematurely on fastcgi error.
+	  Based on a diff from and OK by tb@.  Reported by Ben Kallus.
+
+2023-11-08 11:17  deraadt
+
+	* usr.sbin/httpd/patterns.7: remove accidental double space
+
+2023-11-03 13:03  espie
+
+	* usr.sbin/httpd/httpd.conf.5: Be explicit in saying what a shell
+	  pattern is.  I'm not a big fan of idiosyncratic lua patterns,
+	  especially in that context, but pointing towards them and not
+	  mentionning glob(7) is thoroughly confusing. Don't push lua
+	  patterns down people throats !
+
+	  At least you know what the incredibly fuzzy "shell patterns"
+	  refers to now !
+
+	  okay millert@, jmc@
+
+2023-10-29 11:27  kn
+
+	* usr.sbin/httpd/httpd.conf.5: Unmention/don't explain SSL, drop 9y
+	  old "ssl" keyword/deprecation warning
+
+	  Switch "ssl" to "tls" in relayd.conf(5) if you haven't done so in
+	  the last ten years, "ssl" is now an error.
+
+	  Say "TLS" not "SSL/TLS" and drop the primer in the TLS RELAYS
+	  section.
+
+	  OK benno
+
+2023-09-24 08:28  tb
+
+	* share/mk/bsd.regress.mk: Make REGRESS_LOG more useful again
+
+	  Enabling REGRESS_FAIL_EARLY made REGRESS_LOG error out at the
+	  first error, which is pointless. So default to no if REGRESS_LOG
+	  is set unless the user explicitly enabled it.
+
+	  Requested by claudio ok bluhm
+
+2023-09-15 07:13  tb
+
+	* share/mk/bsd.regress.mk: Default REGRESS_FAIL_EARLY to yes
+
+	  The current fail open behavior may be desirable in some
+	  circumstances, but it is an unexpected and dangerous default
+	  since one expects some kind of feedback when running a test
+	  suite. Currently failing tests are only visible on inspecting the
+	  log, which led to unsuspecting people missing failures several
+	  times in the past. Flip the default to fail closed. For those
+	  that want to have the old behavior, it is easy enough to set the
+	  variable to no.
+
+	  Positive feedback job and schwarze ok kn
+
+2023-09-03 10:18  nicm
+
+	* usr.sbin/httpd/server.c: Use EVBUFFER_DATA instead of reaching
+	  into struct evbuffer. ok tb
+
+2023-08-17 07:25  op
+
+	* usr.sbin/httpd/httpd.conf.5: use "example.com" instead of
+	  "default" as server name in the various examples: it matches the
+	  sample config and avoids tricking the user into thinking that
+	  "default" as server name has a special meaning.
+
+	  While here, document also that http uses the first server
+	  matching the listening port when there's no match on the server
+	  name.  (was corrected on this by Crystal Kolipe, thanks)
+
+	  ok kn on a previous version, improvements from sthen and jmc, ok
+	  sthen
+
 2023-07-12 12:46  tb
 
 	* usr.sbin/httpd/: httpd.h, server.c, server_fcgi.c: Work around
