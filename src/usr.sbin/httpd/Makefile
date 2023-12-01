@@ -2,6 +2,9 @@
 
 LOCALBASE?=	/usr/local
 BINDIR?=	${LOCALBASE}/sbin
+EVENTDIR?=	${.CURDIR}/../../../libevent
+IMSGDIR?=	${.CURDIR}/../../../libimsg
+
 PROG=		httpd
 SRCS=		parse.y
 SRCS+=		config.c control.c httpd.c log.c logger.c proc.c server.c
@@ -16,11 +19,18 @@ SRCS+=	bcrypt.c \
 
 MAN=		httpd.8 httpd.conf.5
 
-LDADD=		../../../libevent/src/lib/libevent/libevent.a \
-		../../../libimsg/src/lib/libutil/libimsg.a
+LDADD=		${EVENTDIR}/src/lib/libevent/libevent.a \
+		${IMSGDIR}/src/lib/libutil/libimsg.a
+.ifdef SSLDIR
+LDADD+= 	${SSLDIR}/tls/.libs/libtls.a \
+		${SSLDIR}/ssl/.libs/libssl.a \
+		${SSLDIR}/crypto/.libs/libcrypto.a
+.else
 LDADD+= 	/usr/local/lib/libtls.a \
 		/usr/local/lib/libssl.a \
 		/usr/local/lib/libcrypto.a
+.endif
+
 LDADD+= 	-lcrypt -lprocstat -pthread
 SRCS+=		patterns.c
 MAN+=		patterns.7
@@ -32,10 +42,16 @@ CFLAGS+=	-Wstrict-prototypes -Wmissing-prototypes
 CFLAGS+=	-Wmissing-declarations
 CFLAGS+=	-Wshadow -Wpointer-arith
 CFLAGS+=	-Wsign-compare -Wcast-qual
-CFLAGS+=	-I${.CURDIR}/../../../libevent/src/lib/libevent \
-		-I${.CURDIR}/../../../libimsg/src/lib/libutil \
-		-I${.CURDIR}/../../include \
-		-I${LOCALBASE}/include
+CFLAGS+=	-I${EVENTDIR}/src/lib/libevent \
+		-I${IMSGDIR}/src/lib/libutil \
+		-I${.CURDIR}/../../include
+
+.ifdef SSLDIR
+CFLAGS+=	-I${SSLDIR}/include
+.else
+CFLAGS+=	-I${LOCALBASE}/include
+.endif
+
 CFLAGS+=	-D__dead='' \
 		-DHAVE_CONFIG_H
 CLEANFILES+=	y.tab.h
