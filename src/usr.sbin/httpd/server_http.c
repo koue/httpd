@@ -45,6 +45,10 @@
 #include "http.h"
 #include "patterns.h"
 
+#ifdef USE_BLACKLIST
+#include "blacklist_client.h"
+#endif
+
 #ifndef __OpenBSD__
 #include "compat.h"
 #endif
@@ -901,6 +905,10 @@ server_abort_http(struct client *clt, unsigned int code, const char *msg)
 	ssize_t			 bodylen;
 
 	if (code == 0) {
+#ifdef USE_BLACKLIST
+		BLACKLIST_NOTIFY(BLACKLIST_ABUSIVE_BEHAVIOR, clt->clt_s,
+		    "blacklisted ");
+#endif
 		server_close(clt, "dropped");
 		return;
 	}

@@ -23,8 +23,15 @@ cd - && make install
 
 `httpd -f etc/examples/httpd.conf`
 
-## Status
+## Blacklist
 
-master | develop
--------|--------
-[![Build Status](https://cipier.net/status/koue/httpd/master)](https://cipier.net/status/koue/httpd/master) | [![Build Status](https://cipier.net/status/koue/httpd/develop)](https://cipier.net/status/koue/httpd/develop)
+Blacklistd(8) is a daemon that blocks and releases ports on demand. To compile
+httpd with blacklistd support use `make -DUSE_BLACKLIST`. To use blacklistd
+along with httpd add `block drop` option in httpd.conf. For example:
+```
+location "/*.php" {
+	block drop
+}
+```
+All requests looking for php files will be dropped by httpd and the IP address
+of the client will be send to blacklistd.

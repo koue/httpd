@@ -37,6 +37,10 @@
 
 #include "httpd.h"
 
+#ifdef USE_BLACKLIST
+#include "blacklist_client.h"
+#endif
+
 void	 proc_exec(struct privsep *, struct privsep_proc *, unsigned int, int,
 	    int, char **);
 void	 proc_setup(struct privsep *, struct privsep_proc *, unsigned int);
@@ -477,6 +481,10 @@ void
 proc_shutdown(struct privsep_proc *p)
 {
 	struct privsep	*ps = p->p_ps;
+
+#ifdef USE_BLACKLIST
+	BLACKLIST_STOP();
+#endif
 
 	if (p->p_id == PROC_CONTROL && ps)
 		control_cleanup(&ps->ps_csock);

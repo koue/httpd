@@ -45,6 +45,10 @@
 #include "httpd.h"
 #include "getdtablecount.h"
 
+#ifdef USE_BLACKLIST
+#include "blacklist_client.h"
+#endif
+
 #define MAXIMUM(a, b)	(((a) > (b)) ? (a) : (b))
 
 __dead void	 usage(void);
@@ -168,6 +172,10 @@ main(int argc, char *argv[])
 
 	/* log to stderr until daemonized */
 	log_init(debug ? debug : 1, LOG_DAEMON);
+
+#ifdef USE_BLACKLIST
+	BLACKLIST_INIT();
+#endif
 
 	argc -= optind;
 	if (argc > 0)

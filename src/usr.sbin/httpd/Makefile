@@ -9,6 +9,10 @@ PROG=		httpd
 SRCS=		parse.y
 SRCS+=		config.c control.c httpd.c log.c logger.c proc.c server.c
 SRCS+=		server_http.c server_file.c server_fcgi.c
+.ifdef USE_BLACKLIST
+SRCS+=		blacklist.c
+.endif
+
 
 .PATH: ${.CURDIR}/../../lib/libc/gen
 SRCS+=	vis.c
@@ -32,6 +36,9 @@ LDADD+= 	/usr/local/lib/libtls.a \
 .endif
 
 LDADD+= 	-lcrypt -lprocstat -pthread
+.ifdef USE_BLACKLIST
+LDADD+= 	-lblacklist
+.endif
 SRCS+=		patterns.c
 MAN+=		patterns.7
 
@@ -50,6 +57,10 @@ CFLAGS+=	-I${EVENTDIR}/src/lib/libevent \
 CFLAGS+=	-I${SSLDIR}/include
 .else
 CFLAGS+=	-I${LOCALBASE}/include
+.endif
+
+.ifdef USE_BLACKLIST
+CFLAGS+= 	-DUSE_BLACKLIST
 .endif
 
 CFLAGS+=	-D__dead='' \
