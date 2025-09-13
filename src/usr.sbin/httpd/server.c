@@ -1283,6 +1283,18 @@ server_log(struct client *clt, const char *msg)
 	struct server_config	*srv_conf = clt->clt_srv_conf;
 	char			*ptr = NULL, *vmsg = NULL;
 	int			 debug_cmd = -1;
+#ifndef __OpenBSD__
+	static char		tstamp[64];
+	time_t			t;
+	struct tm		*tm;
+
+	if ((t = time(NULL)) == -1)
+		return;
+	if ((tm = localtime(&t)) == NULL)
+		return;
+	if (strftime(tstamp, sizeof(tstamp), "%d/%b/%Y:%H:%M:%S %z", tm) == 0)
+		return;
+#endif
 
 	switch (srv_conf->logformat) {
 	case LOG_FORMAT_CONNECTION:
@@ -1311,9 +1323,17 @@ server_log(struct client *clt, const char *msg)
 		    evbuffer_add_printf(clt->clt_log, "\n") != -1)
 			ptr = evbuffer_readline(clt->clt_log);
 		(void)stravis(&vmsg, msg, HTTPD_LOGVIS);
+#ifdef __OpenBSD__
 		server_sendlog(srv_conf, debug_cmd, "server %s, "
+#else
+		server_sendlog(srv_conf, debug_cmd, "[%s] server %s, "
+#endif
 		    "client %d (%d active), %s:%u -> %s, "
+#ifdef __OpenBSD__
 		    "%s%s%s", srv_conf->name, clt->clt_id, server_clients,
+#else
+		    "%s%s%s", tstamp, srv_conf->name, clt->clt_id, server_clients,
+#endif
 		    ibuf, ntohs(clt->clt_port), obuf, vmsg == NULL ? "" : vmsg,
 		    ptr == NULL ? "" : ",", ptr == NULL ? "" : ptr);
 		free(vmsg);
