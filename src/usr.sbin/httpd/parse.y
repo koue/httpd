@@ -270,6 +270,9 @@ server		: SERVER optmatch STRING	{
 			s->srv_conf.id = ++last_server_id;
 			s->srv_conf.parent_id = s->srv_conf.id;
 			s->srv_s = -1;
+#ifndef __OpenBSD__
+			s->srv_conf.tcpbacklog = SERVER_BACKLOG;
+#endif
 			s->srv_conf.timeout.tv_sec = SERVER_TIMEOUT;
 			s->srv_conf.requesttimeout.tv_sec =
 			    SERVER_REQUESTTIMEOUT;
