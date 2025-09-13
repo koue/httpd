@@ -158,6 +158,10 @@ main(int argc, char *argv[])
 			proc_id = proc_getid(procs, nitems(procs), title);
 			if (proc_id == PROC_MAX)
 				fatalx("invalid process name");
+#ifdef USE_BLACKLIST
+			if (strcmp(title, "server") == 0)
+				BLACKLIST_INIT();
+#endif
 			break;
 		case 'I':
 			proc_instance = strtonum(optarg, 0,
@@ -172,10 +176,6 @@ main(int argc, char *argv[])
 
 	/* log to stderr until daemonized */
 	log_init(debug ? debug : 1, LOG_DAEMON);
-
-#ifdef USE_BLACKLIST
-	BLACKLIST_INIT();
-#endif
 
 	argc -= optind;
 	if (argc > 0)
