@@ -21,6 +21,9 @@ SRCS+=	vis.c
 SRCS+=	bcrypt.c \
 	cryptutil.c
 
+.PATH:	${.CURDIR}/../../lib/libutil
+SRCS+=	fmt_scaled.c
+
 MAN=		httpd.8 httpd.conf.5
 
 LDADD=		${EVENTDIR}/src/lib/libevent/libevent.a \
@@ -51,7 +54,8 @@ CFLAGS+=	-Wshadow -Wpointer-arith
 CFLAGS+=	-Wsign-compare -Wcast-qual
 CFLAGS+=	-I${EVENTDIR}/src/lib/libevent \
 		-I${IMSGDIR}/src/lib/libutil \
-		-I${.CURDIR}/../../include
+		-I${.CURDIR}/../../include \
+		-I${.CURDIR}/../../lib/libutil
 
 .ifdef SSLDIR
 CFLAGS+=	-I${SSLDIR}/include

@@ -16,3 +16,5 @@ src/usr.bin/htpasswd/htpasswd
 src/usr.sbin/httpd/httpd
 src/usr.sbin/httpd/parse.c
 src/usr.sbin/httpd/parse.h
+src/usr.sbin/httpd/css.h
+src/usr.sbin/httpd/js.h
