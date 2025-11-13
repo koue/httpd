@@ -1,3 +1,403 @@
+2025-11-12 11:24  deraadt
+
+	* usr.sbin/httpd/: config.c, httpd.c, parse.y: Systopia team at UBC
+	  found 5 info leaks in the private privsep protocol between httpd
+	  programs, and provided a fix.  ok claudio benno florian
+
+2025-07-08 14:26  schwarze
+
+	* usr.sbin/httpd/httpd.conf.5: Make internal hyperlinking work by
+	  moving custom sections from .Sh to .Ss and the titles from all
+	  caps to sentence case such that they match the table of contents,
+	  and switch from .Sy to .Sx as needed.  OK florian@
+
+2025-07-07 20:56  schwarze
+
+	* usr.sbin/httpd/httpd.conf.5: In the manual pages for
+	  configuration files based on parse.y, describe the syntax of both
+	  defining and using macros, rather than exclusively relying on
+	  examples, which some of the pages do not even provide.  In those
+	  pages containing tables of content, also clarify that the
+	  "Macros" section contains *definitions* of variables.  Both
+	  changes were already committed to vm.conf(5) earlier.
+
+	  In those few pages that referenced cpp(1) and m4(1), stop doing
+	  that because the macro definition syntax and the macro
+	  dereferencing syntax of both languages is totally different from
+	  the parse.y syntax.
+
+	  OK florian@, and deraadt also requests keeping these manuals in
+	  sync.
+
+2025-05-26 06:18  anton
+
+	* regress/usr.sbin/httpd/patterns/patterns-tester.c: Remove by now
+	  incorrect usage of malloc_options in httpd patterns regress. As
+	  stated in bsd.regress.mk(5), one is advised favor the
+	  MALLOC_OPTIONS environment variable.
+
+2025-02-21 10:19  mbuhl
+
+	* etc/examples/httpd.conf: Remove acme-challenge location from
+	  HTTPS server configuration as RFC8555 8.3 explicitly states that
+	  the challenge must be over HTTP.
+
+	  From Lucas de Sena (lucas AT seninha.org), thanks!
+
+	  ok sdk@
+
+2024-12-22 13:51  florian
+
+	* usr.sbin/httpd/server_http.c: Set correct request timeout once we
+	  found the correct server block.
+
+	  On accept(2), httpd(8) sets the timeout based on ip:port. Once we
+	  have parsed the http headers we can find the name-based server
+	  block and apply its request timeout.
+
+	  Problem identified and fix from Nick Owens, thanks!
+
+	  OK tb
+
+2024-11-26 06:12  tb
+
+	* share/mk/bsd.regress.mk: Pass -g to CFLAGS for regression testing
+
+	  It is annoying to have a regress test crash and then be faced
+	  with question marks in the backtrace, and then have to recompile
+	  and pass -g via DEBUG or similar.
+
+	  This may bite people with small obj/. Let's see if anyone shouts.
+
+	  ok anton claudio
+
+2024-11-21 13:38  claudio
+
+	* usr.sbin/httpd/: control.c, proc.c: Convert various reyk proc.c
+	  daemons over to new imsgbuf_init and imsgbuf_allow_fdpass.
+
+	  OK tb@
+
+2024-11-21 13:21  claudio
+
+	* usr.sbin/httpd/: control.c, proc.c: Convert the common
+	  imsgbuf_read calls to the post EAGAIN world.
+
+	  OK tb@
+
+2024-11-21 13:18  claudio
+
+	* usr.sbin/httpd/proc.c: Use imsgbuf_queuelen() instead of
+	  accessing the w.queue member.
+
+	  OK tb@
+
+2024-11-21 13:17  claudio
+
+	* usr.sbin/httpd/control.c: Use imsgbuf_clear() where appropriate
+	  instead of msgbuf_clear().
+
+	  OK tb@
+
+2024-11-21 13:17  claudio
+
+	* usr.sbin/httpd/: control.c, proc.c: Rename imsg_init, imsg_clear,
+	  imsg_read, imsg_write and imsg_flush to imsgbuf_init,
+	  imsgbuf_clear, imsgbuf_read, imsgbuf_write and imsgbuf_flush.
+
+	  This separates the imsgbuf API from the per-imsg API.
+
+	  OK tb@
+
+2024-11-21 13:16  claudio
+
+	* usr.sbin/httpd/: control.c, proc.c: Convert imsg_write() callers
+	  to the new simplified return logic.
+
+	  OK tb@
+
+2024-11-21 13:10  claudio
+
+	* usr.sbin/httpd/: control.c, proc.c: Introduce imsg_write() and
+	  use it instead of msgbuf_write().
+
+	  imsg_write() is just a thin wrapper around msgbuf_write(). So
+	  this is mostly search and replace.
+
+	  OK tb@
+
+2024-11-21 13:06  claudio
+
+	* usr.sbin/httpd/proc.c: imsg_flush no longer returns EAGAIN.
+	  Simplify proc_flush_imsg() accordingly.
+
+	  Issue spotted by op@
+
+2024-10-08 05:28  jsg
+
+	* usr.sbin/httpd/httpd.h: remove unused struct
+
+2024-06-14 15:12  bluhm
+
+	* regress/usr.sbin/httpd/tests/funcs.pl: Replace deprecated
+	  given/when and smartmatch operator in Perl scripts.
+
+2024-06-03 14:46  op
+
+	* usr.sbin/httpd/css.h.in: httpd: render "emojis" as text in
+	  directory listing
+
+	  The "up and down" character used in the directory listing is
+	  technically an emoji and can, depending on the browser
+	  configuration, be rendered in colors and whatnot.  set
+	  `font-variant-emoji' to ask the browser to render it as text.
+	  This property, as of now, needs to be enabled manually in some
+	  browsers, but since it's part of the "CSS Fonts Module Level 4"
+	  spec, support for it is expected to be implemented and turned on
+	  "soon" in major browsers.
+
+	  While here, remove the italic for directories.
+
+	  Diff from Paul W. Rankin (hello (at) paulwrankin dot com) ok
+	  claudio@
+
+2024-04-29 16:17  florian
+
+	* usr.sbin/httpd/server_file.c: plug fd leak introduced in "avoid
+	  toctu" rewrite.
+
+	  Issue reported by job OK tb, job
+
+2024-04-16 17:15  florian
+
+	* usr.sbin/httpd/server_file.c: Prevent toctu issues in static file
+	  serving and auto index generation.
+
+	  This fixes a problem in passing, reported by matthieu@ where
+	  httpd would return 500 Internal Server Error when it could
+	  stat(2) but not open(2) a file. The correct error code is 403.
+
+	  testing matthieu ok tobhe, tl;dr ok stsp input & OK deraadt
+
+2024-04-09 15:48  tobhe
+
+	* usr.sbin/httpd/proc.c: Sync removal of setsid(), setpgid() and a
+	  few dup2() from relayd. They are redundant since we call daemon()
+	  earlier.
+
+	  ok bluhm@
+
+2024-04-08 12:45  tobhe
+
+	* usr.sbin/httpd/: httpd.c, proc.c: Call daemon() only in parent
+	  and before proc_exec() to avoid orphaning child processes. Synced
+	  from relayd.
+
+	  ok kn@
+
+2024-03-24 10:53  job
+
+	* usr.sbin/httpd/http.h: Sync with IANA Status Code Registry
+
+	  From
+	  https://www.iana.org/assignments/http-status-codes/http-status-codes.xhtml
+
+	  OK sthen@ miod@
+
+2024-02-13 14:00  claudio
+
+	* usr.sbin/httpd/server_http.c: Stop logging misleading errors when
+	  custom generic error pages are in use.
+
+	  Only call the open(2) log_warn for errnos that are not ENOENT.
+	  Since that is an error worth logging.
+
+	  Based on a diff from Carsten Reith (carsten.reith t-online.de) OK
+	  florian@ deraadt@
+
+2024-01-22 19:26  deraadt
+
+	* lib/libc/crypt/cryptutil.c: make login.conf(5) and
+	  crypt_newhash(3) and the underlying code consistant regarding
+	  bcrypt,a instead of blowfish,a.  "blowfish" is a historical alias
+	  which we don't need to document as firmly as "bcrypt".  report
+	  about difficult manual page discovery from ataraxia937 ok millert
+
+2024-01-17 08:22  claudio
+
+	* usr.sbin/httpd/: config.c, logger.c, proc.c: Convert to use
+	  imsg_get_fd() since proc_forward_imsg() never forwards a file
+	  descriptor just use -1 there.  OK tb@
+
+2024-01-17 08:20  claudio
+
+	* usr.sbin/httpd/config.c: Get all variable-length values for the
+	  parent server before linking the server onto various list. Fixes
+	  a use-after-free if former fails.  OK tb@
+
+2024-01-06 11:29  espie
+
+	* usr.sbin/httpd/: js.h.in, server_file.c: put the real sizes into
+	  the "title" attribute so that hovering shows the exact value.
+
+	  adjust/refactor javascript sorter accordingly
+
+2024-01-04 18:17  espie
+
+	* usr.sbin/httpd/: Makefile, css.h.in, js.h.in, server_file.c,
+	  toheader.sed: make auto-index better - make it an actual table -
+	  use "human readable sizes" for the file sizes - add some
+	  decoration and javascript to be able to sort it per-column
+	  (client side) (this means some extra column attribute) - add glue
+	  to facilitate embedding js + css directly in the program - add
+	  some graphical indication for directories - should still validate
+	  as proper html everywhere (custom properties need to be called
+	  data-* for this!)
+
+	  Work with claudio@ and tb@, many thanks to claudio@ for some of
+	  the finer points of css handling, and tb@ for some fine spaces
+	  fixes.
+
+	  I've tried it with lynx as well, shows up correctly.
+
+	  One big plus is that the size of columns work as utf-8, so you
+	  can expose filenames without any problems (I've tried it with
+	  non-js text navigators as well as firefox, chromium and friends)
+
+	  And it looks slightly less yahoo ca. 1995.
+
+	  It's still "one size fits all". If people object to the current
+	  look, adding httpd.conf(5) properties to override the default css
+	  should be easy.
+
+	  okay claudio@, tb@
+
+2023-12-28 18:05  espie
+
+	* usr.sbin/httpd/server_file.c: don't add values we won't print,
+	  use scandir properly
+
+	  okay tb@
+
+	  (logic NOT simplified because I don't want to risk introducing
+	  bugs, and the compiler knows as much boolean logic as me)
+
+2023-11-20 18:17  bluhm
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_fcgi.c: Avoid a NULL
+	  dereference when handling a malformed fastcgi request.
+
+	  Rework the hack to avoid a use-after-free in the fastcgi code.
+	  Since server_fcgi() can be called by server_read_httpcontent() we
+	  can't set clt_fcgi_error to NULL.  Instead, we implement a simple
+	  reference count to track when a fastcgi session is in progress to
+	  avoid closing the http session prematurely on fastcgi error.
+	  Based on a diff from and OK by tb@.  Reported by Ben Kallus.
+	  from millert@
+
+	  this is errata/7.3/020_httpd.patch.sig
+
+2023-11-20 18:14  bluhm
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_fcgi.c: Avoid a NULL
+	  dereference when handling a malformed fastcgi request.
+
+	  Rework the hack to avoid a use-after-free in the fastcgi code.
+	  Since server_fcgi() can be called by server_read_httpcontent() we
+	  can't set clt_fcgi_error to NULL.  Instead, we implement a simple
+	  reference count to track when a fastcgi session is in progress to
+	  avoid closing the http session prematurely on fastcgi error.
+	  Based on a diff from and OK by tb@.  Reported by Ben Kallus.
+	  from millert@
+
+	  this is errata/7.4/006_httpd.patch.sig
+
+2023-11-08 19:19  millert
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_fcgi.c: Avoid a NULL
+	  dereference when handling a malformed fastcgi request.
+
+	  Rework the hack to avoid a use-after-free in the fastcgi code.
+	  Since server_fcgi() can be called by server_read_httpcontent() we
+	  can't set clt_fcgi_error to NULL.  Instead, we implement a simple
+	  reference count to track when a fastcgi session is in progress to
+	  avoid closing the http session prematurely on fastcgi error.
+	  Based on a diff from and OK by tb@.  Reported by Ben Kallus.
+
+2023-11-08 11:17  deraadt
+
+	* usr.sbin/httpd/patterns.7: remove accidental double space
+
+2023-11-03 13:03  espie
+
+	* usr.sbin/httpd/httpd.conf.5: Be explicit in saying what a shell
+	  pattern is.  I'm not a big fan of idiosyncratic lua patterns,
+	  especially in that context, but pointing towards them and not
+	  mentionning glob(7) is thoroughly confusing. Don't push lua
+	  patterns down people throats !
+
+	  At least you know what the incredibly fuzzy "shell patterns"
+	  refers to now !
+
+	  okay millert@, jmc@
+
+2023-10-29 11:27  kn
+
+	* usr.sbin/httpd/httpd.conf.5: Unmention/don't explain SSL, drop 9y
+	  old "ssl" keyword/deprecation warning
+
+	  Switch "ssl" to "tls" in relayd.conf(5) if you haven't done so in
+	  the last ten years, "ssl" is now an error.
+
+	  Say "TLS" not "SSL/TLS" and drop the primer in the TLS RELAYS
+	  section.
+
+	  OK benno
+
+2023-09-24 08:28  tb
+
+	* share/mk/bsd.regress.mk: Make REGRESS_LOG more useful again
+
+	  Enabling REGRESS_FAIL_EARLY made REGRESS_LOG error out at the
+	  first error, which is pointless. So default to no if REGRESS_LOG
+	  is set unless the user explicitly enabled it.
+
+	  Requested by claudio ok bluhm
+
+2023-09-15 07:13  tb
+
+	* share/mk/bsd.regress.mk: Default REGRESS_FAIL_EARLY to yes
+
+	  The current fail open behavior may be desirable in some
+	  circumstances, but it is an unexpected and dangerous default
+	  since one expects some kind of feedback when running a test
+	  suite. Currently failing tests are only visible on inspecting the
+	  log, which led to unsuspecting people missing failures several
+	  times in the past. Flip the default to fail closed. For those
+	  that want to have the old behavior, it is easy enough to set the
+	  variable to no.
+
+	  Positive feedback job and schwarze ok kn
+
+2023-09-03 10:18  nicm
+
+	* usr.sbin/httpd/server.c: Use EVBUFFER_DATA instead of reaching
+	  into struct evbuffer. ok tb
+
+2023-08-17 07:25  op
+
+	* usr.sbin/httpd/httpd.conf.5: use "example.com" instead of
+	  "default" as server name in the various examples: it matches the
+	  sample config and avoids tricking the user into thinking that
+	  "default" as server name has a special meaning.
+
+	  While here, document also that http uses the first server
+	  matching the listening port when there's no match on the server
+	  name.  (was corrected on this by Crystal Kolipe, thanks)
+
+	  ok kn on a previous version, improvements from sthen and jmc, ok
+	  sthen
+
 2023-07-12 12:46  tb
 
 	* usr.sbin/httpd/: httpd.h, server.c, server_fcgi.c: Work around
@@ -58,6 +458,12 @@
 
 	* usr.sbin/httpd/config.c: spelling fixes; from paul tagliamonte
 	  any parts of his diff not taken are noted on tech
+
+2022-12-27 17:10  jmc
+
+	* lib/libutil/fmt_scaled.c: spelling fixes; from paul tagliamonte
+	  any changes not taken noted on tech, but chiefly here i did not
+	  take the cancelation - cancellation changes;
 
 2022-12-09 09:30  tb
 
@@ -164,6 +570,11 @@
 
 	  OK claudio@
 
+2022-05-11 17:23  millert
+
+	* lib/libutil/util.h: Mark pw_error as __dead in prototype to match
+	  the function definition.  From Matthew Martin.
+
 2022-05-04 18:57  deraadt
 
 	* lib/libc/gen/vis.c: Found two multiple evaluation macros. One of
@@ -171,6 +582,12 @@
 	  and place into a static function.  While here, move the flags
 	  bits into local variables, which reduces the amount of () in the
 	  checks.  help from millert, miod, tedu
+
+2022-04-20 14:00  millert
+
+	* lib/libutil/util.h: Make the termp and winp arguments for
+	  openpty, et al. const.  This matches the prototypes in glibc and
+	  musl libc.  From Matthew Martin. OK tb@
 
 2022-03-31 17:27  naddy
 
@@ -181,6 +598,17 @@
 	  those untouched.
 
 	  ok jmc@
+
+2022-03-11 09:04  dtucker
+
+	* lib/libutil/fmt_scaled.c: Revert previous commit.  The problem it
+	  was attempting to fix was already fixed by tb@ in rev 1.20.
+	  Spotted by tb@
+
+2022-03-11 07:29  dtucker
+
+	* lib/libutil/fmt_scaled.c: Check for underflow as well as overflow
+	  when scaling negative numbers.  ok millert@
 
 2022-03-09 13:50  jsg
 
@@ -381,6 +809,18 @@
 	  Work done and verified by Ashton Fagg <ashton@fagg.id.au>
 
 	  ok deraadt@ semarie@ claudio@
+
+2021-06-20 14:08  tb
+
+	* lib/libutil/fmt_scaled.c: scan_scaled: fix rescaling for negative
+	  numbers
+
+	  As found by djm by fuzzing ssh, scan_scaled can overflow for
+	  negative numbers when rescaling is needed. This is because the
+	  rescaled fractional part is added without taking the sign into
+	  account.
+
+	  ok ian jca
 
 2021-06-07 10:53  tb
 
@@ -630,6 +1070,11 @@
 
 	  Found and fix by Matthias Pressfreund <mpfr @ fn de>. Thanks.
 
+2020-10-12 22:08  deraadt
+
+	* lib/libutil/fmt_scaled.c: make fixed-sized fixed-value mib[]
+	  arrays be const ok guenther tb millert
+
 2020-10-11 03:21  tb
 
 	* usr.sbin/httpd/: parse.y, server.c: Handle absence of TLS certs
@@ -867,6 +1312,12 @@
 	  Reported over the years by many.  Input, explanations and OK
 	  benno
 
+2019-08-30 03:57  deraadt
+
+	* lib/libutil/util.h: uucplock(3) is incorrectly named in some
+	  places, it is actually uu_lock(3) (more unclear is if anything in
+	  ports uses this, as our base no longer does)
+
 2019-07-12 19:31  bluhm
 
 	* regress/usr.sbin/httpd/tests/Makefile: Test should also run if
@@ -1015,6 +1466,13 @@
 	  sockets.  Prompted by a mail from Daniel Gracia ( paladdin AT
 	  gmail ) pointing out that we are not documenting TCP support at
 	  all, thanks! Prodding by and with jmc@
+
+2019-01-14 23:52  bluhm
+
+	* lib/libutil/fmt_scaled.c: Calling llabs(LLONG_MIN) is undefined
+	  behavior, llvm 7.0.1 does not work with our old code.  In
+	  fmt_scaled() move the check before calling llabs().  found by
+	  regress/lib/libutil/fmt_scaled; OK deraadt@ millert@ tedu@
 
 2019-01-08 18:35  florian
 
@@ -1336,6 +1794,11 @@
 
 	  OK florian@ jmc@
 
+2018-05-14 04:39  djm
+
+	* lib/libutil/fmt_scaled.c: constrain fractional part to [0-9]
+	  (less confusing to static analysis); ok ian@
+
 2018-04-26 14:12  krw
 
 	* usr.sbin/httpd/parse.y: Plug leak in error case of the common
@@ -1586,6 +2049,16 @@
 	  when a server is configured with "block return 401".	Problem
 	  reported by Jurjen Oskam.  ok florian@
 
+2017-04-20 17:48  nicm
+
+	* lib/libutil/util.h: Add getptmfd(), fdopenpty(), fdforkpty()
+	  functions. These allow programs to separate the open(/dev/ptm)
+	  from the ioctl(PTMGET) for privilege separation or pledge().
+
+	  Based on a diff from reyk@.
+
+	  ok deraadt millert
+
 2017-04-17 21:58  deraadt
 
 	* usr.sbin/httpd/server.c: some freezero() calls
@@ -1645,6 +2118,29 @@
 	* usr.sbin/httpd/: httpd.conf.5, server_http.c: Expand $HTTP_HOST
 	  in redirects.  From Rivo Nurges Rivo.Nurges AT smit.ee, thanks!
 	  OK reyk
+
+2017-03-16 02:40  dtucker
+
+	* lib/libutil/fmt_scaled.c: Fix overly-conservative overflow checks
+	  on mulitplications and add checks on additions.  This allows
+	  scan_scaled to work up to +/-LLONG_MAX (LLONG_MIN will still be
+	  flagged as a range error).  ok millert@
+
+2017-03-15 05:25  dtucker
+
+	* lib/libutil/fmt_scaled.c: Collapse underflow and overflow checks
+	  into a single block.	ok djm@ millert@
+
+2017-03-15 00:13  dtucker
+
+	* lib/libutil/fmt_scaled.c: Catch integer underflow in scan_scaled
+	  reported by Nicolas Iooss.  ok deraadt@ djm@
+
+2017-03-11 23:37  djm
+
+	* lib/libutil/fmt_scaled.c: fix signed integer overflow in
+	  scan_scaled. Found by Nicolas Iooss using AFL against ssh_config.
+	  ok deraadt@ millert@
 
 2017-03-10 21:06  reyk
 

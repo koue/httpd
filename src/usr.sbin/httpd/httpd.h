@@ -1,4 +1,4 @@
-/*	$OpenBSD: httpd.h,v 1.163 2023/07/12 12:37:27 tb Exp $	*/
+/*	$OpenBSD: httpd.h,v 1.165 2024/10/08 05:28:11 jsg Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -164,11 +164,6 @@ struct control_sock {
 	TAILQ_ENTRY(control_sock) cs_entry;
 };
 TAILQ_HEAD(control_socks, control_sock);
-
-extern struct {
-	struct event	 ev;
-	int		 fd;
-} control_state;
 
 struct imsgev {
 	struct imsgbuf		 ibuf;
@@ -350,6 +345,7 @@ struct client {
 	int			 clt_done;
 	int			 clt_chunk;
 	int			 clt_inflight;
+	int			 clt_fcgi_count;
 	struct range_data	 clt_ranges;
 	struct fcgi_data	 clt_fcgi;
 	const char		*clt_fcgi_error;
