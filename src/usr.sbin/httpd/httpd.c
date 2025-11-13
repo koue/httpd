@@ -1,4 +1,4 @@
-/*	$OpenBSD: httpd.c,v 1.73 2022/09/02 07:38:14 benno Exp $	*/
+/*	$OpenBSD: httpd.c,v 1.75 2025/11/12 11:24:04 deraadt Exp $	*/
 
 /*
  * Copyright (c) 2014 Reyk Floeter <reyk@openbsd.org>
@@ -230,8 +230,6 @@ main(int argc, char *argv[])
 	proc_init(ps, procs, nitems(procs), debug, argc0, argv, proc_id);
 
 	log_procinit("parent");
-	if (!debug && daemon(1, 0) == -1)
-		err(1, "failed to daemonize");
 
 	if (ps->ps_noaction == 0)
 		log_info("startup");
@@ -291,6 +289,8 @@ parent_configure(struct httpd *env)
 	struct server		*srv;
 	struct media_type	*media;
 	struct auth		*auth;
+
+	memset(&cf, 0, sizeof(cf));
 
 	RB_FOREACH(media, mediatypes, env->sc_mediatypes) {
 		if (config_setmedia(env, media) == -1)

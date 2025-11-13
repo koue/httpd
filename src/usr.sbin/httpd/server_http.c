@@ -1,4 +1,4 @@
-/*	$OpenBSD: server_http.c,v 1.153 2022/09/21 05:55:18 yasuoka Exp $	*/
+/*	$OpenBSD: server_http.c,v 1.155 2024/12/22 13:51:42 florian Exp $	*/
 
 /*
  * Copyright (c) 2020 Matthias Pressfreund <mpfr@fn.de>
@@ -1385,6 +1385,11 @@ server_response(struct httpd *httpd, struct client *clt)
 		srv_conf = clt->clt_srv_conf;
 	}
 
+
+	/* Set request timeout from matching host configuration. */
+	bufferevent_settimeout(clt->clt_bev,
+	    srv_conf->requesttimeout.tv_sec, srv_conf->requesttimeout.tv_sec);
+
 	if (clt->clt_persist >= srv_conf->maxrequests)
 		clt->clt_persist = 0;
 
@@ -1779,13 +1784,14 @@ read_errdoc(const char *root, const char *file)
 	struct stat	 sb;
 	char		*path;
 	int		 fd;
-	char		*ret = NULL;
+	char		*ret;
 
 	if (asprintf(&path, "%s/%s.html", root, file) == -1)
 		fatal("asprintf");
 	if ((fd = open(path, O_RDONLY)) == -1) {
 		free(path);
-		log_warn("%s: open", __func__);
+		if (errno != ENOENT)
+			log_warn("%s: open", __func__);
 		return (NULL);
 	}
 	free(path);
@@ -1805,8 +1811,7 @@ read_errdoc(const char *root, const char *file)
 		log_warn("%s: read", __func__);
 		close(fd);
 		free(ret);
-		ret = NULL;
-		return (ret);
+		return (NULL);
 	}
 	close(fd);
 
