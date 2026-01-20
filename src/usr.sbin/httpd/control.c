@@ -165,12 +165,17 @@ control_accept(int listenfd, short event, void *arg)
 		return;
 	}
 
+/* newer imsg */
+#ifdef __OpenBSD__
 	if (imsgbuf_init(&c->iev.ibuf, connfd) == -1) {
 		log_warn("%s: imsgbuf_init", __func__);
 		close(connfd);
 		free(c);
 		return;
 	}
+#else
+	imsg_init(&c->iev.ibuf, connfd);
+#endif
 	c->iev.handler = control_dispatch_imsg;
 	c->iev.events = EV_READ;
 	c->iev.data = cs;	/* proc.c cheats (reuses the handler) */
@@ -204,7 +209,12 @@ control_close(int fd, struct control_sock *cs)
 		return;
 	}
 
+/* newer imsg */
+#ifdef __OpenBSD__
 	imsgbuf_clear(&c->iev.ibuf);
+#else
+	msgbuf_clear(&c->iev.ibuf.w);
+#endif
 	TAILQ_REMOVE(&ctl_conns, c, entry);
 
 	event_del(&c->iev.ev);
@@ -235,14 +245,25 @@ control_dispatch_imsg(int fd, short event, void *arg)
 	}
 
 	if (event & EV_READ) {
+/* newer imsg */
+#ifdef __OpenBSD__
 		if (imsgbuf_read(&c->iev.ibuf) != 1) {
+#else
+		if (((n = imsg_read(&c->iev.ibuf)) == -1 && errno != EAGAIN) ||
+		    n == 0) {
+#endif
 			control_close(fd, cs);
 			return;
 		}
 	}
 
 	if (event & EV_WRITE) {
+/* newer imsg */
+#ifdef __OpenBSD__
 		if (imsgbuf_write(&c->iev.ibuf) == -1) {
+#else
+		if (msgbuf_write(&c->iev.ibuf.w) <= 0 && errno != EAGAIN) {
+#endif
 			control_close(fd, cs);
 			return;
 		}

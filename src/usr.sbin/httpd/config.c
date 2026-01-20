@@ -672,7 +672,10 @@ config_getserver(struct httpd *env, struct imsg *imsg)
 	struct server_config	 srv_conf;
 	uint8_t			*p = imsg->data;
 	size_t			 s;
+/* newer imsg */
+#ifdef __OpenBSD__
 	int			 fd;
+#endif
 
 	IMSG_SIZE_CHECK(imsg, &srv_conf);
 	memcpy(&srv_conf, p, sizeof(srv_conf));
@@ -681,7 +684,10 @@ config_getserver(struct httpd *env, struct imsg *imsg)
 	/* Reset these variables to avoid free'ing invalid pointers */
 	serverconfig_reset(&srv_conf);
 
+/* newer imsg */
+#ifdef __OpenBSD__
 	fd = imsg_get_fd(imsg);
+#endif
 
 	if ((IMSG_DATA_SIZE(imsg) - s) < (size_t)srv_conf.return_uri_len) {
 		log_debug("%s: invalid message length", __func__);
@@ -692,11 +698,26 @@ config_getserver(struct httpd *env, struct imsg *imsg)
 	if ((srv = server_byaddr((struct sockaddr *)
 	    &srv_conf.ss, srv_conf.port)) != NULL) {
 		/* Add "host" to existing listening server */
+/* newer imsg */
+#ifdef __OpenBSD__
 		if (fd != -1) {
+#else
+		if (imsg->fd != -1) {
+#endif
 			if (srv->srv_s == -1)
+/* newer imsg */
+#ifdef __OpenBSD__
 				srv->srv_s = fd;
+#else
+				srv->srv_s = imsg->fd;
+#endif
 			else
+/* newer imsg */
+#ifdef __OpenBSD__
 				close(fd);
+#else
+				close(imsg->fd);
+#endif
 		}
 		return (config_getserver_config(env, srv, imsg));
 	}
@@ -709,7 +730,12 @@ config_getserver(struct httpd *env, struct imsg *imsg)
 		goto fail;
 
 	memcpy(&srv->srv_conf, &srv_conf, sizeof(srv->srv_conf));
+/* newer imsg */
+#ifdef __OpenBSD__
 	srv->srv_s = fd;
+#else
+	srv->srv_s = imsg->fd;
+#endif
 
 	if (config_getserver_auth(env, &srv->srv_conf) != 0)
 		goto fail;
@@ -737,8 +763,14 @@ config_getserver(struct httpd *env, struct imsg *imsg)
 	return (0);
 
  fail:
+/* newer imsg */
+#ifdef __OpenBSD__
 	if (fd != -1)
 		close(fd);
+#else
+	if (imsg->fd != -1)
+		close(imsg->fd);
+#endif
 	if (srv != NULL)
 		serverconfig_free(&srv->srv_conf);
 	free(srv);
