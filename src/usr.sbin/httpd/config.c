@@ -1,4 +1,4 @@
-/*	$OpenBSD: config.c,v 1.66 2025/11/12 11:24:04 deraadt Exp $	*/
+/*	$OpenBSD: config.c,v 1.68 2026/01/04 06:43:34 rsadowski Exp $	*/
 
 /*
  * Copyright (c) 2011 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -513,6 +513,11 @@ config_getserver_config(struct httpd *env, struct server *srv,
 	/* Reset these variables to avoid free'ing invalid pointers */
 	serverconfig_reset(srv_conf);
 
+	if ((IMSG_DATA_SIZE(imsg) - s) < (size_t)srv_conf->return_uri_len) {
+		log_debug("%s: invalid message length", __func__);
+		goto fail;
+	}
+
 	TAILQ_FOREACH(parent, &srv->srv_hosts, entry) {
 		if (strcmp(parent->name, srv_conf->name) == 0)
 			break;
@@ -531,7 +536,6 @@ config_getserver_config(struct httpd *env, struct server *srv,
 		if ((srv_conf->return_uri = get_data(p + s,
 		    srv_conf->return_uri_len)) == NULL)
 			goto fail;
-		s += srv_conf->return_uri_len;
 	}
 
 	if (srv_conf->flags & SRVFLAG_LOCATION) {
@@ -637,6 +641,8 @@ config_getserver_config(struct httpd *env, struct server *srv,
 		srv_conf->flags |= parent->flags & SRVFLAG_ERRDOCS;
 		(void)strlcpy(srv_conf->errdocroot, parent->errdocroot,
 		    sizeof(srv_conf->errdocroot));
+
+		srv_conf->flags |= parent->flags & SRVFLAG_NO_BANNER;
 
 		DPRINTF("%s: %s %d location \"%s\", "
 		    "parent \"%s[%u]\", flags: %s",

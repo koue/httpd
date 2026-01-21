@@ -1,3 +1,76 @@
+2026-01-18 16:38  schwarze
+
+	* usr.sbin/httpd/httpd.conf.5: Slightly iprove a confusing wording
+	  in the parse.y manuals: The things that need quoting are not
+	  necessarily "argument names", and not even necessarily "names" at
+	  all, so just talk about "arguments".
+
+	  "I guess?" florian@ and no objection from otto@, both back in
+	  July 2025.
+
+	  Actually, the quoting rules are more complicated than the text
+	  makes believe, but i do not know how to better describe them.  It
+	  may not be easy because some suspect the implementation may be
+	  somewhat adhoc rather than based on cleary defined lexical rules.
+
+2026-01-04 06:43  rsadowski
+
+	* usr.sbin/httpd/config.c: validate return_uri_len before copying
+	  data
+
+	  Spotted by tb@, ok claudio
+
+2026-01-02 08:45  rsadowski
+
+	* usr.sbin/httpd/: httpd.c, server.c, server_fcgi.c: fix scan-build
+	  dead stores findings
+
+	  - httpd.c:533 – q assigned but immediately overwritten in the
+	  loop - server.c:891 – inrd/inwr assigned, then reassigned,
+	  never actually needed - server_fcgi.c:678,690 – kv result
+	  unused
+
+	  OK stsp@
+
+2025-12-20 23:12  tb
+
+	* usr.sbin/httpd/server_http.c: httpd: fix server_http_time() to
+	  emit GMT times again
+
+	  The HTTP standard RFC 9110 requires GMT, in HTTP-date. We used to
+	  do this until a recent change to localtime.c changed GMT to UTC.
+
+	  From Sören Tempel, ok sthen
+
+2025-11-28 16:10  rsadowski
+
+	* usr.sbin/httpd/: config.c, httpd.conf.5, httpd.h, parse.y,
+	  server_fcgi.c, server_http.c: Add "no banner" option to suppress
+	  Server header
+
+	  Introduces a global and per-server "[no] banner" directive that
+	  prevents httpd from sending the Server HTTP response header and
+	  removes server identification from error documents. The
+	  SERVER_SOFTWARE CGI environment variable remains set as required
+	  by RFC 3875.
+
+	  Diff by Lloyd (thanks), ok kirill@
+
+2025-11-27 15:22  rsadowski
+
+	* usr.sbin/httpd/httpd.h: Add missing GZIP_STATIC flag to
+	  SRVFLAG_BITS macro
+
+	  GZIP_STATIC flag at position \33 was missing from the debug
+	  string.
+
+	  Also correct the truncated PATH_REWRITE/NO_PATH_REWRITE flag
+	  names.  The PATH_REWRITE and NO_PATH_REWRITE flag names were
+	  truncated to PATH and NO_PATH in the SRVFLAG_BITS string
+	  definition.
+
+	  OK kirill@ deraadt@
+
 2025-11-12 11:24  deraadt
 
 	* usr.sbin/httpd/: config.c, httpd.c, parse.y: Systopia team at UBC
