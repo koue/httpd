@@ -1,3 +1,42 @@
+2026-02-02 13:44  bluhm
+
+	* usr.sbin/httpd/server_http.c: In server_read_httpchunks() do not
+	  blindly enable the bufferevent.
+
+	  This leads to a use-after-free since the bev->readcb() call could
+	  free the memory holding the bev right before the
+	  bufferevent_enable() call.
+
+	  Reported by Pontus Stenetorp.  from clauio@; OK florian@
+	  rsadowski@
+
+	  this is errata/7.7/019_httpd.patch.sig
+
+2026-02-02 13:43  bluhm
+
+	* usr.sbin/httpd/server_http.c: In server_read_httpchunks() do not
+	  blindly enable the bufferevent.
+
+	  This leads to a use-after-free since the bev->readcb() call could
+	  free the memory holding the bev right before the
+	  bufferevent_enable() call.
+
+	  Reported by Pontus Stenetorp.  from clauio@; OK florian@
+	  rsadowski@
+
+	  this is errata/7.8/013_httpd.patch.sig
+
+2026-02-02 13:37  claudio
+
+	* usr.sbin/httpd/server_http.c: In server_read_httpchunks() do not
+	  blindly enable the bufferevent.
+
+	  This leads to a use-after-free since the bev->readcb() call could
+	  free the memory holding the bev right before the
+	  bufferevent_enable() call.
+
+	  Reported by Pontus Stenetorp.  OK florian@ rsadowski@
+
 2026-01-18 16:38  schwarze
 
 	* usr.sbin/httpd/httpd.conf.5: Slightly iprove a confusing wording
