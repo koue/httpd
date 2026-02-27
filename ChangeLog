@@ -1,3 +1,35 @@
+2026-02-26 19:49  claudio
+
+	* usr.sbin/httpd/server_http.c: Error out  on presence of
+	  Content-Length and Transfer-Encoding headers for GET, HEAD and
+	  other methods that should have no body.
+
+	  Ignoring the Content-Length header makes httpd vulnerable to HTTP
+	  request smuggling. A crafted GET request may embed an extra HTTP
+	  request which could bypass a proxy or WAF but then is handled by
+	  httpd.
+
+	  Remove the special case for TRACE and CONNECT in the
+	  Content-Length handling. Move those checks into the method switch
+	  at the end of the header parsing phase and by that also cover
+	  more methods including GET and HEAD. If either header is present
+	  simply abort the connection, nobody should send extra data along
+	  GET and HEAD requests.
+
+	  Add an an explicit HTTP_METHOD_TRACE case above the default case
+	  to indicated that we deliberately don't handle TRACE requests.
+
+	  This security vulnerability was found by Nicola Staller of SySS
+	  GmbH.
+
+	  With and OK rsadowski@ previous version also OK florian@
+
+2026-02-18 15:23  deraadt
+
+	* usr.bin/htpasswd/htpasswd.c: This is using pledge "tmppath" with
+	  "rpath wpath cpath".	The "tmppath" is not needed.  ok semarie
+	  and others
+
 2026-02-02 13:44  bluhm
 
 	* usr.sbin/httpd/server_http.c: In server_read_httpchunks() do not
