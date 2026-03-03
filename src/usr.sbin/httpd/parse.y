@@ -1,4 +1,4 @@
-/*	$OpenBSD: parse.y,v 1.130 2025/11/28 16:10:00 rsadowski Exp $	*/
+/*	$OpenBSD: parse.y,v 1.131 2026/03/02 19:24:58 rsadowski Exp $	*/
 
 /*
  * Copyright (c) 2020 Matthias Pressfreund <mpfr@fn.de>
@@ -55,6 +55,7 @@
 
 #include "httpd.h"
 #include "http.h"
+#include "log.h"
 
 #ifndef __OpenBSD__
 #include <stdlib.h>

@@ -1,4 +1,4 @@
-/*	$OpenBSD: proc.c,v 1.52 2024/11/21 13:38:45 claudio Exp $	*/
+/*	$OpenBSD: proc.c,v 1.53 2026/03/02 19:24:58 rsadowski Exp $	*/
 
 /*
  * Copyright (c) 2010 - 2016 Reyk Floeter <reyk@openbsd.org>
@@ -36,6 +36,7 @@
 #include <imsg.h>
 
 #include "httpd.h"
+#include "log.h"
 
 #ifdef USE_BLACKLIST
 #include "blacklist_client.h"

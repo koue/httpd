@@ -1,4 +1,4 @@
-/*	$OpenBSD: httpd.c,v 1.76 2026/01/02 08:45:16 rsadowski Exp $	*/
+/*	$OpenBSD: httpd.c,v 1.77 2026/03/02 19:24:58 rsadowski Exp $	*/
 
 /*
  * Copyright (c) 2014 Reyk Floeter <reyk@openbsd.org>
@@ -43,10 +43,14 @@
 #include <pwd.h>
 
 #include "httpd.h"
+#include "log.h"
+
+#ifndef __OpenBSD__
 #include "getdtablecount.h"
 
 #ifdef USE_BLACKLIST
 #include "blacklist_client.h"
+#endif
 #endif
 
 #define MAXIMUM(a, b)	(((a) > (b)) ? (a) : (b))

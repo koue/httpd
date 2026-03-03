@@ -1,4 +1,4 @@
-/*	$OpenBSD: server_fcgi.c,v 1.99 2026/01/02 08:45:16 rsadowski Exp $	*/
+/*	$OpenBSD: server_fcgi.c,v 1.100 2026/03/02 19:24:58 rsadowski Exp $	*/
 
 /*
  * Copyright (c) 2014 Florian Obser <florian@openbsd.org>
@@ -37,6 +37,7 @@
 
 #include "httpd.h"
 #include "http.h"
+#include "log.h"
 
 #define FCGI_PADDING_SIZE	 255
 #define FCGI_RECORD_SIZE	 \

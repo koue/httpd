@@ -1,3 +1,108 @@
+2026-03-02 19:24  rsadowski
+
+	* usr.sbin/httpd/: config.c, control.c, httpd.c, httpd.h, log.c,
+	  log.h, logger.c, parse.y, proc.c, server.c, server_fcgi.c,
+	  server_http.c: Standardize logging with bgpd
+
+	  Tweak and OK claudio@
+
+2026-02-28 09:36  rsadowski
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_http.c: remove empty
+	  server_http_init
+
+	  OK claudio
+
+2026-02-27 20:32  bluhm
+
+	* usr.bin/htpasswd/htpasswd.c: replace pledge "stdio rpath tmppath"
+	  with unveil "/tmp" "rwc" to satisfy mktemp(3) type operations,
+	  unveil "/" "r" for reading all over the tree, and pledge "stdio
+	  rpath wpath cpath" to permit both unveils subject to their own
+	  limitations.
+
+	  pledge "rpath tmppath" is replace with unveil "/" "r", unveil
+	  "/tmp" "rwc", and "rpath wpath cpath" from deraadt@; ok semarie
+
+	  This was using pledge "tmppath" with "rpath wpath cpath".  The
+	  "tmppath" is not needed.  from deraadt@; ok semarie and others
+
+	  uses tmpfile(), which is why it used "tmppath", which is why it
+	  now needs "rpath wpath cpath" from deraadt@; spotted by brynet
+
+	  Instead of pledge "tmppath rpath", setup a "rwc" unveil on
+	  "/tmp", a "r" unveil on "/", and then pledge "rpath wpath cpath".
+	   from deraadt@; ok semarie and others
+
+	  This is using pledge "tmppath" with "rpath wpath cpath".  The
+	  "tmppath" is not needed.  from deraadt@; ok semarie and others
+
+	  These programs are using pledge "tmppath" with "rpath wpath
+	  cpath".  The "tmppath" is not needed.  from deraadt@; ok semarie
+	  and others
+
+	  Use unveil() instead of pledge "tmppath".  There is a bit of
+	  bulldozering here to handle the many codeflows regarding output
+	  files, and I hope ingo improves it later.  from deraadt@; Some
+	  help with regression validation from job
+
+	  nc(1) has the more crazy unveil + pledge configuration based upon
+	  argument flags.  I think this correctly replaces "tmppath" with
+	  an unveil.  from deraadt@
+
+	  Since this program is "rpath wpath cpath", it does not need to
+	  use "tmppath" from deraadt@; ok op
+
+	  replace pledge "tmppath" with unveil "/tmp" "rwc" and "rpath
+	  wpath cpath".  from deraadt@; ok ok
+
+	  this is errata/7.7/021_tmppath.patch.sig
+
+2026-02-27 20:31  bluhm
+
+	* usr.bin/htpasswd/htpasswd.c: replace pledge "stdio rpath tmppath"
+	  with unveil "/tmp" "rwc" to satisfy mktemp(3) type operations,
+	  unveil "/" "r" for reading all over the tree, and pledge "stdio
+	  rpath wpath cpath" to permit both unveils subject to their own
+	  limitations.
+
+	  pledge "rpath tmppath" is replace with unveil "/" "r", unveil
+	  "/tmp" "rwc", and "rpath wpath cpath" from deraadt@; ok semarie
+
+	  This was using pledge "tmppath" with "rpath wpath cpath".  The
+	  "tmppath" is not needed.  from deraadt@; ok semarie and others
+
+	  uses tmpfile(), which is why it used "tmppath", which is why it
+	  now needs "rpath wpath cpath" from deraadt@; spotted by brynet
+
+	  Instead of pledge "tmppath rpath", setup a "rwc" unveil on
+	  "/tmp", a "r" unveil on "/", and then pledge "rpath wpath cpath".
+	   from deraadt@; ok semarie and others
+
+	  This is using pledge "tmppath" with "rpath wpath cpath".  The
+	  "tmppath" is not needed.  from deraadt@; ok semarie and others
+
+	  These programs are using pledge "tmppath" with "rpath wpath
+	  cpath".  The "tmppath" is not needed.  from deraadt@; ok semarie
+	  and others
+
+	  Use unveil() instead of pledge "tmppath".  There is a bit of
+	  bulldozering here to handle the many codeflows regarding output
+	  files, and I hope ingo improves it later.  from deraadt@; Some
+	  help with regression validation from job
+
+	  nc(1) has the more crazy unveil + pledge configuration based upon
+	  argument flags.  I think this correctly replaces "tmppath" with
+	  an unveil.  from deraadt@
+
+	  Since this program is "rpath wpath cpath", it does not need to
+	  use "tmppath" from deraadt@; ok op
+
+	  replace pledge "tmppath" with unveil "/tmp" "rwc" and "rpath
+	  wpath cpath".  from deraadt@; ok ok
+
+	  this is errata/7.8/015_tmppath.patch.sig
+
 2026-02-26 19:49  claudio
 
 	* usr.sbin/httpd/server_http.c: Error out  on presence of
