@@ -1,3 +1,18 @@
+2026-05-10 10:02  kirill
+
+	* usr.sbin/httpd/: config.c, httpd.h, parse.y: usr.sbin/httpd:
+	  inherit gzip-static in locations
+
+	  Location configuration inherited most server level options but
+	  dropped gzip-static, so requests matching a location skipped
+	  static gzip lookup even when the parent server enabled it.
+
+	  Add an explicit no gzip-static state and inherit the gzip flag
+	  pair only when the location has not set either form, preserving
+	  location specific overrides.
+
+	  Reported by and OK: job@
+
 2026-03-02 19:24  rsadowski
 
 	* usr.sbin/httpd/: config.c, control.c, httpd.c, httpd.h, log.c,
