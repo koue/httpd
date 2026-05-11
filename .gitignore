@@ -6,6 +6,7 @@
 *.key
 *.log
 *.o
+*.pieo
 *.req
 *.srl
 md5-*

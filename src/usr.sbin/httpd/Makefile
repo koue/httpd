@@ -78,6 +78,7 @@ $h: $h.in
 .endfor
 
 server_file.o: css.h js.h
+server_file.pieo: css.h js.h
 
 CLEANFILES += css.h js.h
 
