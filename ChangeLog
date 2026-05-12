@@ -1,3 +1,10 @@
+2026-05-11 22:33  kirill
+
+	* usr.sbin/httpd/: config.c, httpd.c, httpd.h, parse.y:
+	  usr.sbin/httpd: widen server flags to 64-bit integers
+
+	  OK job@
+
 2026-05-10 10:02  kirill
 
 	* usr.sbin/httpd/: config.c, httpd.h, parse.y: usr.sbin/httpd:
