@@ -1,3 +1,17 @@
+2026-05-17 10:56  kirill
+
+	* usr.sbin/httpd/: config.c, httpd.conf.5, httpd.h, parse.y,
+	  server_http.c: usr.sbin/httpd: add cache controls for static
+	  files
+
+	  Teach httpd to advertise static file revalidation by default with
+	  Cache-Control: no-cache, preserving the existing Last-Modified
+	  and If-Modified-Since flow; add a [no] static-cache-control
+	  directive for opting out, and advertise Vary: Accept-Encoding
+	  whenever gzip-static is enabled.
+
+	  OK: claudio@
+
 2026-05-11 22:33  kirill
 
 	* usr.sbin/httpd/: config.c, httpd.c, httpd.h, parse.y:
