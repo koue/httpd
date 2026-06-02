@@ -1,3 +1,26 @@
+2026-06-01 09:28  claudio
+
+	* usr.sbin/httpd/: httpd.conf.5, httpd.h, parse.y, server_fcgi.c,
+	  server_http.c: Fix uploads using chunked transfer-encoding
+
+	  The current code is broken so rework server_read_httpchunks() to
+	  properly implement chunked transfer-encoding. Chunked uploads
+	  only matter for fastcgi handlers, so adjust them to operate with
+	  chunked uploads.
+
+	  The problem is that the CGI spec mandates that CONTENT_LENGTH is
+	  set but for chunked transfers the content-length header is
+	  actually not allowed. Both fastcgi and cgi don't really need
+	  CONTENT_LENGTH since the data is passed via FCGI_STDIN messages
+	  or a pipe and in both cases EOF can be signaled just fine. Still
+	  some cgi/fastcgi handlers depend on the presence of
+	  CONTENT_LENGTH and so those fail to process such chunked uploads.
+	  For this reason add a config option to opt-in for chunked uploads
+	  but by default any upload with transfer-encoding chunked will
+	  result in a HTTP 400 error.
+
+	  OK kirill@ rsadowski@
+
 2026-05-17 10:56  kirill
 
 	* usr.sbin/httpd/: config.c, httpd.conf.5, httpd.h, parse.y,
