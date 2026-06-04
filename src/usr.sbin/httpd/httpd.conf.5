@@ -1,4 +1,4 @@
-.\"	$OpenBSD: httpd.conf.5,v 1.131 2026/06/01 09:28:42 claudio Exp $
+.\"	$OpenBSD: httpd.conf.5,v 1.133 2026/06/03 06:10:06 jsg Exp $
 .\"
 .\" Copyright (c) 2014, 2015 Reyk Floeter <reyk@openbsd.org>
 .\"
@@ -14,7 +14,7 @@
 .\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 .\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 .\"
-.Dd $Mdocdate: June 1 2026 $
+.Dd $Mdocdate: June 3 2026 $
 .Dt HTTPD.CONF 5
 .Os
 .Sh NAME
@@ -248,7 +248,7 @@ suppress the
 .Va Server
 HTTP response header, and hide the server software name in error documents for
 the current
-.Ic server.
+.Ic server .
 If
 .Ic no
 is omitted, enable the banner for the current
@@ -412,7 +412,7 @@ are forbidden.
 By setting
 .Ic pass Ic chunked
 uploads with chunked encoding are accepted but because the CONTENT_LENGTH
-variable can not be set it violates the CGI speficfication.
+variable can not be set it violates the CGI specification.
 .El
 .Pp
 The FastCGI handler will be given the following variables by default:
@@ -725,8 +725,8 @@ For legacy a fixed key length of 1024 bits is used, whereas for auto the key
 length is determined automatically.
 The default is none, which disables DHE cipher suites.
 .It Ic ecdhe Ar curves
-Specify a comma separated list of elliptic curves to use for ECDHE cipher suites,
-in order of preference.
+Specify a comma separated list of elliptic curves to use for
+ECDHE cipher suites, in order of preference.
 The special value of "default" will use the default curves; see
 .Xr tls_config_set_ecdhecurves 3
 for further details.
