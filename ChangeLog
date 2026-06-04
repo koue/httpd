@@ -1,3 +1,42 @@
+2026-06-03 20:00  kirill
+
+	* usr.sbin/httpd/: http.h, server_http.c: httpd: reject CL.TE
+	  request framing
+
+	  RFC 9112 sections 6.1 and 6.3 identify a request containing both
+	  Transfer-Encoding and Content-Length as ambiguous request
+	  smuggling input. httpd is the origin server, not an intermediary,
+	  so it should not rewrite the message and continue processing it.
+
+	  Reject chunked requests that also carry Content-Length before
+	  method specific body handling or FastCGI parameter generation;
+	  this avoids exposing inconsistent framing metadata to
+	  applications.
+
+	  Reproted by: Stuart Thomas
+
+	  OK: rsaodwski@
+
+2026-06-03 19:25  rsadowski
+
+	* usr.sbin/httpd/: httpd.c, httpd.h, server_http.c: httpd: reject
+	  obs-fold with 400 (RFC 9112 5.2)
+
+	  Replace silent kv_extend normalisation with an unconditional 400.
+	   RFC 9112 5.2 explicitly permits rejection; it is the safer
+	  choice over SP replacement, which hides parser ambiguity
+	  downstream.
+
+	  Reported by Stuart Thomas, OK kirill@
+
+2026-06-03 06:10  jsg
+
+	* usr.sbin/httpd/httpd.conf.5: correct mdoc usage
+
+2026-06-03 05:59  jsg
+
+	* usr.sbin/httpd/httpd.conf.5: speficfication -> specification
+
 2026-06-01 09:28  claudio
 
 	* usr.sbin/httpd/: httpd.conf.5, httpd.h, parse.y, server_fcgi.c,

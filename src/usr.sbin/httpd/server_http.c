@@ -1,4 +1,4 @@
-/*	$OpenBSD: server_http.c,v 1.163 2026/06/01 09:28:42 claudio Exp $	*/
+/*	$OpenBSD: server_http.c,v 1.165 2026/06/03 20:00:07 kirill Exp $	*/
 
 /*
  * Copyright (c) 2020 Matthias Pressfreund <mpfr@fn.de>
@@ -118,6 +118,7 @@ server_httpdesc_free(struct http_descriptor *desc)
 	desc->http_lastheader = NULL;
 	desc->http_method = 0;
 	desc->http_chunked = 0;
+	desc->http_cl = 0;
 }
 
 int
@@ -284,31 +285,22 @@ server_read_http(struct bufferevent *bev, void *arg)
 		 */
 		if (++clt->clt_line == 1)
 			value = strchr(key, ' ');
-		else if (*key == ' ' || *key == '\t')
-			/* Multiline headers wrap with a space or tab */
-			value = NULL;
+		else if (*key == ' ' || *key == '\t') {
+			/*
+			 * RFC 9112 section 5.2 permits unconditional rejection
+			 */
+			server_abort_http(clt, 400, "malformed");
+			goto abort;
+		}
 		else {
-			/* Not a multiline header, should have a : */
 			value = strchr(key, ':');
-			if (value == NULL) {
-				server_abort_http(clt, 400, "malformed");
-				goto abort;
-			}
 		}
+
 		if (value == NULL) {
-			if (clt->clt_line == 1) {
-				server_abort_http(clt, 400, "malformed");
-				goto abort;
-			}
-
-			/* Append line to the last header, if present */
-			if (kv_extend(&desc->http_headers,
-			    desc->http_lastheader, line) == NULL)
-				goto fail;
-
-			free(line);
-			continue;
+			server_abort_http(clt, 400, "malformed");
+			goto abort;
 		}
+
 		if (*value == ':') {
 			*value++ = '\0';
 			value += strspn(value, " \t\r\n");
@@ -393,6 +385,7 @@ server_read_http(struct bufferevent *bev, void *arg)
 				server_abort_http(clt, 500, errstr);
 				goto abort;
 			}
+			desc->http_cl = 1;
 		}
 
 		if (strcasecmp("Transfer-Encoding", key) == 0 &&
@@ -412,6 +405,17 @@ server_read_http(struct bufferevent *bev, void *arg)
 	if (clt->clt_headersdone) {
 		if (desc->http_method == HTTP_METHOD_NONE) {
 			server_abort_http(clt, 406, "no method");
+			return;
+		}
+
+		/*
+		 * RFC 9112 sections 6.1 and 6.3 forbid sending
+		 * Content-Length with Transfer-Encoding and identify
+		 * this framing ambiguity as request smuggling input.
+		 * httpd is an origin server, so reject it.
+		 */
+		if (desc->http_chunked && desc->http_cl) {
+			server_abort_http(clt, 400, "malformed");
 			return;
 		}
 
