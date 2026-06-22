@@ -1,4 +1,4 @@
-/*	$OpenBSD: server_file.c,v 1.80 2024/04/29 16:17:46 florian Exp $	*/
+/*	$OpenBSD: server_file.c,v 1.82 2026/06/21 19:23:56 tb Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2017 Reyk Floeter <reyk@openbsd.org>
@@ -719,6 +719,7 @@ server_file_modified_since(struct http_descriptor *desc, const struct timespec
 {
 	struct kv	 key, *since;
 	struct tm	 tm;
+	time_t		 t;
 
 	key.kv_key = "If-Modified-Since";
 	if ((since = kv_find(&desc->http_headers, &key)) != NULL &&
@@ -730,8 +731,12 @@ server_file_modified_since(struct http_descriptor *desc, const struct timespec
 		 * the requested time.
 		 */
 		if (strptime(since->kv_value,
-		    "%a, %d %h %Y %T %Z", &tm) != NULL &&
-		    timegm(&tm) >= mtim->tv_sec)
+		    "%a, %d %h %Y %T %Z", &tm) == NULL)
+			return (-1);
+		tm.tm_wday = -1;	/* sentinel for error */
+		if ((t = timegm(&tm)) == -1 && tm.tm_wday == -1)
+			return (-1);
+		if (t >= mtim->tv_sec)
 			return (304);
 	}
 
