@@ -1,3 +1,47 @@
+2026-06-21 19:23  tb
+
+	* usr.sbin/httpd/server_file.c: annotate tm_wday = -1 with /*
+	  sentinel for error */ per timegm(3) manpage
+
+	  suggested by deraadt
+
+2026-06-20 03:26  tb
+
+	* usr.sbin/httpd/server_file.c: httpd: error check timegm(3) per
+	  the manual
+
+	  ok job rsadowski
+
+2026-06-09 06:00  tb
+
+	* lib/libutil/fmt_scaled.c: Avoid signed overflow in fmt_scaled
+
+	  Adding the scaled fractional part to whole may result in a signed
+	  overflow.  Guard against this by adding checks before subtracting
+	  or adding.
+
+	  problem pointed out by a friend of claudio's fix looks good to
+	  claudio, ok djm
+
+2026-06-06 23:53  djm
+
+	* lib/libutil/fmt_scaled.c: whitespace
+
+2026-06-06 23:49  djm
+
+	* lib/libutil/fmt_scaled.c: rearrange scan_scaled(3) ordering of
+	  multiplications and divisions to better preserve accuracy for
+	  large exponents. From metsw24-max via
+	  https://github.com/openssh/openssh-portable/pull/671/
+
+	  ok tb@
+
+2026-06-04 05:34  deraadt
+
+	* usr.sbin/httpd/Makefile: httpd worries me a bit, so I want to
+	  random-relink it at boot.  The new /etc/rc relinking components
+	  will automatically pick up this new directory and process it.
+
 2026-06-03 20:00  kirill
 
 	* usr.sbin/httpd/: http.h, server_http.c: httpd: reject CL.TE
