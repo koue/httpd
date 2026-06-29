@@ -1,3 +1,37 @@
+2026-06-28 05:33  rsadowski
+
+	* usr.sbin/httpd/proc.c: restrict IMSG_CTL_PROCFD to parent and
+	  check process id/instance
+
+	  IMSG_CTL_PROCFD messages contain a destination process id and
+	  instance number that were used to index internal arrays before
+	  being checked.  A child sending bad imsgs could cause
+	  out-of-bounds reads or writes.
+
+	  Check for a missing fd, a bad process id, or an out-of-range
+	  instance before any array is indexed.  Also reject
+	  IMSG_CTL_PROCFD that does not come from the parent.
+
+	  from Andrew Griffiths, diff by martijn@ and myself, ok martijn@
+
+2026-06-28 05:08  rsadowski
+
+	* usr.sbin/httpd/: httpd.conf.5, httpd.h: Switch the default TLS
+	  cipher set from "compat" to "secure"
+
+	  The "secure" keyword only allows TLSv1.3 and the TLSv1.2 AEAD
+	  ciphers that have forward secrecy (ECDHE/DHE).  See
+	  tls_config_set_ciphers(3) for details.  This is stricter than
+	  "HIGH:!aNULL" and drops older ciphers without AEAD or forward
+	  secrecy.
+
+	  Also update the ciphers text in httpd.conf.5 with the clearer
+	  wording from smtpd.conf.5.
+
+	  Old peers that need these older ciphers may no longer connect.
+
+	  idea from Mischa, ok kirill@ ok tb@
+
 2026-06-21 19:23  tb
 
 	* usr.sbin/httpd/server_file.c: annotate tm_wday = -1 with /*
