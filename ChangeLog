@@ -1,3 +1,11 @@
+2026-07-01 18:15  martijn
+
+	* usr.sbin/httpd/: Makefile, control.c, httpd.c, httpd.h, proc.c:
+	  Remove support for control socket. There's no httpctl, and no
+	  known plans to implement it.
+
+	  OK rsadowski@, kirill@
+
 2026-06-28 05:33  rsadowski
 
 	* usr.sbin/httpd/proc.c: restrict IMSG_CTL_PROCFD to parent and

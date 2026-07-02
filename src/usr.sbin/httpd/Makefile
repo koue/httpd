@@ -1,4 +1,4 @@
-#	$OpenBSD: Makefile,v 1.32 2026/06/04 05:34:53 deraadt Exp $
+#	$OpenBSD: Makefile,v 1.33 2026/07/01 18:15:46 martijn Exp $
 
 LOCALBASE?=	/usr/local
 BINDIR?=	${LOCALBASE}/sbin
@@ -8,8 +8,9 @@ IMSGDIR?=	${.CURDIR}/../../../libimsg
 PROG=		httpd
 RELINK=		"./${PROG} -n -f /etc/examples/httpd.conf 2> /dev/null"
 SRCS=		parse.y
-SRCS+=		config.c control.c httpd.c log.c logger.c proc.c server.c
+SRCS+=		config.c httpd.c log.c logger.c proc.c server.c
 SRCS+=		server_http.c server_file.c server_fcgi.c
+
 .ifdef USE_BLACKLIST
 SRCS+=		blacklist.c
 .endif

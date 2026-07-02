@@ -1,4 +1,4 @@
-/*	$OpenBSD: proc.c,v 1.54 2026/06/28 05:33:20 rsadowski Exp $	*/
+/*	$OpenBSD: proc.c,v 1.57 2026/07/02 12:35:52 jsg Exp $	*/
 
 /*
  * Copyright (c) 2010 - 2016 Reyk Floeter <reyk@openbsd.org>
@@ -259,6 +259,11 @@ proc_accept(struct privsep *ps, int fd, enum privsep_procid dst,
 	struct privsep_pipes	*pp = ps->ps_pp;
 	struct imsgev		*iev;
 
+	if (fd == -1 || dst < 0 || dst >= PROC_MAX ||
+	    n >= ps->ps_instances[dst])
+		fatalx("%s: invalid descriptor target %d instance %u",
+		    __func__, dst, n);
+
 	if (ps->ps_ievs[dst] == NULL) {
 #if DEBUG > 1
 		log_debug("%s: %s src %d %d to dst %d %d not connected",
@@ -269,11 +274,6 @@ proc_accept(struct privsep *ps, int fd, enum privsep_procid dst,
 		close(fd);
 		return;
 	}
-
-	if (fd == -1 || dst < 0 || dst >= PROC_MAX ||
-	    n >= ps->ps_instances[dst])
-		fatalx("%s: invalid descriptor target %d instance %u",
-		    __func__, dst, n);
 
 	if (pp->pp_pipes[dst][n] != -1)
 		fatalx("%s: duplicated descriptor", __func__);
@@ -498,9 +498,6 @@ proc_shutdown(struct privsep_proc *p)
 	BLACKLIST_STOP();
 #endif
 
-	if (p->p_id == PROC_CONTROL && ps)
-		control_cleanup(&ps->ps_csock);
-
 	if (p->p_shutdown != NULL)
 		(*p->p_shutdown)();
 
@@ -540,17 +537,8 @@ proc_run(struct privsep *ps, struct privsep_proc *p,
 {
 	struct passwd		*pw;
 	const char		*root;
-	struct control_sock	*rcs;
 
 	log_procinit(p->p_title);
-
-	if (p->p_id == PROC_CONTROL && ps->ps_instance == 0) {
-		if (control_init(ps, &ps->ps_csock) == -1)
-			fatalx("%s: control_init", __func__);
-		TAILQ_FOREACH(rcs, &ps->ps_rcsocks, cs_entry)
-			if (control_init(ps, rcs) == -1)
-				fatalx("%s: control_init", __func__);
-	}
 
 	/* Use non-standard user */
 	if (p->p_pw != NULL)
@@ -596,13 +584,6 @@ proc_run(struct privsep *ps, struct privsep_proc *p,
 
 	proc_setup(ps, procs, nproc);
 	proc_accept(ps, PROC_PARENT_SOCK_FILENO, PROC_PARENT, 0);
-	if (p->p_id == PROC_CONTROL && ps->ps_instance == 0) {
-		if (control_listen(&ps->ps_csock) == -1)
-			fatalx("%s: control_listen", __func__);
-		TAILQ_FOREACH(rcs, &ps->ps_rcsocks, cs_entry)
-			if (control_listen(rcs) == -1)
-				fatalx("%s: control_listen", __func__);
-	}
 
 	DPRINTF("%s: %s %d/%d, pid %d", __func__, p->p_title,
 	    ps->ps_instance + 1, ps->ps_instances[p->p_id], getpid());
@@ -624,7 +605,7 @@ proc_dispatch(int fd, short event, void *arg)
 	struct imsgbuf		*ibuf;
 	struct imsg		 imsg;
 	ssize_t			 n;
-	int			 verbose;
+	int			 ver;
 	const char		*title;
 	struct privsep_fd	 pf;
 
@@ -632,15 +613,18 @@ proc_dispatch(int fd, short event, void *arg)
 	ibuf = &iev->ibuf;
 
 	if (event & EV_READ) {
-/* newer imsg */
+/* newer imsg  NEW */
 #ifdef __OpenBSD__
-		if ((n = imsgbuf_read(ibuf)) == -1)
-			fatal("%s: imsgbuf_read", __func__);
+		switch (imsgbuf_read(ibuf)) {
 #else
-		if ((n = imsg_read(ibuf)) == -1 && errno != EAGAIN)
-			fatal("%s: imsg_read", __func__);
+// keep for reference
+//		if ((n = imsg_read(ibuf)) == -1 && errno != EAGAIN)
+		switch (imsg_read(ibuf)) {
 #endif
-		if (n == 0) {
+		case -1:
+			fatal("%s: imsgbuf_read", __func__);
+			break;
+		case 0:
 			/* this pipe is dead, so remove the event handler */
 			event_del(&iev->ev);
 			event_loopexit(NULL);
@@ -672,15 +656,27 @@ proc_dispatch(int fd, short event, void *arg)
 	}
 
 	for (;;) {
+/* newer imsg */
+#ifdef __OpenBSD__
+		if ((n = imsgbuf_get(ibuf, &imsg)) == -1)
+			fatal("%s: imsgbuf_get", __func__);
+#else
 		if ((n = imsg_get(ibuf, &imsg)) == -1)
 			fatal("%s: imsg_get", __func__);
+#endif
 		if (n == 0)
 			break;
 
 #if DEBUG > 1
 		log_debug("%s: %s %d got imsg %d peerid %d from %s %d",
 		    __func__, title, ps->ps_instance + 1,
+/* newer imsg */
+#ifdef __OpenBSD__
+		    imsg_get_type(&imsg), imsg_get_id(&imsg),
+		    p->p_title, imsg_get_pid(&imsg));
+#else
 		    imsg.hdr.type, imsg.hdr.peerid, p->p_title, imsg.hdr.pid);
+#endif
 #endif
 
 		/*
@@ -695,11 +691,24 @@ proc_dispatch(int fd, short event, void *arg)
 		/*
 		 * Generic message handling
 		 */
+/* newer imsg */
+#ifdef __OpenBSD__
+		switch (imsg_get_type(&imsg)) {
+#else
 		switch (imsg.hdr.type) {
+#endif
 		case IMSG_CTL_VERBOSE:
-			IMSG_SIZE_CHECK(&imsg, &verbose);
-			memcpy(&verbose, imsg.data, sizeof(verbose));
-			log_setverbose(verbose);
+/* newer imsg */
+#ifdef __OpenBSD__
+			if (imsg_get_data(&imsg, &ver, sizeof(ver)) == -1)
+			       fatalx("%s: imsg_get_data", __func__);
+
+			log_setverbose(ver);
+#else
+			IMSG_SIZE_CHECK(&imsg, &ver);
+			memcpy(&ver, imsg.data, sizeof(ver));
+			log_setverbose(ver);
+#endif
 			break;
 		case IMSG_CTL_PROCFD:
 			if (p->p_id != PROC_PARENT) {
@@ -707,12 +716,15 @@ proc_dispatch(int fd, short event, void *arg)
 				    "IMSG_CTL_PROCFD from %s",
 				    __func__, p->p_title);
 			}
-			IMSG_SIZE_CHECK(&imsg, &pf);
-			memcpy(&pf, imsg.data, sizeof(pf));
 /* newer imsg */
 #ifdef __OpenBSD__
+			if (imsg_get_data(&imsg, &pf, sizeof(pf)) == -1)
+				fatalx("%s: imsg_get_data", __func__);
+
 			proc_accept(ps, imsg_get_fd(&imsg), pf.pf_procid,
 #else
+			IMSG_SIZE_CHECK(&imsg, &pf);
+			memcpy(&pf, imsg.data, sizeof(pf));
 			proc_accept(ps, imsg.fd, pf.pf_procid,
 #endif
 			    pf.pf_instance);
@@ -721,8 +733,14 @@ proc_dispatch(int fd, short event, void *arg)
 			fatalx("%s: %s %d got invalid imsg %d peerid %d "
 			    "from %s %d",
 			    __func__, title, ps->ps_instance + 1,
+/* newer imsg */
+#ifdef __OpenBSD__
+			    imsg_get_type(&imsg), imsg_get_id(&imsg),
+			    p->p_title, imsg_get_pid(&imsg));
+#else
 			    imsg.hdr.type, imsg.hdr.peerid,
 			    p->p_title, imsg.hdr.pid);
+#endif
 		}
 		imsg_free(&imsg);
 	}
@@ -850,18 +868,30 @@ proc_composev(struct privsep *ps, enum privsep_procid id,
 	return (proc_composev_imsg(ps, id, -1, type, -1, -1, iov, iovcnt));
 }
 
+/* newer imsg */
+#ifdef __OpenBSD__
+void
+proc_forward_imsg(struct privsep *ps, struct imsg *imsg,
+    enum privsep_procid id)
+{
+	int	 m, n = -1;
+
+	proc_range(ps, id, &n, &m);
+	for (; n < m; n++) {
+		if (imsg_forward(&ps->ps_ievs[id][n].ibuf, imsg) == -1)
+			fatal("%s: imsg_forward", __func__);
+		imsg_event_add(&ps->ps_ievs[id][n]);
+	}
+}
+#else
 int
 proc_forward_imsg(struct privsep *ps, struct imsg *imsg,
     enum privsep_procid id, int n)
 {
 	return (proc_compose_imsg(ps, id, n, imsg->hdr.type,
-/* newer imsg */
-#ifdef __OpenBSD__
-	    imsg->hdr.peerid, -1, imsg->data, IMSG_DATA_SIZE(imsg)));
-#else
 	    imsg->hdr.peerid, imsg->fd, imsg->data, IMSG_DATA_SIZE(imsg)));
-#endif
 }
+#endif
 
 struct imsgbuf *
 proc_ibuf(struct privsep *ps, enum privsep_procid id, int n)
