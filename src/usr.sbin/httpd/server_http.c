@@ -1,4 +1,4 @@
-/*	$OpenBSD: server_http.c,v 1.165 2026/06/03 20:00:07 kirill Exp $	*/
+/*	$OpenBSD: server_http.c,v 1.167 2026/07/02 04:59:50 rsadowski Exp $	*/
 
 /*
  * Copyright (c) 2020 Matthias Pressfreund <mpfr@fn.de>
@@ -55,6 +55,10 @@ char		*server_expand_http(struct client *, const char *,
 		    char *, size_t);
 char		*replace_var(char *, const char *, const char *);
 char		*read_errdoc(const char *, const char *);
+ssize_t		 server_create_builtin(struct server_config *, char **,
+		    unsigned int, const char *);
+char		*server_create_errdoc(struct server_config *, unsigned int,
+		    const char *);
 
 static struct http_method	 http_methods[] = HTTP_METHODS;
 static struct http_error	 http_errors[] = HTTP_ERRORS;
@@ -880,15 +884,15 @@ server_abort_http(struct client *clt, unsigned int code, const char *msg)
 	struct server_config	*srv_conf = clt->clt_srv_conf;
 	struct bufferevent	*bev = clt->clt_bev;
 	struct http_descriptor	*desc = clt->clt_descreq;
-	const char		*httperr = NULL, *style;
+	const char		*httperr = NULL;
 	char			*httpmsg, *body = NULL, *extraheader = NULL;
 	char			 tmbuf[32], hbuf[128], *hstsheader = NULL;
 	char			*clenheader = NULL;
-	char			*bannerheader = NULL, *bannertoken = NULL;
+	char			*bannerheader = NULL;
 	char			 buf[IBUF_READ_SIZE];
 	char			*escapedmsg = NULL;
-	char			 cstr[5];
 	ssize_t			 bodylen;
+	ssize_t			 httpmsglen;
 
 	if (code == 0) {
 		server_close(clt, "dropped");
@@ -941,6 +945,7 @@ server_abort_http(struct client *clt, unsigned int code, const char *msg)
 			code = 500;
 			extraheader = NULL;
 		}
+		free(escapedmsg);
 		break;
 	case 416:
 		if (msg == NULL)
@@ -962,66 +967,12 @@ server_abort_http(struct client *clt, unsigned int code, const char *msg)
 		break;
 	}
 
-	free(escapedmsg);
-
-	if ((srv_conf->flags & SRVFLAG_ERRDOCS) == 0)
-		goto builtin; /* errdocs not enabled */
-	if ((size_t)snprintf(cstr, sizeof(cstr), "%03u", code) >= sizeof(cstr))
-		goto builtin;
-
-	if ((body = read_errdoc(srv_conf->errdocroot, cstr)) == NULL &&
-	    (body = read_errdoc(srv_conf->errdocroot, HTTPD_ERRDOCTEMPLATE))
-	    == NULL)
-		goto builtin;
-
-	body = replace_var(body, "$HTTP_ERROR", httperr);
-	body = replace_var(body, "$RESPONSE_CODE", cstr);
-	/* Check if server banner is suppressed */
-	if ((srv_conf->flags & SRVFLAG_NO_BANNER) == 0)
-		body = replace_var(body, "$SERVER_SOFTWARE", HTTPD_SERVERNAME);
-	else
-		body = replace_var(body, "$SERVER_SOFTWARE", "");
-	bodylen = strlen(body);
-	goto send;
-
- builtin:
-	/* A CSS stylesheet allows minimal customization by the user */
-	style = "body { background-color: white; color: black; font-family: "
-	    "'Comic Sans MS', 'Chalkboard SE', 'Comic Neue', sans-serif; }\n"
-	    "hr { border: 0; border-bottom: 1px dashed; }\n"
-	    "@media (prefers-color-scheme: dark) {\n"
-	    "body { background-color: #1E1F21; color: #EEEFF1; }\n"
-	    "a { color: #BAD7FF; }\n}";
-
-	/* If banner is suppressed, don't write it to the error document */
-	if ((srv_conf->flags & SRVFLAG_NO_BANNER) == 0)
-		if (asprintf(&bannertoken, "<hr>\n<address>%s</address>\n",
-		    HTTPD_SERVERNAME) == -1) {
-			bannertoken = NULL;
-			goto done;
-		}
-
-	/* Generate simple HTML error document */
-	if ((bodylen = asprintf(&body,
-	    "<!DOCTYPE html>\n"
-	    "<html>\n"
-	    "<head>\n"
-	    "<meta charset=\"utf-8\">\n"
-	    "<title>%03d %s</title>\n"
-	    "<style type=\"text/css\"><!--\n%s\n--></style>\n"
-	    "</head>\n"
-	    "<body>\n"
-	    "<h1>%03d %s</h1>\n"
-	    "%s"
-	    "</body>\n"
-	    "</html>\n",
-	    code, httperr, style, code, httperr,
-	    bannertoken == NULL ? "" : bannertoken)) == -1) {
-		body = NULL;
+	if ((body = server_create_errdoc(srv_conf, code, httperr)) != NULL) {
+		bodylen = strlen(body);
+	} else if ((bodylen = server_create_builtin(srv_conf, &body, code,
+	    httperr)) == -1)
 		goto done;
-	}
 
- send:
 	if (srv_conf->flags & SRVFLAG_SERVER_HSTS &&
 	    srv_conf->flags & SRVFLAG_TLS) {
 		if (asprintf(&hstsheader, "Strict-Transport-Security: "
@@ -1054,7 +1005,7 @@ server_abort_http(struct client *clt, unsigned int code, const char *msg)
 		}
 
 	/* Add basic HTTP headers */
-	if (asprintf(&httpmsg,
+	if ((httpmsglen = asprintf(&httpmsg,
 	    "HTTP/1.0 %03d %s\r\n"
 	    "Date: %s\r\n"
 	    "%s"
@@ -1071,12 +1022,27 @@ server_abort_http(struct client *clt, unsigned int code, const char *msg)
 	    extraheader == NULL ? "" : extraheader,
 	    hstsheader == NULL ? "" : hstsheader,
 	    desc->http_method == HTTP_METHOD_HEAD || clenheader == NULL ?
-	    "" : body) == -1)
+	    "" : body)) == -1)
 		goto done;
 
-	/* Dump the message without checking for success */
-	server_dump(clt, httpmsg, strlen(httpmsg));
+	free(clt->clt_close_msg);
+	if (asprintf(&clt->clt_close_msg, "%s (%03d %s)",
+	    msg == NULL ? "\"\"" : msg, code, httperr) == -1)
+		clt->clt_close_msg = NULL;
+
+	if (server_bufferevent_write_close(clt, httpmsg,
+	    (size_t)httpmsglen) == -1) {
+		/* fall back to synchronous close */
+		free(httpmsg);
+		goto done;
+	}
 	free(httpmsg);
+	free(body);
+	free(extraheader);
+	free(hstsheader);
+	free(clenheader);
+	free(bannerheader);
+	return;
 
  done:
 	free(body);
@@ -1084,7 +1050,6 @@ server_abort_http(struct client *clt, unsigned int code, const char *msg)
 	free(hstsheader);
 	free(clenheader);
 	free(bannerheader);
-	free(bannertoken);
 	if (msg == NULL)
 		msg = "\"\"";
 	if (asprintf(&httpmsg, "%s (%03d %s)", msg, code, httperr) == -1) {
@@ -1093,6 +1058,80 @@ server_abort_http(struct client *clt, unsigned int code, const char *msg)
 		server_close(clt, httpmsg);
 		free(httpmsg);
 	}
+}
+
+char *
+server_create_errdoc(struct server_config *srv_conf, unsigned int code,
+    const char *httperr)
+{
+	char	 cstr[5];
+	char	*body;
+
+	if (!(srv_conf->flags & SRVFLAG_ERRDOCS))
+		return (NULL);
+
+	if ((size_t)snprintf(cstr, sizeof(cstr), "%03u", code) >= sizeof(cstr))
+		return (NULL);
+
+	if ((body = read_errdoc(srv_conf->errdocroot, cstr)) == NULL &&
+	    (body = read_errdoc(srv_conf->errdocroot, HTTPD_ERRDOCTEMPLATE))
+	    == NULL)
+		return (NULL);
+
+	body = replace_var(body, "$HTTP_ERROR", httperr);
+	body = replace_var(body, "$RESPONSE_CODE", cstr);
+	body = replace_var(body, "$SERVER_SOFTWARE",
+	    (srv_conf->flags & SRVFLAG_NO_BANNER) ? "" : HTTPD_SERVERNAME);
+
+	return (body);
+}
+
+ssize_t
+server_create_builtin(struct server_config *srv_conf, char **body,
+    unsigned int code, const char *httperr)
+{
+	const char	*style;
+	char		*bannertoken = NULL;
+	ssize_t		 bodylen;
+
+	/* A CSS stylesheet allows minimal customization by the user */
+	style = "body { background-color: white; color: black; font-family: "
+	    "'Comic Sans MS', 'Chalkboard SE', 'Comic Neue', sans-serif; }\n"
+	    "hr { border: 0; border-bottom: 1px dashed; }\n"
+	    "@media (prefers-color-scheme: dark) {\n"
+	    "body { background-color: #1E1F21; color: #EEEFF1; }\n"
+	    "a { color: #BAD7FF; }\n}";
+
+	/* If banner is suppressed, don't write it to the error document */
+	if ((srv_conf->flags & SRVFLAG_NO_BANNER) == 0) {
+		if (asprintf(&bannertoken, "<hr>\n<address>%s</address>\n",
+		    HTTPD_SERVERNAME) == -1)
+			return (-1);
+	}
+
+	/* Generate simple HTML error document */
+	bodylen = asprintf(body,
+	    "<!DOCTYPE html>\n"
+	    "<html>\n"
+	    "<head>\n"
+	    "<meta charset=\"utf-8\">\n"
+	    "<title>%03d %s</title>\n"
+	    "<style type=\"text/css\"><!--\n%s\n--></style>\n"
+	    "</head>\n"
+	    "<body>\n"
+	    "<h1>%03d %s</h1>\n"
+	    "%s"
+	    "</body>\n"
+	    "</html>\n",
+	    code, httperr, style, code, httperr,
+	    bannertoken == NULL ? "" : bannertoken);
+
+	free(bannertoken);
+	if (bodylen == -1) {
+		*body = NULL;
+		return (-1);
+	}
+	return (bodylen);
 }
 
 void
