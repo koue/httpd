@@ -1,3 +1,74 @@
+2026-07-14 08:53  rsadowski
+
+	* usr.sbin/httpd/parse.y: httpd: make token order more easily
+	  extendable
+
+	  OK claudio@
+
+2026-07-14 08:30  martijn
+
+	* usr.sbin/httpd/proc.c: Synchronize styling, comments, and log
+	  messages so that httpd, and relayd's proc.c are mostly in sync.
+	  While here fix a conditional in httpd's proc_kill that never
+	  found its way over from the other proc.c implementations.
+
+	  OK rsadowski@
+
+2026-07-02 12:35  jsg
+
+	* usr.sbin/httpd/proc.c: move bounds test in proc_accept() before
+	  first use found with smatch, ok rsadowski@ martijn@
+
+2026-07-02 04:59  rsadowski
+
+	* usr.sbin/httpd/server_http.c: httpd: error loading the document
+	  in server_create_errdoc()
+
+	  Move the error document loading logic into a function
+
+	  OK kirill@
+
+2026-07-02 04:59  rsadowski
+
+	* usr.sbin/httpd/: httpd.h, server.c: httpd: drain abort response
+	  via bufferevent
+
+	  server_dump() did one non-blocking write(2)/tls_write(3) and
+	  discarded the return value, so partial writes were lost, meaning
+	  that large user-defined error documents were silently truncated
+	  in transit before server_close() closed the connection.
+
+	  OK kirill@
+
+2026-07-02 04:58  rsadowski
+
+	* usr.sbin/httpd/server_http.c: httpd: Move the builtin logic into
+	  a new function
+
+	  OK kirill@
+
+2026-07-02 04:48  rsadowski
+
+	* usr.sbin/httpd/: httpd.h, proc.c: httpd: convert proc.c to new
+	  imsg API (sync with relayd proc.c)
+
+	  Replace IMSG_SIZE_CHECK() + memcpy() with imsg_get_data(), which
+	  does the length check and copy in one call. Use the imsg
+	  accessors (imsg_get_*) instead of touching imsg.hdr directly and
+	  imsgbuf_get()/imsgbuf_read() instead of imsg_get().
+
+	  Rewrite proc_forward_imsg() to use imsg_forward() per target
+	  imsgbuf instead of re-composing via proc_compose_imsg(); arm the
+	  write event with imsg_event_add() after each forward.
+
+	  proc_forward_imsg() never forwarded an fd, and imsg_forward()
+	  rewinds the buffer internally, so multiple forwards per message
+	  keep working.
+
+	  Drop the now-unused n parameter (all callers passed -1).
+
+	  OK martijn@
+
 2026-07-01 18:15  martijn
 
 	* usr.sbin/httpd/: Makefile, control.c, httpd.c, httpd.h, proc.c:
