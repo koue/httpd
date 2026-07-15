@@ -753,13 +753,10 @@ int	 proc_composev_imsg(struct privsep *, enum privsep_procid, int,
 	    u_int16_t, u_int32_t, int, const struct iovec *, int);
 int	 proc_composev(struct privsep *, enum privsep_procid,
 	    uint16_t, const struct iovec *, int);
-/* newer imsg */
+/* unused */
 #ifdef __OpenBSD__
 void	 proc_forward_imsg(struct privsep *, struct imsg *,
 	    enum privsep_procid);
-#else
-int	 proc_forward_imsg(struct privsep *, struct imsg *,
-	    enum privsep_procid, int);
 #endif
 struct imsgbuf *
 	 proc_ibuf(struct privsep *, enum privsep_procid, int);

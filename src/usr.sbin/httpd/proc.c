@@ -613,7 +613,7 @@ proc_dispatch(int fd, short event, void *arg)
 	ibuf = &iev->ibuf;
 
 	if (event & EV_READ) {
-/* newer imsg  NEW */
+/* newer imsg */
 #ifdef __OpenBSD__
 		switch (imsgbuf_read(ibuf)) {
 #else
@@ -867,7 +867,7 @@ proc_composev(struct privsep *ps, enum privsep_procid id,
 	return (proc_composev_imsg(ps, id, -1, type, -1, -1, iov, iovcnt));
 }
 
-/* newer imsg */
+/* unused */
 #ifdef __OpenBSD__
 void
 proc_forward_imsg(struct privsep *ps, struct imsg *imsg,
@@ -881,14 +881,6 @@ proc_forward_imsg(struct privsep *ps, struct imsg *imsg,
 			fatal("%s: imsg_forward", __func__);
 		imsg_event_add(&ps->ps_ievs[id][n]);
 	}
-}
-#else
-int
-proc_forward_imsg(struct privsep *ps, struct imsg *imsg,
-    enum privsep_procid id, int n)
-{
-	return (proc_compose_imsg(ps, id, n, imsg->hdr.type,
-	    imsg->hdr.peerid, imsg->fd, imsg->data, IMSG_DATA_SIZE(imsg)));
 }
 #endif
 
