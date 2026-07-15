@@ -1,4 +1,4 @@
-/*	$OpenBSD: proc.c,v 1.57 2026/07/02 12:35:52 jsg Exp $	*/
+/*	$OpenBSD: proc.c,v 1.58 2026/07/14 08:30:09 martijn Exp $	*/
 
 /*
  * Copyright (c) 2010 - 2016 Reyk Floeter <reyk@openbsd.org>
@@ -43,11 +43,11 @@
 #endif
 
 void	 proc_exec(struct privsep *, struct privsep_proc *, unsigned int, int,
-	    char **);
+    char **);
 void	 proc_setup(struct privsep *, struct privsep_proc *, unsigned int);
 void	 proc_open(struct privsep *, int, int);
 void	 proc_accept(struct privsep *, int, enum privsep_procid,
-	    unsigned int);
+    unsigned int);
 void	 proc_close(struct privsep *);
 void	 proc_shutdown(struct privsep_proc *);
 void	 proc_sig_handler(int, short, void *);
@@ -76,11 +76,11 @@ void
 proc_exec(struct privsep *ps, struct privsep_proc *procs, unsigned int nproc,
     int argc, char **argv)
 {
-	unsigned int		 proc, nargc, i, proc_i;
+	unsigned int		  proc, nargc, i, proc_i;
 	char			**nargv;
-	struct privsep_proc	*p;
-	char			 num[32];
-	int			 fd;
+	struct privsep_proc	 *p;
+	char			  num[32];
+	int			  fd;
 
 	/* Prepare the new process argv. */
 	nargv = calloc(argc + 5, sizeof(char *));
@@ -99,7 +99,7 @@ proc_exec(struct privsep *ps, struct privsep_proc *procs, unsigned int nproc,
 	/* Point process instance arg to stack and copy the original args. */
 	nargv[nargc++] = "-I";
 	nargv[nargc++] = num;
-	for (i = 1; i < (unsigned int) argc; i++)
+	for (i = 1; i < (unsigned int)argc; i++)
 		nargv[nargc++] = argv[i];
 
 	nargv[nargc] = NULL;
@@ -125,8 +125,8 @@ proc_exec(struct privsep *ps, struct privsep_proc *procs, unsigned int nproc,
 			case 0:
 				/* Prepare parent socket. */
 				if (fd != PROC_PARENT_SOCK_FILENO) {
-					if (dup2(fd, PROC_PARENT_SOCK_FILENO)
-					    == -1)
+					if (dup2(fd, PROC_PARENT_SOCK_FILENO) ==
+					    -1)
 						fatal("dup2");
 				} else if (fcntl(fd, F_SETFD, 0) == -1)
 					fatal("fcntl");
@@ -165,7 +165,7 @@ proc_connect(struct privsep *ps)
 #ifdef __OpenBSD__
 			if (imsgbuf_init(&iev->ibuf,
 			    ps->ps_pp->pp_pipes[dst][inst]) == -1)
-				fatal(NULL);
+				fatal("%s: imsgbuf_init", __func__);
 			imsgbuf_allow_fdpass(&iev->ibuf);
 #else
 			imsg_init(&iev->ibuf, ps->ps_pp->pp_pipes[dst][inst]);
@@ -283,7 +283,7 @@ proc_accept(struct privsep *ps, int fd, enum privsep_procid dst,
 /* newer imsg */
 #ifdef __OpenBSD__
 	if (imsgbuf_init(&iev->ibuf, fd) == -1)
-		fatal(NULL);
+		fatal("%s: imsgbuf_init", __func__);
 	imsgbuf_allow_fdpass(&iev->ibuf);
 #else
 	imsg_init(&iev->ibuf, fd);
@@ -400,7 +400,7 @@ proc_kill(struct privsep *ps)
 			free(cause);
 		} else
 			log_warnx("lost child: pid %u", pid);
-	} while (pid != -1 || errno == EINTR);
+	} while (pid != -1 || (pid == -1 && errno == EINTR));
 }
 
 void
@@ -450,7 +450,7 @@ proc_open(struct privsep *ps, int src, int dst)
 			 */
 			if (proc_flush_imsg(ps, src, i) == -1 ||
 			    proc_flush_imsg(ps, dst, j) == -1)
-				fatal("%s: imsgbuf_flush", __func__);
+				fatal("%s: proc_flush_imsg", __func__);
 		}
 	}
 }
@@ -636,13 +636,12 @@ proc_dispatch(int fd, short event, void *arg)
 /* newer imsg */
 #ifdef __OpenBSD__
 		if (imsgbuf_write(ibuf) == -1) {
-			if (errno == EPIPE) {	/* connection closed */
-				/* remove the event handler */
+			if (errno == EPIPE) {	/* Connection closed. */
 				event_del(&iev->ev);
 				event_loopexit(NULL);
 				return;
-			} else
-				fatal("%s: imsgbuf_write", __func__);
+			}
+			fatal("%s: imsgbuf_write", __func__);
 #else
 		if ((n = msgbuf_write(&ibuf->w)) == -1 && errno != EAGAIN)
 			fatal("%s: msgbuf_write", __func__);
@@ -701,7 +700,7 @@ proc_dispatch(int fd, short event, void *arg)
 /* newer imsg */
 #ifdef __OpenBSD__
 			if (imsg_get_data(&imsg, &ver, sizeof(ver)) == -1)
-			       fatalx("%s: imsg_get_data", __func__);
+				fatalx("%s: imsg_get_data", __func__);
 
 			log_setverbose(ver);
 #else
