@@ -23,10 +23,10 @@ cd - && make install
 
 `httpd -f etc/examples/httpd.conf`
 
-## Blacklist
+## Blocklist
 
-Blacklistd(8) is a daemon that blocks and releases ports on demand. To compile
-httpd with blacklistd support use `make -DUSE_BLACKLIST`. To use blacklistd
+Blocklistd(8) is a daemon that blocks and releases ports on demand. To compile
+httpd with blocklistd support use `make -DUSE_BLOCKLIST`. To use blocklistd
 along with httpd add `block drop` option in httpd.conf. For example:
 ```
 location "/*.php" {
@@ -34,4 +34,4 @@ location "/*.php" {
 }
 ```
 All requests looking for php files will be dropped by httpd and the IP address
-of the client will be send to blacklistd.
+of the client will be send to blocklistd.

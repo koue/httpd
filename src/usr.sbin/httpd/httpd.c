@@ -48,8 +48,8 @@
 #ifndef __OpenBSD__
 #include "getdtablecount.h"
 
-#ifdef USE_BLACKLIST
-#include "blacklist_client.h"
+#ifdef USE_BLOCKLIST
+#include "blocklist_client.h"
 #endif
 #endif
 
@@ -162,9 +162,9 @@ main(int argc, char *argv[])
 			proc_id = proc_getid(procs, nitems(procs), title);
 			if (proc_id == PROC_MAX)
 				fatalx("invalid process name");
-#ifdef USE_BLACKLIST
+#ifdef USE_BLOCKLIST
 			if (strcmp(title, "server") == 0)
-				BLACKLIST_INIT();
+				BLOCKLIST_INIT();
 #endif
 			break;
 		case 'I':

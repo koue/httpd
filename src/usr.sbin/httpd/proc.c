@@ -38,8 +38,8 @@
 #include "httpd.h"
 #include "log.h"
 
-#ifdef USE_BLACKLIST
-#include "blacklist_client.h"
+#ifdef USE_BLOCKLIST
+#include "blocklist_client.h"
 #endif
 
 void	 proc_exec(struct privsep *, struct privsep_proc *, unsigned int, int,
@@ -494,8 +494,8 @@ proc_shutdown(struct privsep_proc *p)
 {
 	struct privsep	*ps = p->p_ps;
 
-#ifdef USE_BLACKLIST
-	BLACKLIST_STOP();
+#ifdef USE_BLOCKLIST
+	BLOCKLIST_STOP();
 #endif
 
 	if (p->p_shutdown != NULL)

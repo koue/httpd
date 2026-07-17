@@ -46,8 +46,8 @@
 #include "log.h"
 #include "patterns.h"
 
-#ifdef USE_BLACKLIST
-#include "blacklist_client.h"
+#ifdef USE_BLOCKLIST
+#include "blocklist_client.h"
 #endif
 
 #ifndef __OpenBSD__
@@ -904,9 +904,9 @@ server_abort_http(struct client *clt, unsigned int code, const char *msg)
 	ssize_t			 httpmsglen;
 
 	if (code == 0) {
-#ifdef USE_BLACKLIST
-		BLACKLIST_NOTIFY(BLACKLIST_ABUSIVE_BEHAVIOR, clt->clt_s,
-		    "blacklisted ");
+#ifdef USE_BLOCKLIST
+		BLOCKLIST_NOTIFY(BLOCKLIST_ABUSIVE_BEHAVIOR, clt->clt_s,
+		    "blocklisted abusive behavior");
 #endif
 		server_close(clt, "dropped");
 		return;

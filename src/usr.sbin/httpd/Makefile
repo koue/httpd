@@ -11,8 +11,8 @@ SRCS=		parse.y
 SRCS+=		config.c httpd.c log.c logger.c proc.c server.c
 SRCS+=		server_http.c server_file.c server_fcgi.c
 
-.ifdef USE_BLACKLIST
-SRCS+=		blacklist.c
+.ifdef USE_BLOCKLIST
+SRCS+=		blocklist.c
 .endif
 
 
@@ -41,8 +41,8 @@ LDADD+= 	/usr/local/lib/libtls.a \
 .endif
 
 LDADD+= 	-lcrypt -lprocstat -pthread
-.ifdef USE_BLACKLIST
-LDADD+= 	-lblacklist
+.ifdef USE_BLOCKLIST
+LDADD+= 	-lblocklist
 .endif
 SRCS+=		patterns.c
 MAN+=		patterns.7
@@ -65,8 +65,8 @@ CFLAGS+=	-I${SSLDIR}/include
 CFLAGS+=	-I${LOCALBASE}/include
 .endif
 
-.ifdef USE_BLACKLIST
-CFLAGS+= 	-DUSE_BLACKLIST
+.ifdef USE_BLOCKLIST
+CFLAGS+= 	-DUSE_BLOCKLIST
 .endif
 
 CFLAGS+=	-D__dead='' \

@@ -32,29 +32,29 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include <blacklist.h>
-#include "blacklist_client.h"
+#include <blocklist.h>
+#include "blocklist_client.h"
 
-static struct blacklist *blstate;
+static struct blocklist *blstate;
 
 void
-blacklist_init(void)
+blocklist_init(void)
 {
-	blstate = blacklist_open();
+	blstate = blocklist_open();
 }
 
 void
-blacklist_notify(int action, int fd, const char *msg)
+blocklist_notify(int action, int fd, const char *msg)
 {
 	if (blstate == NULL)
 		return;
-	(void)blacklist_r(blstate, action, fd, msg);
+	(void)blocklist_r(blstate, action, fd, msg);
 }
 
 void
-blacklist_stop(void)
+blocklist_stop(void)
 {
 	if (blstate == NULL)
 		return;
-	blacklist_close(blstate);
+	blocklist_close(blstate);
 }
