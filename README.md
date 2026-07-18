@@ -2,7 +2,7 @@
 
 The httpd daemon is a HTTP server with FastCGI and TLS support.
 
-http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.sbin/httpd/
+http://cvsweb.openbsd.org/src/usr.sbin/httpd/
 
 ## Installation
 
