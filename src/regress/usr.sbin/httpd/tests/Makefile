@@ -34,6 +34,8 @@ CLEANFILES +=		htdocs/*
 HTTPDBIN=		../../../../usr.sbin/httpd/httpd
 BLOCKLISTLDD=		ldd ${HTTPDBIN} | grep -o lib/libblocklist || echo 0
 BLOCKLIST=		${BLOCKLISTLDD:sh}
+BLOCK400CMD=		strings ${HTTPDBIN} | grep -o blocklist400 || echo 0
+BLOCK400=		${BLOCK400CMD:sh}
 
 # Set variables so that make runs with and without obj directory.
 # Only do that if necessary to keep visible output short.
@@ -54,7 +56,7 @@ REGRESS_TARGETS +=	run-$a
 REGRESS_ROOT_TARGETS +=	run-$a
 run-$a: $a ${HTDOCS_MD5}
 #	time SUDO="${SUDO}" KTRACE=${KTRACE} HTTPD=${HTTPD} perl ${PERLINC} ${PERLPATH}httpd.pl ${.OBJDIR} ${PERLPATH}$a
-	BLOCKLIST="${BLOCKLIST}" time perl ${PERLINC} ${PERLPATH}httpd.pl ${.OBJDIR} ${PERLPATH}$a
+	BLOCKLIST="${BLOCKLIST}" BLOCK400=${BLOCK400} time perl ${PERLINC} ${PERLPATH}httpd.pl ${.OBJDIR} ${PERLPATH}$a
 .endfor
 
 # populate htdocs

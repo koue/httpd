@@ -1,6 +1,9 @@
 use strict;
 use warnings;
 
+# FreeBSD: verify BLOCK_400
+my $regex = $ENV{BLOCK400} ? "blocklist400 dropped" : '"GET /" 400 0';
+
 our %args = (
     client => {
 	func => sub {
@@ -11,7 +14,7 @@ our %args = (
     },
     httpd => {
 	loggrep => {
-	    qr/"GET \/" 400 0/ => 1,
+	    qr/$regex/ => 1,
 	},
     },
 );

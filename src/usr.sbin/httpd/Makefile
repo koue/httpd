@@ -67,6 +67,12 @@ CFLAGS+=	-I${LOCALBASE}/include
 
 .ifdef USE_BLOCKLIST
 CFLAGS+= 	-DUSE_BLOCKLIST
+.ifdef BLOCK_POST
+CFLAGS+=	-DBLOCK_POST
+.endif
+.ifdef BLOCK_400
+CFLAGS+=	-DBLOCK_400
+.endif
 .endif
 
 CFLAGS+=	-D__dead='' \

@@ -333,6 +333,14 @@ server_read_http(struct bufferevent *bev, void *arg)
 				server_abort_http(clt, 400, "malformed");
 				goto abort;
 			}
+#ifdef USE_BLOCKLIST
+#ifdef BLOCK_POST
+			if (desc->http_method == HTTP_METHOD_POST) {
+				server_abort_http(clt, 0, "blocklistPOST dropped");
+				goto abort;
+			}
+#endif
+#endif
 
 			/*
 			 * Decode request path and query
@@ -913,6 +921,17 @@ server_abort_http(struct client *clt, unsigned int code, const char *msg)
 #endif
 		return;
 	}
+
+#ifdef USE_BLOCKLIST
+#ifdef BLOCK_400
+	if (code == 400) {
+		BLOCKLIST_NOTIFY(BLOCKLIST_ABUSIVE_BEHAVIOR, clt->clt_s,
+		    "abusive behavior");
+		server_close(clt, "blocklist400 dropped");
+		return;
+	}
+#endif
+#endif
 
 	if ((httperr = server_httperror_byid(code)) == NULL)
 		httperr = "Unknown Error";
