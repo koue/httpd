@@ -29,6 +29,12 @@ HTDOCS_MD5 =		${HTDOCS_FILES:S,^,md5-,}
 HTDOCS_SPARSE =		yes
 CLEANFILES +=		htdocs/*
 
+# FreeBSD: verify blocklist support
+
+HTTPDBIN=		../../../../usr.sbin/httpd/httpd
+BLOCKLISTLDD=		ldd ${HTTPDBIN} | grep -o lib/libblocklist || echo 0
+BLOCKLIST=		${BLOCKLISTLDD:sh}
+
 # Set variables so that make runs with and without obj directory.
 # Only do that if necessary to keep visible output short.
 
@@ -48,7 +54,7 @@ REGRESS_TARGETS +=	run-$a
 REGRESS_ROOT_TARGETS +=	run-$a
 run-$a: $a ${HTDOCS_MD5}
 #	time SUDO="${SUDO}" KTRACE=${KTRACE} HTTPD=${HTTPD} perl ${PERLINC} ${PERLPATH}httpd.pl ${.OBJDIR} ${PERLPATH}$a
-	time perl ${PERLINC} ${PERLPATH}httpd.pl ${.OBJDIR} ${PERLPATH}$a
+	BLOCKLIST="${BLOCKLIST}" time perl ${PERLINC} ${PERLPATH}httpd.pl ${.OBJDIR} ${PERLPATH}$a
 .endfor
 
 # populate htdocs

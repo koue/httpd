@@ -906,9 +906,11 @@ server_abort_http(struct client *clt, unsigned int code, const char *msg)
 	if (code == 0) {
 #ifdef USE_BLOCKLIST
 		BLOCKLIST_NOTIFY(BLOCKLIST_ABUSIVE_BEHAVIOR, clt->clt_s,
-		    "blocklisted abusive behavior");
-#endif
+		    "abusive behavior");
+		server_close(clt, "blocklist dropped");
+#else
 		server_close(clt, "dropped");
+#endif
 		return;
 	}
 

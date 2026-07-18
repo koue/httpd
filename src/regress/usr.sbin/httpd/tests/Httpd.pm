@@ -79,6 +79,9 @@ sub new {
 	}
 	print $fh "\n\troot \"/\"";
 	print $fh "\n\tlog style combined";
+        print $fh "\n\tlocation \"/blockdrop\" {";
+        print $fh "\n\t\tblock drop";
+        print $fh "\n\t}";
 	print $fh  "\n}\n";
 
 	return $self;
