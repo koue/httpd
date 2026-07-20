@@ -1,3 +1,53 @@
+2026-07-19 09:09  kirill
+
+	* usr.sbin/httpd/: httpd.h, server_file.c, server_http.c:
+	  usr.sbin/httpd: fix suffix range handling
+
+	  Calculate suffix ranges before clamping end offsets so requests
+	  at least as large as the file return the complete representation.
+	  Reject zero length and malformed ranges, retain 64 bit sizes
+	  throughout range handling, and add regression coverage for
+	  boundaries and overflow.
+
+	  Based on indea of Andrew Kloet
+
+	  OK: rsadowski@
+
+2026-07-19 04:19  rsadowski
+
+	* usr.sbin/httpd/server.c: httpd: check return values in
+	  dispatch_parent
+
+	  OK kirill@
+
+2026-07-19 04:17  rsadowski
+
+	* usr.sbin/httpd/config.c: httpd: remove redundant search and check
+	  return value
+
+	  The server foreach-loop serves the same purpose as
+	  "serverconfig_byid" did previously.
+
+	  OK kirill@
+
+2026-07-19 04:15  rsadowski
+
+	* usr.sbin/httpd/config.c: httpd: do NOT send location fcgiparams
+	  twice
+
+	  Only emit the params when the current receiver is the server
+	  child.
+
+	  When sending a location-config from the parent, the FCGI params
+	  IMSG was emitted once per receiver iteration and always targeted
+	  the server child.  With both the server and the logger process
+	  needing the server config, the server child received
+	  IMSG_CFG_FCGI twice per location and appended the same params on
+	  top of the existing list. The FastCGI backends then saw every
+	  param duplicated.
+
+	  Input Fabien Romano, OK kirill@
+
 2026-07-14 08:53  rsadowski
 
 	* usr.sbin/httpd/parse.y: httpd: make token order more easily

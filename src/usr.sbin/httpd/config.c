@@ -1,4 +1,4 @@
-/*	$OpenBSD: config.c,v 1.72 2026/05/17 10:56:41 kirill Exp $	*/
+/*	$OpenBSD: config.c,v 1.74 2026/07/19 04:17:31 rsadowski Exp $	*/
 
 /*
  * Copyright (c) 2011 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -268,9 +268,6 @@ config_setserver(struct httpd *env, struct server *srv)
 					return (-1);
 				}
 			}
-
-			/* Configure TLS if necessary. */
-			config_setserver_tls(env, srv);
 		} else {
 			if (proc_composev(ps, id, IMSG_CFG_SERVER,
 			    iov, c) != 0) {
@@ -279,11 +276,18 @@ config_setserver(struct httpd *env, struct server *srv)
 				    __func__, srv->srv_conf.name);
 				return (-1);
 			}
-
-			/* Configure FCGI parameters if necessary. */
-			config_setserver_fcgiparams(env, srv);
 		}
 	}
+
+	if ((srv->srv_conf.flags & SRVFLAG_LOCATION) == 0) {
+		/* Configure TLS if necessary. */
+		if (config_setserver_tls(env, srv) != 0)
+			return (-1);
+	}
+
+	/* Configure FCGI parameters if necessary. */
+	if (config_setserver_fcgiparams(env, srv) != 0)
+		return (-1);
 
 	/* Close server socket early to prevent fd exhaustion in the parent. */
 	if (srv->srv_s != -1) {
@@ -348,8 +352,7 @@ config_settls(struct httpd *env, struct server *srv, enum tls_config_type type,
 int
 config_getserver_fcgiparams(struct httpd *env, struct imsg *imsg)
 {
-	struct server		*srv;
-	struct server_config	*srv_conf, *iconf;
+	struct server_config	*srv_conf;
 	struct fastcgi_param	*fp;
 	uint32_t		 id;
 	size_t			 c, nc, len;
@@ -365,27 +368,17 @@ config_getserver_fcgiparams(struct httpd *env, struct imsg *imsg)
 	p += sizeof(nc);
 
 	memcpy(&id, p, sizeof(id));	/* server conf id */
-	srv_conf = serverconfig_byid(id);
 	p += sizeof(id);
+
+	if ((srv_conf = serverconfig_byid(id)) == NULL) {
+		log_debug("%s: server not found", __func__);
+		return(-1);
+	}
 
 	len += nc*sizeof(*fp);
 	if (IMSG_DATA_SIZE(imsg) < len) {
 		log_debug("%s: invalid message length", __func__);
 		return (-1);
-	}
-
-	/* Find associated server config */
-	TAILQ_FOREACH(srv, env->sc_servers, srv_entry) {
-		if (srv->srv_conf.id == id) {
-			srv_conf = &srv->srv_conf;
-			break;
-		}
-		TAILQ_FOREACH(iconf, &srv->srv_hosts, entry) {
-			if (iconf->id == id) {
-				srv_conf = iconf;
-				break;
-			}
-		}
 	}
 
 	/* Fetch FCGI parameters */
