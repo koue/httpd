@@ -161,15 +161,10 @@ proc_connect(struct privsep *ps)
 
 		for (inst = 0; inst < ps->ps_instances[dst]; inst++) {
 			iev = &ps->ps_ievs[dst][inst];
-/* newer imsg */
-#ifdef __OpenBSD__
 			if (imsgbuf_init(&iev->ibuf,
 			    ps->ps_pp->pp_pipes[dst][inst]) == -1)
 				fatal("%s: imsgbuf_init", __func__);
 			imsgbuf_allow_fdpass(&iev->ibuf);
-#else
-			imsg_init(&iev->ibuf, ps->ps_pp->pp_pipes[dst][inst]);
-#endif
 			event_set(&iev->ev, iev->ibuf.fd, iev->events,
 			    iev->handler, iev->data);
 			event_add(&iev->ev, NULL);
@@ -280,14 +275,9 @@ proc_accept(struct privsep *ps, int fd, enum privsep_procid dst,
 	pp->pp_pipes[dst][n] = fd;
 
 	iev = &ps->ps_ievs[dst][n];
-/* newer imsg */
-#ifdef __OpenBSD__
 	if (imsgbuf_init(&iev->ibuf, fd) == -1)
 		fatal("%s: imsgbuf_init", __func__);
 	imsgbuf_allow_fdpass(&iev->ibuf);
-#else
-	imsg_init(&iev->ibuf, fd);
-#endif
 	event_set(&iev->ev, iev->ibuf.fd, iev->events, iev->handler, iev->data);
 	event_add(&iev->ev, NULL);
 }
@@ -476,12 +466,7 @@ proc_close(struct privsep *ps)
 
 			/* Cancel the fd, close and invalidate the fd */
 			event_del(&(ps->ps_ievs[dst][n].ev));
-/* newer imsg */
-#ifdef __OpenBSD__
 			imsgbuf_clear(&(ps->ps_ievs[dst][n].ibuf));
-#else
-			imsg_clear(&(ps->ps_ievs[dst][n].ibuf));
-#endif
 			close(pp->pp_pipes[dst][n]);
 			pp->pp_pipes[dst][n] = -1;
 		}
@@ -613,14 +598,7 @@ proc_dispatch(int fd, short event, void *arg)
 	ibuf = &iev->ibuf;
 
 	if (event & EV_READ) {
-/* newer imsg */
-#ifdef __OpenBSD__
 		switch (imsgbuf_read(ibuf)) {
-#else
-// keep for reference
-//		if ((n = imsg_read(ibuf)) == -1 && errno != EAGAIN)
-		switch (imsg_read(ibuf)) {
-#endif
 		case -1:
 			fatal("%s: imsgbuf_read", __func__);
 			break;
@@ -633,8 +611,6 @@ proc_dispatch(int fd, short event, void *arg)
 	}
 
 	if (event & EV_WRITE) {
-/* newer imsg */
-#ifdef __OpenBSD__
 		if (imsgbuf_write(ibuf) == -1) {
 			if (errno == EPIPE) {	/* Connection closed. */
 				event_del(&iev->ev);
@@ -642,40 +618,20 @@ proc_dispatch(int fd, short event, void *arg)
 				return;
 			}
 			fatal("%s: imsgbuf_write", __func__);
-#else
-		if ((n = msgbuf_write(&ibuf->w)) == -1 && errno != EAGAIN)
-			fatal("%s: msgbuf_write", __func__);
-		if (n == 0) {
-			/* this pipe is dead, so remove the event handler */
-			event_del(&iev->ev);
-			event_loopexit(NULL);
-			return;
-#endif
 		}
 	}
 
 	for (;;) {
-/* newer imsg */
-#ifdef __OpenBSD__
 		if ((n = imsgbuf_get(ibuf, &imsg)) == -1)
 			fatal("%s: imsgbuf_get", __func__);
-#else
-		if ((n = imsg_get(ibuf, &imsg)) == -1)
-			fatal("%s: imsg_get", __func__);
-#endif
 		if (n == 0)
 			break;
 
 #if DEBUG > 1
 		log_debug("%s: %s %d got imsg %d peerid %d from %s %d",
 		    __func__, title, ps->ps_instance + 1,
-/* newer imsg */
-#ifdef __OpenBSD__
 		    imsg_get_type(&imsg), imsg_get_id(&imsg),
 		    p->p_title, imsg_get_pid(&imsg));
-#else
-		    imsg.hdr.type, imsg.hdr.peerid, p->p_title, imsg.hdr.pid);
-#endif
 #endif
 
 		/*
@@ -690,24 +646,12 @@ proc_dispatch(int fd, short event, void *arg)
 		/*
 		 * Generic message handling
 		 */
-/* newer imsg */
-#ifdef __OpenBSD__
 		switch (imsg_get_type(&imsg)) {
-#else
-		switch (imsg.hdr.type) {
-#endif
 		case IMSG_CTL_VERBOSE:
-/* newer imsg */
-#ifdef __OpenBSD__
 			if (imsg_get_data(&imsg, &ver, sizeof(ver)) == -1)
 				fatalx("%s: imsg_get_data", __func__);
 
 			log_setverbose(ver);
-#else
-			IMSG_SIZE_CHECK(&imsg, &ver);
-			memcpy(&ver, imsg.data, sizeof(ver));
-			log_setverbose(ver);
-#endif
 			break;
 		case IMSG_CTL_PROCFD:
 			if (p->p_id != PROC_PARENT) {
@@ -715,31 +659,18 @@ proc_dispatch(int fd, short event, void *arg)
 				    "IMSG_CTL_PROCFD from %s",
 				    __func__, p->p_title);
 			}
-/* newer imsg */
-#ifdef __OpenBSD__
 			if (imsg_get_data(&imsg, &pf, sizeof(pf)) == -1)
 				fatalx("%s: imsg_get_data", __func__);
 
 			proc_accept(ps, imsg_get_fd(&imsg), pf.pf_procid,
-#else
-			IMSG_SIZE_CHECK(&imsg, &pf);
-			memcpy(&pf, imsg.data, sizeof(pf));
-			proc_accept(ps, imsg.fd, pf.pf_procid,
-#endif
 			    pf.pf_instance);
 			break;
 		default:
 			fatalx("%s: %s %d got invalid imsg %d peerid %d "
 			    "from %s %d",
 			    __func__, title, ps->ps_instance + 1,
-/* newer imsg */
-#ifdef __OpenBSD__
 			    imsg_get_type(&imsg), imsg_get_id(&imsg),
 			    p->p_title, imsg_get_pid(&imsg));
-#else
-			    imsg.hdr.type, imsg.hdr.peerid,
-			    p->p_title, imsg.hdr.pid);
-#endif
 		}
 		imsg_free(&imsg);
 	}
@@ -760,22 +691,12 @@ void
 imsg_event_add(struct imsgev *iev)
 {
 	if (iev->handler == NULL) {
-/* newer imsg */
-#ifdef __OpenBSD__
 		imsgbuf_flush(&iev->ibuf);
-#else
-		imsg_flush(&iev->ibuf);
-#endif
 		return;
 	}
 
 	iev->events = EV_READ;
-/* newer imsg */
-#ifdef __OpenBSD__
 	if (imsgbuf_queuelen(&iev->ibuf) > 0)
-#else
-	if (iev->ibuf.w.queued)
-#endif
 		iev->events |= EV_WRITE;
 
 	event_del(&iev->ev);
@@ -913,15 +834,7 @@ proc_flush_imsg(struct privsep *ps, enum privsep_procid id, int n)
 	for (; n < m; n++) {
 		if ((ibuf = proc_ibuf(ps, id, n)) == NULL)
 			return (-1);
-/* newer imsg */
-#ifdef __OpenBSD__
 		if ((ret = imsgbuf_flush(ibuf)) == -1)
-#else
-		do {
-			ret = imsg_flush(ibuf);
-		} while (ret == -1 && errno == EAGAIN);
-		if (ret == -1)
-#endif
 			break;
 		imsg_event_add(&ps->ps_ievs[id][n]);
 	}

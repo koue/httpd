@@ -148,12 +148,7 @@ logger_open_fd(struct imsg *imsg)
 
 	TAILQ_FOREACH(log, &log_files, log_entry) {
 		if (log->log_id == id) {
-/* newer imsg */
-#ifdef __OpenBSD__
 			log->log_fd = imsg_get_fd(imsg);
-#else
-			log->log_fd = imsg->fd;
-#endif
 			DPRINTF("%s: received log fd %d, file %s",
 			    __func__, log->log_fd, log->log_name);
 			return (0);
