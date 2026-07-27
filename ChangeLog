@@ -1,3 +1,127 @@
+2026-07-26 14:46  rsadowski
+
+	* usr.sbin/httpd/: config.c, http.h, httpd.c, httpd.h, log.c,
+	  log.h, logger.c, patterns.c, patterns.h, server.c, server_fcgi.c,
+	  server_file.c, server_http.c: httpd: knfmt, no functional change
+
+	  OK kirill@
+
+2026-07-25 08:58  rsadowski
+
+	* usr.sbin/httpd/: config.c, httpd.h, parse.y, server.c: httpd:
+	  don't send the fastcgi param struct over imsg
+
+	  Send one imsg per param with a small fixed header
+	  (fastcgi_param_imsg) followed by the name and value bytes, and
+	  read it back with imsg_get_ibuf() and ibuf_get_string(). The
+	  struct now uses dynamic buffer instead of fixed, and the value
+	  limit is raised to 8192. Parse order is now preserved end-to-end
+	  instead of being reversed twice. This follows the config order.
+
+	  Feedback and OK kirill@
+
+2026-07-25 05:48  rsadowski
+
+	* usr.sbin/httpd/: config.c, httpd.c, httpd.conf.5, httpd.h,
+	  parse.y, server.c, server_fcgi.c, server_http.c: httpd: add
+	  custom HTTP header support
+
+	  Allow httpd.conf to set/add/remove custom HTTP response headers
+	  or Suppress existing ones. This enables httpd to add security
+	  headers, custom metadata, or remove unwanted headers without
+	  modifying app/fastcgi code.
+
+	  Three new directives are added:
+
+	  header option 	Manipulate HTTP response headers.  Multiple
+	  header statements may 	be specified.  Valid options are:
+
+		  set name value [always]
+			  Set a custom HTTP response header with the
+	  specified name
+			  and value.  If a header with the same name is
+	  already
+			  present in the response, its value will be
+	  replaced.  The
+			  header is added to successful responses (2xx and
+	  3xx
+			  status codes) by default.
+
+		  add name value [always]
+			  Add a custom HTTP response header with the
+	  specified name
+			  and value.  Unlike set, this option appends the
+	  header
+			  even if one with the same name already exists,
+	  allowing
+			  for multiple headers with the same name.  The
+	  header is
+			  added to successful responses (2xx and 3xx status
+	  codes)
+			  by default.
+
+		  remove name [always]
+			  Suppress the HTTP response header with the
+	  specified
+			  name.  This can be used to remove headers added
+	  by
+			  default, such as "Last-Modified", as well as
+	  headers
+			  inherited from a parent server configuration.
+
+		  If always is specified, the header is also added to error
+		  responses (4xx and 5xx).
+
+		  Header names are limited to 256 characters and values to
+	  8192
+		  characters.  Headers defined in a location block are
+	  inherited
+		  from the server context and override defined headers with
+	  the
+		  same name.  If you do not wish to inherit these, you can
+	  remove
+		  them again with remove.
+
+	  Example configuration:
+
+	  server "example.com" {     listen on * tls port 443
+
+	      header set "X-Content-Type-Options" "nosniff" always
+	      header set "X-Frame-Options" "SAMEORIGIN" always
+	      header set "Referrer-Policy" "no-referrer" always
+	      header set "X-Permitted-Cross-Domain-Policies" "none" always
+	      header set "X-XSS-Protection" "0" always
+
+	      # Avoid info leak: strip the revealing header
+	      header remove "X-Powered-By"
+
+	      location "/api/*" {
+		  header add "Access-Control-Allow-Origin"
+	  "https://app.example.com"
+		  header add "Access-Control-Allow-Methods" "GET, POST,
+	  OPTIONS"
+
+		  # Enforce cookie flags
+		  header set "Set-Cookie" "id=5; HttpOnly; Secure;
+	  SameSite=Strict"
+
+		  # Framing is irrelevant for a JSON API, drop from server
+	  context
+		  header remove "X-Frame-Options"
+
+		  # APIs should not be cached
+		  header set "Cache-Control" "no-store" always
+	      }
+	  }
+
+	  The implementation follows the existing pattern form FastCGI
+	  parameters.
+
+	  Feedback and help from sthen@, claudio@, op@, kirill@ and many
+	  others.
+
+	  OK op@ kirill@
+
 2026-07-19 09:09  kirill
 
 	* usr.sbin/httpd/: httpd.h, server_file.c, server_http.c:
