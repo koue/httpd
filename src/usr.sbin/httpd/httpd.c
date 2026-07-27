@@ -1,4 +1,4 @@
-/*	$OpenBSD: httpd.c,v 1.80 2026/07/01 18:15:46 martijn Exp $	*/
+/*	$OpenBSD: httpd.c,v 1.82 2026/07/26 14:46:32 rsadowski Exp $	*/
 
 /*
  * Copyright (c) 2014 Reyk Floeter <reyk@openbsd.org>
@@ -55,9 +55,9 @@ void		 parent_reopen(struct httpd *);
 void		 parent_sig_handler(int, short, void *);
 void		 parent_shutdown(struct httpd *);
 int		 parent_dispatch_server(int, struct privsep_proc *,
-		    struct imsg *);
+    struct imsg *);
 int		 parent_dispatch_logger(int, struct privsep_proc *,
-		    struct imsg *);
+    struct imsg *);
 void		 parent_tls_ticket_rekey_start(struct server *);
 void		 parent_tls_ticket_rekey(int, short, void *);
 
@@ -188,7 +188,7 @@ main(int argc, char *argv[])
 	if (geteuid())
 		errx(1, "need root privileges");
 
-	if ((ps->ps_pw =  getpwnam(HTTPD_USER)) == NULL)
+	if ((ps->ps_pw = getpwnam(HTTPD_USER)) == NULL)
 		errx(1, "unknown user %s", HTTPD_USER);
 
 	log_init(debug, LOG_DAEMON);
@@ -209,7 +209,7 @@ main(int argc, char *argv[])
 
 	if (env->sc_logdir == NULL) {
 		if (asprintf(&env->sc_logdir, "%s%s", env->sc_chroot,
-			HTTPD_LOGROOT) == -1)
+		    HTTPD_LOGROOT) == -1)
 			errx(1, "malloc failed");
 	}
 
@@ -683,7 +683,7 @@ url_encode(const char *src)
 		return (NULL);
 
 	for (dp = dst; *src != 0; src++) {
-		c = (unsigned char) *src;
+		c = (unsigned char)*src;
 		if (c == ' ' || c == '#' || c == '%' || c == '?' || c == '"' ||
 		    c == '&' || c == '<' || c <= 0x1f || c >= 0x7f) {
 			*dp++ = '%';
@@ -695,8 +695,8 @@ url_encode(const char *src)
 	return (dst);
 }
 
-char*
-escape_html(const char* src)
+char *
+escape_html(const char *src)
 {
 	char		*dp, *dst;
 
@@ -885,7 +885,7 @@ prefixlen2mask(uint8_t prefixlen)
 struct in6_addr *
 prefixlen2mask6(uint8_t prefixlen, uint32_t *mask)
 {
-	static struct in6_addr  s6;
+	static struct in6_addr	s6;
 	int			i;
 
 	if (prefixlen > 128)
@@ -916,13 +916,13 @@ accept_reserve(int sockfd, struct sockaddr *addr, socklen_t *addrlen,
 
 	if ((ret = accept4(sockfd, addr, addrlen, SOCK_NONBLOCK)) > -1) {
 		(*counter)++;
-		DPRINTF("%s: inflight incremented, now %d",__func__, *counter);
+		DPRINTF("%s: inflight incremented, now %d", __func__, *counter);
 	}
 	return (ret);
 }
 
 struct kv *
-kv_add(struct kvtree *keys, char *key, char *value)
+kv_add(struct kvtree *keys, const char *key, const char *value)
 {
 	struct kv	*kv, *oldkv;
 
@@ -953,10 +953,10 @@ kv_add(struct kvtree *keys, char *key, char *value)
 int
 kv_set(struct kv *kv, char *fmt, ...)
 {
-	va_list		  ap;
+	va_list		 ap;
 	char		*value = NULL;
 	struct kv	*ckv;
-	int		ret;
+	int		 ret;
 
 	va_start(ap, fmt);
 	ret = vasprintf(&value, fmt, ap);
@@ -981,9 +981,9 @@ kv_set(struct kv *kv, char *fmt, ...)
 int
 kv_setkey(struct kv *kv, char *fmt, ...)
 {
-	va_list  ap;
+	va_list	 ap;
 	char	*key = NULL;
-	int	ret;
+	int	 ret;
 
 	va_start(ap, fmt);
 	ret = vasprintf(&key, fmt, ap);
@@ -1178,7 +1178,6 @@ auth_free(struct serverauth *serverauth, struct auth *auth)
 	TAILQ_REMOVE(serverauth, auth, auth_entry);
 }
 
-
 const char *
 print_host(struct sockaddr_storage *ss, char *buf, size_t len)
 {
@@ -1238,4 +1237,45 @@ getmonotime(struct timeval *tv)
 		fatal("clock_gettime");
 
 	TIMESPEC_TO_TIMEVAL(tv, &ts);
+}
+
+void
+print_custom_header(const char *i, const struct custom_header *hdr)
+{
+	if (hdr == NULL) {
+		DPRINTF("%s: hdr=NULL", i);
+		return;
+	}
+	DPRINTF("%s: hdr (%s%s%s%s) %s: %s", i,
+	    (hdr->flags & HEADER_REMOVE) ? "remove " : "",
+	    (hdr->flags & HEADER_ADD) ? "add " : "",
+	    (hdr->flags & HEADER_SET) ? "set " : "",
+	    (hdr->flags & HEADER_ALWAYS) ? "always" : "",
+	    hdr->name, hdr->value);
+}
+
+int
+header_exists(struct server_config *srv_conf, const char *name)
+{
+	struct custom_header	*hdr;
+
+	TAILQ_FOREACH(hdr, &srv_conf->headers, entry) {
+		if (strcasecmp(hdr->name, name) == 0)
+			return (1);
+	}
+	return (0);
+}
+
+struct custom_header *
+header_dup(const struct custom_header *src)
+{
+	struct custom_header	*h;
+
+	if ((h = calloc(1, sizeof(*h))) == NULL)
+		fatal("out of memory");
+	if ((h->name = strdup(src->name)) == NULL ||
+	    (h->value = strdup(src->value)) == NULL)
+		fatal("out of memory");
+	h->flags = src->flags;
+	return (h);
 }
