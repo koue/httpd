@@ -1,3 +1,29 @@
+2026-09-01 05:22  rsadowski
+
+	* usr.sbin/httpd/server.c: httpd: reject shared TLS listeners with
+	  different client CA or CRL
+
+	  Virtual hosts on the same address and port share one TLS context,
+	  and only the first hosts client CA and CRL are used. A client
+	  certificate accepted there reaches every host on the listener,
+	  including one meant to be restricted to a different CA. Such a
+	  configuration is now rejected instead of silently ignored.
+
+	  Bug report and diff by Acts1631
+
+	  OK kirill@ claudio@
+
+2026-08-30 12:29  jsg
+
+	* usr.bin/htpasswd/htpasswd.c: bcryt -> bcrypt
+
+2026-08-03 11:26  claudio
+
+	* usr.sbin/httpd/proc.c: imsgbuf_get() returns int, so adjust the
+	  type of 'n' to int.
+
+	  OK kirill@ rsadowski@
+
 2026-07-26 14:46  rsadowski
 
 	* usr.sbin/httpd/: config.c, http.h, httpd.c, httpd.h, log.c,
