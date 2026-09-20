@@ -1,3 +1,36 @@
+2026-09-17 17:55  rsadowski
+
+	* usr.sbin/httpd/: httpd.c, proc.c: httpd: knf
+
+2026-09-17 17:53  rsadowski
+
+	* usr.sbin/httpd/: http.h, server_http.c: httpd: enforce "max
+	  request body" for chunked requests passed to fastcgi
+
+	  The limit was only applied to requests with a Content-Length
+	  header.  With "pass chunked" (off by default), a chunked request
+	  bypassed it, so a client could send a body of any size to the
+	  backend.
+
+	  Count the bytes of all chunks and answer 413 once they exceed the
+	  limit.
+
+	  Found and provided patch by Acts1631, thanks
+
+	  OK kirill@
+
+2026-09-10 12:31  deraadt
+
+	* usr.sbin/httpd/: httpd.c, httpd.h, proc.c: Another relatively
+	  simple getexecpath(3) + execv(3) conversion.	ok rsadowski
+
+2026-09-07 02:13  jsg
+
+	* usr.sbin/httpd/httpd.h: correct server_httpmethod_byname()
+	  prototype
+
+	  return type is enum httpmethod not unsigned int
+
 2026-09-01 05:22  rsadowski
 
 	* usr.sbin/httpd/server.c: httpd: reject shared TLS listeners with
