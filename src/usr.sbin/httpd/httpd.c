@@ -47,6 +47,7 @@
 
 #ifndef __OpenBSD__
 #include "getdtablecount.h"
+#include "getexecpath.h"
 
 #ifdef USE_BLOCKLIST
 #include "blocklist_client.h"

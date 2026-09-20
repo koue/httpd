@@ -10,6 +10,7 @@ RELINK=		"./${PROG} -n -f /etc/examples/httpd.conf 2> /dev/null"
 SRCS=		parse.y
 SRCS+=		config.c httpd.c log.c logger.c proc.c server.c
 SRCS+=		server_http.c server_file.c server_fcgi.c
+SRCS+=		getexecpath.c
 
 .ifdef USE_BLOCKLIST
 SRCS+=		blocklist.c
