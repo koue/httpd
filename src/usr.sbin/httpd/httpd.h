@@ -1,4 +1,4 @@
-/*	$OpenBSD: httpd.h,v 1.182 2026/07/26 14:46:32 rsadowski Exp $	*/
+/*	$OpenBSD: httpd.h,v 1.184 2026/09/10 12:31:09 deraadt Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -682,7 +682,7 @@ void			 server_abort_http(struct client *, unsigned int,
     const char *);
 int			 server_custom_headers(struct server_config *,
     struct kvtree *, unsigned int);
-unsigned int		 server_httpmethod_byname(const char *);
+enum httpmethod		 server_httpmethod_byname(const char *);
 const char		*server_httpmethod_byid(unsigned int);
 const char		*server_httperror_byid(unsigned int);
 void			 server_read_httpcontent(struct bufferevent *, void *);
@@ -774,7 +774,7 @@ enum privsep_procid	 proc_getid(struct privsep_proc *, unsigned int,
     const char *);
 void			 proc_init(struct privsep *, struct privsep_proc *,
     unsigned int, int,
-    int, char **, enum privsep_procid);
+    char *, int, char **, enum privsep_procid);
 void			 proc_kill(struct privsep *);
 void			 proc_connect(struct privsep *);
 void			 proc_dispatch(int, short event, void *);
