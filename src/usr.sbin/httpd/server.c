@@ -1,4 +1,4 @@
-/*	$OpenBSD: server.c,v 1.138 2026/09/01 05:22:00 rsadowski Exp $	*/
+/*	$OpenBSD: server.c,v 1.140 2026/10/02 04:47:07 rsadowski Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -406,13 +406,6 @@ server_init(struct privsep *ps, struct privsep_proc *p, void *arg)
 
 	if (pledge("stdio rpath inet unix recvfd", NULL) == -1)
 		fatal("pledge");
-
-#if 0
-	/* Schedule statistics timer */
-	evtimer_set(&ps->ps_env->sc_statev, server_statistics, NULL);
-	memcpy(&tv, &ps->ps_env->sc_statinterval, sizeof(tv));
-	evtimer_add(&ps->ps_env->sc_statev, &tv);
-#endif
 }
 
 int
@@ -472,6 +465,7 @@ server_purge(struct server *srv)
 	}
 
 	server_headers_free(&srv->srv_conf.headers);
+	server_header_rules_free(&srv->srv_conf.header_rules);
 	tls_config_free(srv->srv_tls_config);
 	tls_free(srv->srv_tls_ctx);
 
@@ -487,6 +481,19 @@ server_headers_free(struct server_headers *headers)
 		free(hdr->name);
 		free(hdr->value);
 		free(hdr);
+	}
+}
+
+void
+server_header_rules_free(struct server_header_rules *rules)
+{
+	struct header_rule *rule, *trule;
+
+	TAILQ_FOREACH_SAFE(rule, rules, entry, trule) {
+		free(rule->name);
+		free(rule->value);
+		free(rule->return_uri);
+		free(rule);
 	}
 }
 
@@ -513,6 +520,7 @@ serverconfig_free(struct server_config *srv_conf)
 		free(param);
 	}
 	server_headers_free(&srv_conf->headers);
+	server_header_rules_free(&srv_conf->header_rules);
 }
 
 void
@@ -532,6 +540,7 @@ serverconfig_reset(struct server_config *srv_conf)
 	srv_conf->tls_ocsp_staple_file = NULL;
 	TAILQ_INIT(&srv_conf->fcgiparams);
 	TAILQ_INIT(&srv_conf->headers);
+	TAILQ_INIT(&srv_conf->header_rules);
 }
 
 struct server *
@@ -1393,6 +1402,10 @@ server_dispatch_parent(int fd, struct privsep_proc *p, struct imsg *imsg)
 		break;
 	case IMSG_CFG_HEADERS:
 		if (config_getserver_headers(httpd_env, imsg) != 0)
+			return (-1);
+		break;
+	case IMSG_CFG_HEADER_RULES:
+		if (config_getserver_header_rules(httpd_env, imsg) != 0)
 			return (-1);
 		break;
 	case IMSG_CFG_DONE:
