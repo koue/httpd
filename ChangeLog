@@ -1,3 +1,50 @@
+2026-10-02 04:47  rsadowski
+
+	* usr.sbin/httpd/: config.c, httpd.c, httpd.conf.5, httpd.h,
+	  parse.y, server.c, server_http.c: httpd: add header block/drop
+	  rules for request filtering
+
+	  With this incoming requests can also be rejected based on the
+	  value of a request header. Valid options are:
+
+	  header block name value code [arg]	     Close the connection
+	  with an error response when a 	request header matches.
+	  Both name and value are shell-	 style patterns and are
+	  matched case-insensitively against	     the header name and
+	  value.  code must be a valid HTTP	    status code.  For codes
+	  in the 3xx range, arg is required	    and sent as the
+	  "Location" header.  It must start with	 "http://" or
+	  "https://".  For all other codes, arg is	   optional and
+	  used as the log message identifying the	  rule.
+
+	  header drop name value	 Silently close the connection
+	  without sending a response	     when a request header matches,
+	  using the same pattern	 rules as block.
+
+	  Based on a diff from Purple Rain from SecBSD, who wrote a initial
+	  version to block Ai- and other Scraper. Also requested and tested
+	  by Mischa.
+
+	  Tested by Purple Rain, Mischa and others, thanks Feedback by
+	  Lloyd, Christian Schulte, thanks
+
+	  OK kirill@
+
+2026-09-27 11:02  kn
+
+	* usr.sbin/httpd/server.c: zap dead statistics leftover;  OK kirill
+
+	  Stubbed since import in 2014, last touched in 2016.
+
+2026-09-27 10:16  kn
+
+	* usr.sbin/httpd/httpd.conf.5: Sprinkle tags to be able to navigate
+	  to [no] keywords;  OK schwarze
+
+	  None of these were reachable by tags, e.g. ":t log" wouldn't jump
+	  to the "log" keyword's definition because auf how auto-tagging
+	  works; see `man -Otag=Tg mdoc' for details.
+
 2026-09-17 17:55  rsadowski
 
 	* usr.sbin/httpd/: httpd.c, proc.c: httpd: knf
