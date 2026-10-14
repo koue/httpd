@@ -1,4 +1,4 @@
-/*	$OpenBSD: server.c,v 1.140 2026/10/02 04:47:07 rsadowski Exp $	*/
+/*	$OpenBSD: server.c,v 1.142 2026/10/14 04:47:42 rsadowski Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -1379,7 +1379,7 @@ server_dispatch_parent(int fd, struct privsep_proc *p, struct imsg *imsg)
 	struct server			*srv;
 	struct server_tls_ticket	 key;
 
-	switch (imsg->hdr.type) {
+	switch (imsg_get_type(imsg)) {
 	case IMSG_CFG_MEDIA:
 		if (config_getmedia(httpd_env, imsg) != 0)
 			return (-1);
@@ -1421,8 +1421,8 @@ server_dispatch_parent(int fd, struct privsep_proc *p, struct imsg *imsg)
 			return (-1);
 		break;
 	case IMSG_TLSTICKET_REKEY:
-		IMSG_SIZE_CHECK(imsg, (&key));
-		memcpy(&key, imsg->data, sizeof(key));
+		if (imsg_get_data(imsg, &key, sizeof(key)) == -1)
+			fatalx("%s: imsg_get_data", __func__);
 		/* apply to the right server */
 		if ((srv = server_byid(key.tt_id)) == NULL) {
 			log_debug("%s: invalid sever id", __func__);
@@ -1444,7 +1444,7 @@ server_dispatch_parent(int fd, struct privsep_proc *p, struct imsg *imsg)
 int
 server_dispatch_logger(int fd, struct privsep_proc *p, struct imsg *imsg)
 {
-	switch (imsg->hdr.type) {
+	switch (imsg_get_type(imsg)) {
 	default:
 		return (-1);
 	}
