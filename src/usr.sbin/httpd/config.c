@@ -744,8 +744,14 @@ config_getserver_config(struct httpd *env, struct server *srv,
 	if ((srv_conf = calloc(1, sizeof(*srv_conf))) == NULL)
 		return (-1);
 
+#ifdef __OpenBSD__
 	if (imsg_get_data(imsg, srv_conf, sizeof(*srv_conf)) == -1)
 		fatalx("%s: imsg_get_data", __func__);
+#else
+// fatal in server: config_getserver_config: imsg_get_data
+	IMSG_SIZE_CHECK(imsg, srv_conf);
+	memcpy(srv_conf, p, sizeof(*srv_conf));
+#endif
 
 	s = sizeof(*srv_conf);
 

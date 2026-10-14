@@ -168,6 +168,12 @@ struct imsgev {
 	short			 events;
 };
 
+#ifndef __OpenBSD__
+#define IMSG_SIZE_CHECK(imsg, p) do {				\
+    if (IMSG_DATA_SIZE(imsg) < sizeof(*p))			\
+	fatalx("bad length imsg received");		\
+} while (0)
+#endif
 #define IMSG_DATA_SIZE(imsg)	((imsg)->hdr.len - IMSG_HEADER_SIZE)
 #define MAX_IMSG_DATA_SIZE	(MAX_IMSGSIZE - IMSG_HEADER_SIZE)
 
