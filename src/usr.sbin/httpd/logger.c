@@ -1,4 +1,4 @@
-/*	$OpenBSD: logger.c,v 1.27 2026/07/26 14:46:32 rsadowski Exp $	*/
+/*	$OpenBSD: logger.c,v 1.29 2026/10/14 04:47:42 rsadowski Exp $	*/
 
 /*
  * Copyright (c) 2014 Reyk Floeter <reyk@openbsd.org>
@@ -143,8 +143,8 @@ logger_open_fd(struct imsg *imsg)
 	struct log_file		*log;
 	uint32_t		 id;
 
-	IMSG_SIZE_CHECK(imsg, &id);
-	memcpy(&id, imsg->data, sizeof(id));
+	if (imsg_get_data(imsg, &id, sizeof(id)) == -1)
+		fatalx("%s: imsg_get_data", __func__);
 
 	TAILQ_FOREACH(log, &log_files, log_entry) {
 		if (log->log_id == id) {
@@ -161,19 +161,37 @@ logger_open_fd(struct imsg *imsg)
 int
 logger_open_priv(struct imsg *imsg)
 {
+	struct ibuf		 ibuf;
 	char			 path[PATH_MAX];
 	char			 name[PATH_MAX], *p;
+	char			*filename = NULL;
 	uint32_t		 id;
 	size_t			 len;
-	int			 fd;
+	int			 fd, ret;
+
+	if (imsg_get_ibuf(imsg, &ibuf) == -1) {
+		log_warn("%s: imsg_get_ibuf", __func__);
+		return (-1);
+	}
 
 	/* called from the privileged process */
-	IMSG_SIZE_CHECK(imsg, &id);
-	memcpy(&id, imsg->data, sizeof(id));
-	p = (char *)imsg->data + sizeof(id);
+	if (ibuf_get(&ibuf, &id, sizeof(id)) == -1)
+		fatalx("%s: ibuf_get", __func__);
 
-	if ((size_t)snprintf(name, sizeof(name), "/%s", p) >= sizeof(name))
+	if ((len = ibuf_size(&ibuf)) == 0) {
+		log_debug("%s: invalid message length", __func__);
 		return (-1);
+	}
+
+	if ((filename = ibuf_get_string(&ibuf, len)) == NULL) {
+		log_warn("%s: ibuf_get_string", __func__);
+		return (-1);
+	}
+	ret = snprintf(name, sizeof(name), "/%s", filename);
+	free(filename);
+	if (ret < 0 || (size_t)ret >= sizeof(name))
+		return (-1);
+
 	if ((len = strlcpy(path, httpd_env->sc_logdir, sizeof(path))) >=
 	    sizeof(path))
 		return (-1);
@@ -246,18 +264,25 @@ logger_start(void)
 int
 logger_log(struct imsg *imsg)
 {
+	struct ibuf		 ibuf;
 	char			*logline;
 	uint32_t		 id;
 	struct server_config	*srv_conf;
 	struct log_file		*log;
 
-	IMSG_SIZE_CHECK(imsg, &id);
-	memcpy(&id, imsg->data, sizeof(id));
+	if (imsg_get_ibuf(imsg, &ibuf) == -1) {
+		log_warn("%s: imsg_get_ibuf", __func__);
+		return (-1);
+	}
+
+	/* called from the privileged process */
+	if (ibuf_get(&ibuf, &id, sizeof(id)) == -1)
+		fatalx("%s: ibuf_get", __func__);
 
 	if ((srv_conf = serverconfig_byid(id)) == NULL)
 		fatalx("invalid logging requestr");
 
-	if (imsg->hdr.type == IMSG_LOG_ACCESS)
+	if (imsg_get_type(imsg) == IMSG_LOG_ACCESS)
 		log = srv_conf->logaccess;
 	else
 		log = srv_conf->logerror;
@@ -268,7 +293,7 @@ logger_log(struct imsg *imsg)
 	}
 
 	/* XXX get_string() would sanitize the string, but add a malloc */
-	logline = (char *)imsg->data + sizeof(id);
+	logline = ibuf_data(&ibuf);
 
 	/* For debug output */
 	log_debug("%s", logline);
@@ -284,7 +309,7 @@ logger_log(struct imsg *imsg)
 int
 logger_dispatch_parent(int fd, struct privsep_proc *p, struct imsg *imsg)
 {
-	switch (imsg->hdr.type) {
+	switch (imsg_get_type(imsg)) {
 	case IMSG_CFG_SERVER:
 		config_getserver(httpd_env, imsg);
 		break;
@@ -310,7 +335,7 @@ logger_dispatch_parent(int fd, struct privsep_proc *p, struct imsg *imsg)
 int
 logger_dispatch_server(int fd, struct privsep_proc *p, struct imsg *imsg)
 {
-	switch (imsg->hdr.type) {
+	switch (imsg_get_type(imsg)) {
 	case IMSG_LOG_ACCESS:
 	case IMSG_LOG_ERROR:
 		logger_log(imsg);

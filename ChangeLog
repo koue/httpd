@@ -1,3 +1,14 @@
+2026-10-13 09:52  rsadowski
+
+	* usr.sbin/httpd/: httpd.c, httpd.h: Remove unused IMSG_CTL_RELOAD
+
+	  Spotted by claudio@
+
+2026-10-09 00:49  deraadt
+
+	* usr.sbin/httpd/Makefile: we may as well install the relinked
+	  binaries as x,og-r ok millert dgl
+
 2026-10-02 04:47  rsadowski
 
 	* usr.sbin/httpd/: config.c, httpd.c, httpd.conf.5, httpd.h,
