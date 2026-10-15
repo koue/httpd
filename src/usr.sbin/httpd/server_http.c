@@ -1549,9 +1549,12 @@ server_response(struct httpd *httpd, struct client *clt)
 	if ((mrule = server_match_header_rule(srv_conf, desc)) != NULL) {
 		switch (mrule->action) {
 		case HEADER_ACTION_DROP:
+// no log, server_abort_http with return code 0 and send to blocklist if enabled
+#ifdef __OpenBSD__
 			(void)server_log_http(clt, 0, 0);
 			server_close(clt, mrule->return_uri);
 			return (-1);
+#endif
 		case HEADER_ACTION_RDR:
 		case HEADER_ACTION_RETURN:
 			server_abort_http(clt, mrule->return_code,

@@ -183,6 +183,9 @@ sub http_request {
 
 sub http_response {
 	my ($self, $len) = @_;
+# <FreeBSD>
+	return if $self->{nocheck};
+# </FreeBSD>
 	my $method = $self->{method} || "GET";
 	my $code = $self->{code} || "200 OK";
 

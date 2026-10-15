@@ -290,6 +290,7 @@ server		: SERVER optmatch STRING	{
 			s->srv_conf.parent_id = s->srv_conf.id;
 			s->srv_s = -1;
 #ifndef __OpenBSD__
+// missing in upstream
 			s->srv_conf.tcpbacklog = SERVER_BACKLOG;
 #endif
 			s->srv_conf.timeout.tv_sec = SERVER_TIMEOUT;
@@ -920,7 +921,10 @@ header		: HEADER REMOVE STRING optalways	{
 				free(hrule);
 				YYERROR;
 			}
-
+#ifndef __OpenBSD__
+// used with server_abort_http and blocklist if enabled
+			hrule->return_code = 0;
+#endif
 			hrule->name = $3;
 			hrule->value = $4;
 
