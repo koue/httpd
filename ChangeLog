@@ -1,3 +1,25 @@
+2026-10-14 04:47  rsadowski
+
+	* usr.sbin/httpd/: config.c, httpd.c, httpd.h, logger.c, server.c:
+	  httpd: convert imsg handling to imsg_get_ and remove
+	  IMSG_SIZE_CHECK macro
+
+	  Tweak and OK claudio@
+
+2026-10-14 04:43  rsadowski
+
+	* usr.sbin/httpd/: httpd.c, logger.c, server.c: httpd: use
+	  imsg_get_type
+
+	  OK tb@ claudio@
+
+2026-10-14 04:41  rsadowski
+
+	* usr.sbin/httpd/config.c: httpd: use imsg_get_data to read
+	  ctl_flags
+
+	  OK claudio@
+
 2026-10-13 09:52  rsadowski
 
 	* usr.sbin/httpd/: httpd.c, httpd.h: Remove unused IMSG_CTL_RELOAD
