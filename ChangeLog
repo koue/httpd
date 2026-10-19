@@ -1,3 +1,28 @@
+2026-10-18 23:20  dgl
+
+	* usr.sbin/httpd/server_http.c: httpd: Fix "server match"
+	  configuration blocks
+
+	  The return value of str_find() as used in SRVFLAG_SERVER_MATCH
+	  was not checked at all. This meant any "server match" block
+	  behaved like a wildcard.
+
+	  ok rsadowski@
+
+2026-10-15 10:59  rsadowski
+
+	* usr.sbin/httpd/: config.c, httpd.c, httpd.h, logger.c, server.c:
+	  Revert "httpd: convert imsg handling to imsg_get_ and remove... "
+	  r.1.79
+
+	  It looks like having multiple "listen" blocks can cause
+	  configuration errors because the IMSG has already been consumed.
+	  The previous behavior simply copied the IMSG.
+
+	  To be on the safe side, revert all IMSG changes.
+
+	  Spotted by aja, hint by tb@
+
 2026-10-14 04:47  rsadowski
 
 	* usr.sbin/httpd/: config.c, httpd.c, httpd.h, logger.c, server.c:
