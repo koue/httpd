@@ -1039,6 +1039,13 @@ server_abort_http(struct client *clt, unsigned int code, const char *msg)
 		free(basicrealm);
 		basicrealm = NULL;
 		break;
+#ifdef USE_BLOCKLIST
+#ifdef BLOCK_404
+	case 404:
+		BLOCKLIST_NOTIFY(BLOCKLIST_AUTH_FAIL, clt->clt_s, "404 Not Found");
+		break;
+#endif
+#endif
 	case 416:
 		if (msg == NULL)
 			break;

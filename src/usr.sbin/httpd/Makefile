@@ -75,6 +75,9 @@ CFLAGS+=	-DBLOCK_POST
 .ifdef BLOCK_400
 CFLAGS+=	-DBLOCK_400
 .endif
+.ifdef BLOCK_404
+CFLAGS+=	-DBLOCK_404
+.endif
 .endif
 
 CFLAGS+=	-D__dead='' \
