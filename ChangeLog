@@ -1,3 +1,20 @@
+2026-10-21 19:13  rsadowski
+
+	* usr.sbin/httpd/httpd.c: httpd: only rekey TLS tickets for the
+	  first server on a socket
+
+	  With several TLS servers on the same address + port and "tls
+	  ticket lifetime" option set, httpd died on the first ticket
+	  rekey.
+
+	  The parent started a rekey timer for every server, but only the
+	  first one on a socket exists as a struct server in the server
+	  processes.  Start the rekey timer only for that server.
+
+	  Reported by James J. Lippard on bugs@ and stsp@, thanks!
+
+	  ok stsp@, kirill@
+
 2026-10-18 23:20  dgl
 
 	* usr.sbin/httpd/server_http.c: httpd: Fix "server match"
