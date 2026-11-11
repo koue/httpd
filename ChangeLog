@@ -1,3 +1,65 @@
+2026-11-07 08:59  robert
+
+	* lib/libutil/util.h: replace login_fbtab with the wscons group if
+	  the users is on the glass console
+
+	  Historically login_fbtab(3) was called on user login to change
+	  permission of devices for the user logging in on the console or
+	  xdm and this mechanism had its quirks.
+
+	  In in effort to make this better, introduce the
+	  LOGIN_SETWSCONSGROUP flag for setusercontext(3), which will
+	  append the special wscons group to a user context if the user is
+	  logging in on the "glass" console.
+
+	  Callers of setusercontex(3) can also use the new
+	  login_wscons(const char *tty) libutil function to determine if
+	  the tty is appropriate for setting the group.
+
+	  The last part of this commit also changes the device node entries
+	  so that the wscons group has write access to a specific list of
+	  devices that were previously handled by fbtab, e.g. for amd64
+	  (for other arches it might differ):
+
+		  /dev/console
+		  /dev/wskbd
+		  /dev/wskbd0
+		  /dev/wsmouse
+		  /dev/wsmouse0
+		  /dev/ttyCcfg
+		  /dev/ttyC4
+		  /dev/dri/card0
+		  /dev/dri/renderD128
+
+	  Additinally access to /dev/video is also granted (protected by a
+	  sysctl anyway).
+
+	  This is a major crank for libutil due to the removal of
+	  login_fbtab.
+
+	  tested by and ok aja@, landry@, matthieu@ let's do it by
+	  deraadt@, kettenis@
+
+2026-11-05 06:04  rsadowski
+
+	* usr.sbin/httpd/: config.c, httpd.h: httpd: remove
+	  MAX_IMSG_DATA_SIZE
+
+	  Discussed and OK claudio@
+
+2026-11-05 06:02  rsadowski
+
+	* usr.sbin/httpd/: config.c, httpd.c, httpd.h, logger.c, server.c:
+	  httpd: convert imsg handling to imsg_get_ and remove
+	  IMSG_SIZE_CHECK macro
+
+	  Second attempt, since the first one still had a bug. I overlooked
+	  the fact that in "config_getserver", the imsg data was passed
+	  through again to "config_getserver_config" and read there once
+	  more.
+
+	  OK claudio@
+
 2026-10-23 05:44  rsadowski
 
 	* usr.sbin/httpd/: httpd.c, httpd.h, parse.y, server.c: httpd:
