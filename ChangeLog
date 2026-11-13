@@ -1,3 +1,10 @@
+2026-11-12 10:40  rsadowski
+
+	* usr.sbin/httpd/server_http.c: httpd: refactor server_response
+	  with server_by_host_header
+
+	  seems fine to me, op@
+
 2026-11-07 08:59  robert
 
 	* lib/libutil/util.h: replace login_fbtab with the wscons group if
