@@ -1,4 +1,4 @@
-/*	$OpenBSD: server.c,v 1.145 2026/11/05 06:02:11 rsadowski Exp $	*/
+/*	$OpenBSD: server.c,v 1.147 2026/11/22 19:17:44 rsadowski Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -1208,7 +1208,7 @@ void
 server_tls_handshake(int fd, short event, void *arg)
 {
 	struct client *clt = (struct client *)arg;
-	struct server *srv = (struct server *)clt->clt_srv;
+	struct server *srv = clt->clt_srv;
 	int ret;
 
 	if (event == EV_TIMEOUT) {
@@ -1558,6 +1558,28 @@ int
 server_client_cmp(struct client *a, struct client *b)
 {
 	return ((int)a->clt_id - b->clt_id);
+}
+
+int
+server_current_time(char *timestamp, size_t len)
+{
+	struct tm	 tm;
+	struct timeval	 now;
+	size_t		 l;
+	int		 n;
+
+	if (gettimeofday(&now, NULL) == -1)
+		return (-1);
+	if (gmtime_r(&now.tv_sec, &tm) == NULL)
+		return (-1);
+	if ((l = strftime(timestamp, len, "%FT%T", &tm)) == 0)
+		return (-1);
+	n = snprintf(timestamp + l, len - l, ".%03ldZ",
+	    (long)now.tv_usec / 1000);
+	if (n < 0 || (size_t)n >= len - l)
+		return (-1);
+
+	return (0);
 }
 
 SPLAY_GENERATE(client_tree, client, clt_nodes, server_client_cmp);

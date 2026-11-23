@@ -1,3 +1,59 @@
+2026-11-22 19:17  rsadowski
+
+	* usr.sbin/httpd/: httpd.h, server.c, server_fcgi.c: httpd: add
+	  timestamps to fastcgi error log
+
+	  When not logging to syslog, prefix FastCGI stderr output with a
+	  UTC timestamp in the same format syslogd -Z uses.
+
+	  OK op@
+
+2026-11-21 07:45  rsadowski
+
+	* usr.sbin/httpd/: httpd.c, httpd.h, server_http.c: httpd: use the
+	  host of an absolute-form request-target
+
+	  For "GET http://host/path" the host from the URL replaces the
+	  Host header, as RFC 9112 3.2.2 requires, and the path becomes the
+	  request path. Only http(s) are accepted, and URLs with userinfo
+	  are rejected. Also reject requests with more than one Host
+	  header.
+
+	  http_path_orig now holds the origin-form path, so the access log
+	  and REQUEST_URI show "/path" instead of "http://host/path".
+
+	  parse_url() is copied from relayd.
+
+	  Feedback and ok armani@
+
+2026-11-21 06:50  rsadowski
+
+	* usr.sbin/httpd/: httpd.h, server_fcgi.c, server_file.c,
+	  server_http.c: httpd: check access settings of the directory
+	  index location
+
+	  When you ask for a directory, the index file can end up being
+	  served by another location, and we never looked at its header
+	  rules, body limits, block or authenticate. With authenticate on a
+	  fastcgi location this even took the whole daemon down.
+
+	  Move these checks into server_http_access() and call it from
+	  server_file(), so every location that serves a request gets
+	  checked.  Hang on to the Authorization header until the request
+	  is done, so each location can check it, and wipe it before
+	  handing the request to fastcgi.
+
+	  With input and help from armani@, OK armani@, kirill@
+
+	  Reported by Artus KG
+
+2026-11-19 05:44  rsadowski
+
+	* usr.sbin/httpd/: httpd.h, server.c: httpd: use explicit type
+	  instead of void in struct client
+
+	  Tweak and OK armani@
+
 2026-11-12 10:40  rsadowski
 
 	* usr.sbin/httpd/server_http.c: httpd: refactor server_response

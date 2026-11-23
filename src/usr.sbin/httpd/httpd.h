@@ -1,4 +1,4 @@
-/*	$OpenBSD: httpd.h,v 1.191 2026/11/05 06:04:16 rsadowski Exp $	*/
+/*	$OpenBSD: httpd.h,v 1.195 2026/11/22 19:17:44 rsadowski Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2015 Reyk Floeter <reyk@openbsd.org>
@@ -284,8 +284,8 @@ struct range_data {
 struct client {
 	uint32_t		 clt_id;
 	pid_t			 clt_pid;
-	void			*clt_srv;
-	void			*clt_srv_conf;
+	struct server		*clt_srv;
+	struct server_config	*clt_srv_conf;
 	uint32_t		 clt_srv_id;
 	struct sockaddr_storage	 clt_srv_ss;
 	struct str_match	 clt_srv_match;
@@ -691,6 +691,7 @@ int			 server_foreach(int (*)(struct server *,
 	struct server_config *, void *), void *);
 struct server		*server_byname(struct server *);
 struct server		*server_bysocket(struct server *);
+int			 server_current_time(char *, size_t);
 
 SPLAY_PROTOTYPE(client_tree, client, clt_nodes, server_client_cmp);
 
@@ -700,6 +701,9 @@ int			 server_httpdesc_init(struct client *);
 void			 server_read_http(struct bufferevent *, void *);
 void			 server_abort_http(struct client *, unsigned int,
     const char *);
+int			 server_http_access(struct client *,
+    struct server_config *);
+void			 server_http_wipe_auth(struct http_descriptor *);
 int			 server_custom_headers(struct server_config *,
     struct kvtree *, unsigned int);
 struct header_rule	*server_match_header_rule(struct server_config *,
@@ -789,6 +793,7 @@ void			 print_custom_header(const char *,
 int			 header_exists(struct server_config *, const char *);
 struct custom_header	*header_dup(const struct custom_header *);
 struct header_rule	*header_rule_dup(const struct header_rule *);
+int			 parse_url(const char *, char **, char **, char **);
 
 extern struct httpd *httpd_env;
 
