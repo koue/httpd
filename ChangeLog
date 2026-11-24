@@ -1,3 +1,12 @@
+2026-11-23 13:42  rsadowski
+
+	* usr.sbin/httpd/server_file.c: httpd: refactor server_file_access
+
+	  split this huge function in two functions with one helper
+	  function
+
+	  Feedback by armani@, OK kirill
+
 2026-11-22 19:17  rsadowski
 
 	* usr.sbin/httpd/: httpd.h, server.c, server_fcgi.c: httpd: add
